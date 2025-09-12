@@ -35,6 +35,7 @@
     "react-router-dom": "^6.14.1",
     "react-signify": "^1.5.7",
     "react-transition-group": "4.4.5",
+    "recharts": "^3.2.0",
     "styled-components": "^6.1.16",
     "swiper": "^11.2.6"
   },

@@ -13,6 +13,7 @@ import DriverSchedule from "../pages/Dealer/Staff Dealer/Driver Schedule/DriverS
 import QuoteManagement from "../pages/Dealer/Staff Dealer/Quote Management/QuoteManagement";
 import VehicleAllocation from "../pages/Dealer/Staff Dealer/Vehicle Allocation/VehicleAllocation";
 import VehicleManagement from "../pages/Dealer/Staff Dealer/Vehicle Management/VehicleManagement";
+import VehicleSearch from "../pages/Dealer/Staff Dealer/VehicleSearch/VehicleSearch";
 
 // EVM pages
 import AccountManagement from "../pages/EVM/Account Management/AccountManagement";
@@ -33,6 +34,8 @@ const MainRoutes = () => {
         <Route path="/login" element={<Authentication />} />
         {/* Dealer group (must render <Outlet /> inside DealerLayout) */}
         <Route path="/dealer" element={<DealerLayout />}>          {/* NOTE: child paths are relative (no leading slash) */}
+          <Route path="dashboard" element={<ManagerDashboard />} />
+          <Route path="vehicle-search" element={<VehicleSearch />} />
           <Route path="contact" element={<ContractManagement />} />
           <Route path="customer-crm" element={<CustomerCRM />} />
           <Route path="delivery-tracking" element={<DeliveryTracking />} />
@@ -51,7 +54,8 @@ const MainRoutes = () => {
 
         {/* 404 */}
         <Route path="*" element={<div className="p-6">Not Found</div>} />
-        <Route path="/dealer/manager" element={<ManagerDashboard />} />
+
+        {/* Direct routes (no layout) */}
         <Route path="/evm/dashboard" element={<EVMDashboardManagement />} />
 
       </Routes>
