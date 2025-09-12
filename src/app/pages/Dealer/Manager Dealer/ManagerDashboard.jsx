@@ -3,7 +3,7 @@ import React from 'react'
 function ManagerDashboard() {
   return (
     <div>
-        Manager Dashboard
+      Manager Dashboard
     </div>
   )
 }
