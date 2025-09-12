@@ -1,6 +1,6 @@
 import React from 'react'
 
-function AccountManagement() {
+function ProductDistribution() {
   return (
     <div>
       
@@ -8,4 +8,4 @@ function AccountManagement() {
   )
 }
 
-export default AccountManagement
+export default ProductDistribution

@@ -2,7 +2,7 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 
 // Layouts
 import DealerLayout from "../layouts/DealerLayout";
-import EVMLayout from "../layouts/EVMLayout";
+import EVMLayout from "../layouts/EVMLayout/EVMLayout";
 
 // Dealer pages
 import ManagerDashboard from "../pages/Dealer/Manager Dealer/ManagerDashboard";
@@ -16,9 +16,6 @@ import VehicleManagement from "../pages/Dealer/Staff Dealer/Vehicle Management/V
 
 // EVM pages
 import ProductDistribution from "../pages/EVM/ProductDistribution/ProductDistribution";
-import DealerManagement from "../pages/EVM/DealerManagement/DealerManagement";
-import ReportsAnalytics from "../pages/EVM/ReportsAnalytics/ReportsAnalytics";
-import SystemAdministration from "../pages/EVM/System Administration/SystemAdministraion";
 
 // 🚫 Tạm thời vô hiệu hóa Auth để test
 // import Authentication from "../pages/Authentication/Authentication";
@@ -46,10 +43,9 @@ const MainRoutes = () => {
 
         {/* EVM group */}
         <Route path="/evm" element={<EVMLayout />}>
+          {/* 👇 Khi vào /evm hoặc /evm/product-distribution đều hiển thị ProductDistribution */}
+          <Route index element={<ProductDistribution />} />
           <Route path="product-distribution" element={<ProductDistribution />} />
-          <Route path="dealer-management" element={<DealerManagement />} />
-          <Route path="reports-analytics" element={<ReportsAnalytics />} />
-          <Route path="system-administration" element={<SystemAdministration />} />
         </Route>
 
         {/* 404 fallback */}

@@ -1,6 +1,6 @@
 import React from 'react'
 
-function DealerManagerment() {
+function ProductDistribution() {
   return (
     <div>
       
@@ -8,4 +8,4 @@ function DealerManagerment() {
   )
 }
 
-export default DealerManagerment
+export default ProductDistribution

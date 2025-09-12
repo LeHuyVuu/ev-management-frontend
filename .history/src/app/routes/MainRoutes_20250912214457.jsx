@@ -18,7 +18,6 @@ import VehicleManagement from "../pages/Dealer/Staff Dealer/Vehicle Management/V
 import ProductDistribution from "../pages/EVM/ProductDistribution/ProductDistribution";
 import DealerManagement from "../pages/EVM/DealerManagement/DealerManagement";
 import ReportsAnalytics from "../pages/EVM/ReportsAnalytics/ReportsAnalytics";
-import SystemAdministration from "../pages/EVM/System Administration/SystemAdministraion";
 
 // 🚫 Tạm thời vô hiệu hóa Auth để test
 // import Authentication from "../pages/Authentication/Authentication";
@@ -49,7 +48,6 @@ const MainRoutes = () => {
           <Route path="product-distribution" element={<ProductDistribution />} />
           <Route path="dealer-management" element={<DealerManagement />} />
           <Route path="reports-analytics" element={<ReportsAnalytics />} />
-          <Route path="system-administration" element={<SystemAdministration />} />
         </Route>
 
         {/* 404 fallback */}
