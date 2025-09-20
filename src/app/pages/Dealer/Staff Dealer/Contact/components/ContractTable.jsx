@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { Eye, Edit } from "lucide-react";
+
+import ContractContent from "./ContractContent";
 
 const mockContracts = [
     {
@@ -56,8 +57,10 @@ const statusColors = {
     "Chờ xử lý": "bg-yellow-100 text-yellow-600",
 };
 
+
 export default function ContractTable() {
     const [search, setSearch] = useState("");
+    const [viewContract, setViewContract] = useState(null);
 
     const filteredContracts = mockContracts.filter(
         (c) =>
@@ -103,15 +106,14 @@ export default function ContractTable() {
                                 <td className="p-3">{contract.payment}</td>
                                 <td className="p-3">
                                     <span
-                                        className={`px-2 py-1 rounded-lg text-xs font-medium ${statusColors[contract.status]
-                                            }`}
+                                        className={`px-2 py-1 rounded-lg text-xs font-medium ${statusColors[contract.status]}`}
                                     >
                                         {contract.status}
                                     </span>
                                 </td>
                                 <td className="p-3">{contract.date}</td>
                                 <td className="p-3 flex gap-2">
-                                    <button className="p-1 hover:bg-gray-100 rounded-lg">
+                                    <button className="p-1 hover:bg-gray-100 rounded-lg" onClick={() => setViewContract(contract)}>
                                         <Eye size={16} />
                                     </button>
                                     <button className="p-1 hover:bg-gray-100 rounded-lg">
@@ -134,6 +136,8 @@ export default function ContractTable() {
                     <button className="text-gray-600 hover:underline">Next</button>
                 </div>
             </div>
+            {/* Modal popup for contract content */}
+            <ContractContent contract={viewContract} onClose={() => setViewContract(null)} />
         </div>
     );
 }
