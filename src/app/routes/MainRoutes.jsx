@@ -22,6 +22,9 @@ import ReportsAnalytics from "../pages/EVM/ReportsAnalytics/ReportsAnalytics";
 import SystemAdministration from "../pages/EVM/System Administration/SystemAdministraion";
 import StaffController from "../pages/EVM/StaffController/StaffController";
 
+// Profile page
+import Profile from "../pages/Profile/UserProfilePage";
+
 // 🚫 Tạm thời vô hiệu hóa Auth để test
 // import Authentication from "../pages/Authentication/Authentication";
 
@@ -45,6 +48,8 @@ const MainRoutes = () => {
           <Route path="quote-management" element={<QuoteManagement />} />
           <Route path="vehicle-allocation" element={<VehicleAllocation />} />
           <Route path="vehicle-management" element={<VehicleManagement />} />
+
+          <Route path="profile" element={<Profile />} />
         </Route>
 
         {/* EVM group */}

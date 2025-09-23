@@ -1,5 +1,7 @@
 // DeliveryTracking.jsx
-import React from "react";
+import React, { useState } from "react";
+import NewDeliveryCard from "./NewDeliveryCard";
+import DeliveryDetailCard from "./DeliveryDetailCard";
 
 const deliveries = [
   {
@@ -60,11 +62,49 @@ const statusStyles = {
 };
 
 export default function DeliveryTracking() {
+  const [deliveriesList, setDeliveriesList] = useState(deliveries);
+  const [showNewDeliveryCard, setShowNewDeliveryCard] = useState(false);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [selectedDelivery, setSelectedDelivery] = useState(null);
+  const [showDeliveryDetail, setShowDeliveryDetail] = useState(false);
+
+  const handleAddNewDelivery = (newDelivery) => {
+    setDeliveriesList(prev => [newDelivery, ...prev]);
+  };
+
+  const handleViewDetail = (delivery) => {
+    setSelectedDelivery(delivery);
+    setShowDeliveryDetail(true);
+  };
+
+  const handleUpdateStatus = (deliveryId, newStatus) => {
+    setDeliveriesList(prev => 
+      prev.map(delivery => 
+        delivery.id === deliveryId 
+          ? { ...delivery, status: newStatus }
+          : delivery
+      )
+    );
+    // Update the selected delivery as well
+    if (selectedDelivery && selectedDelivery.id === deliveryId) {
+      setSelectedDelivery(prev => ({ ...prev, status: newStatus }));
+    }
+  };
+
+  const filteredDeliveries = deliveriesList.filter(delivery =>
+    delivery.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    delivery.customer.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    delivery.car.toLowerCase().includes(searchTerm.toLowerCase())
+  );
+
   return (
     <div className="p-6">
       <div className="flex justify-between items-center mb-4">
         <h1 className="text-xl font-semibold">Theo dõi Giao hàng</h1>
-        <button className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700">
+        <button 
+          onClick={() => setShowNewDeliveryCard(true)}
+          className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
+        >
           Thêm Giao hàng Mới
         </button>
       </div>
@@ -73,10 +113,12 @@ export default function DeliveryTracking() {
         type="text"
         placeholder="Tìm kiếm theo mã đơn hàng, khách hàng..."
         className="w-full border rounded-lg px-4 py-2 mb-6"
+        value={searchTerm}
+        onChange={(e) => setSearchTerm(e.target.value)}
       />
 
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-        {deliveries.map((d) => {
+        {filteredDeliveries.map((d) => {
           const { color, progress } = statusStyles[d.status] || {};
           return (
             <div
@@ -98,7 +140,10 @@ export default function DeliveryTracking() {
                   >
                     {d.status}
                   </span>
-                  <button className="text-blue-600 hover:underline">
+                  <button 
+                    onClick={() => handleViewDetail(d)}
+                    className="text-blue-600 hover:underline"
+                  >
                     Chi tiết
                   </button>
                 </div>
@@ -112,6 +157,24 @@ export default function DeliveryTracking() {
           );
         })}
       </div>
+
+      {/* New Delivery Card Modal */}
+      <NewDeliveryCard 
+        isOpen={showNewDeliveryCard}
+        onClose={() => setShowNewDeliveryCard(false)}
+        onSubmit={handleAddNewDelivery}
+      />
+
+      {/* Delivery Detail Modal */}
+      <DeliveryDetailCard
+        delivery={selectedDelivery}
+        isOpen={showDeliveryDetail}
+        onClose={() => {
+          setShowDeliveryDetail(false);
+          setSelectedDelivery(null);
+        }}
+        onUpdateStatus={handleUpdateStatus}
+      />
     </div>
   );
 }
