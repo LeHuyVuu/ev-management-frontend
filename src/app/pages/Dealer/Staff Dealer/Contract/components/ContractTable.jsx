@@ -1,6 +1,6 @@
 import { useState } from "react";
-
-import ContractContent from "./ContractContent";
+import { Eye, Edit } from "lucide-react";
+import ContractContent from "./ContractCard";
 
 const mockContracts = [
     {
@@ -136,8 +136,10 @@ export default function ContractTable() {
                     <button className="text-gray-600 hover:underline">Next</button>
                 </div>
             </div>
-            {/* Modal popup for contract content */}
-            <ContractContent contract={viewContract} onClose={() => setViewContract(null)} />
+            {/* Modal popup for contract content - only show when viewContract is not null */}
+            {viewContract && (
+                <ContractContent contract={viewContract} onClose={() => setViewContract(null)} />
+            )}
         </div>
     );
 }
