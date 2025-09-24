@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 
 // Layouts
 import DealerLayout from "../layouts/DealerLayout";
@@ -22,52 +22,56 @@ import ReportsAnalytics from "../pages/EVM/ReportsAnalytics/ReportsAnalytics";
 import SystemAdministration from "../pages/EVM/System Administration/SystemAdministraion";
 import StaffController from "../pages/EVM/StaffController/StaffController";
 
-// Profile page
+// Profile + Auth
 import Profile from "../pages/Profile/UserProfilePage";
+import Authentication from "../pages/Authentication/Authentication";
 
-// 🚫 Tạm thời vô hiệu hóa Auth để test
-// import Authentication from "../pages/Authentication/Authentication";
+// Protected wrapper
+import ProtectedRoute from "../context/ProtectedRoute";
 
 const MainRoutes = () => {
   return (
     <BrowserRouter>
       <Routes>
-        {/* 🚫 Tạm thời tắt login redirect & trang login */}
-        {/*
+        {/* Login KHÔNG bảo vệ */}
         <Route path="/" element={<Navigate to="/login" replace />} />
         <Route path="/login" element={<Authentication />} />
-        {/* Dealer group (must render <Outlet /> inside DealerLayout) */}
-        <Route path="/dealer" element={<DealerLayout />}>          {/* NOTE: child paths are relative (no leading slash) */}
-          <Route path="dashboard" element={<ManagerDashboard />} />
-          <Route path="vehicle-search" element={<VehicleSearch />} />
 
-          <Route path="contract" element={<ContractManagement />} />
-          <Route path="customer-crm" element={<CustomerCRM />} />
-          <Route path="delivery-tracking" element={<DeliveryTracking />} />
-          <Route path="driver-schedule" element={<DriverSchedule />} />
-          <Route path="quote-management" element={<QuoteManagement />} />
-          <Route path="vehicle-allocation" element={<VehicleAllocation />} />
-          <Route path="vehicle-management" element={<VehicleManagement />} />
+        {/* Toàn bộ routes khác phải login */}
+        <Route
+          path="/*"
+          element={
+            <ProtectedRoute>
+              <Routes>
+                {/* Dealer group */}
+                <Route path="dealer" element={<DealerLayout />}>
+                  <Route path="dashboard" element={<ManagerDashboard />} />
+                  <Route path="vehicle-search" element={<VehicleSearch />} />
+                  <Route path="contract" element={<ContractManagement />} />
+                  <Route path="customer-crm" element={<CustomerCRM />} />
+                  <Route path="delivery-tracking" element={<DeliveryTracking />} />
+                  <Route path="driver-schedule" element={<DriverSchedule />} />
+                  <Route path="quote-management" element={<QuoteManagement />} />
+                  <Route path="vehicle-allocation" element={<VehicleAllocation />} />
+                  <Route path="vehicle-management" element={<VehicleManagement />} />
+                  <Route path="profile" element={<Profile />} />
+                </Route>
 
-          <Route path="profile" element={<Profile />} />
-        </Route>
+                {/* EVM group */}
+                <Route path="evm" element={<EVMLayout />}>
+                  <Route path="product-distribution" element={<ProductDistribution />} />
+                  <Route path="dealer-management" element={<DealerManagement />} />
+                  <Route path="reports-analytics" element={<ReportsAnalytics />} />
+                  <Route path="system-administration" element={<SystemAdministration />} />
+                  <Route path="staff-controller" element={<StaffController />} />
+                </Route>
 
-        {/* EVM group */}
-        <Route path="/evm" element={<EVMLayout />}>
-          <Route path="product-distribution" element={<ProductDistribution />} />
-          <Route path="dealer-management" element={<DealerManagement />} />
-          <Route path="reports-analytics" element={<ReportsAnalytics />} />
-          <Route path="system-administration" element={<SystemAdministration />} />
-          <Route path="staff-controller" element={<StaffController />} />
-        </Route>
-
-        {/* 404 fallback */}
-        <Route path="*" element={<div className="p-6">Not Found</div>} />
- //       <Route path="/dealer/manager" element={<ManagerDashboard />} />
-
-        {/* Direct routes (no layout) */}
-{/* //        <Route path="/evm/dashboard" element={<EVMDashboardManagement />} /> */}
-
+                {/* 404 fallback */}
+                <Route path="*" element={<div className="p-6">Not Found</div>} />
+              </Routes>
+            </ProtectedRoute>
+          }
+        />
       </Routes>
     </BrowserRouter>
   );

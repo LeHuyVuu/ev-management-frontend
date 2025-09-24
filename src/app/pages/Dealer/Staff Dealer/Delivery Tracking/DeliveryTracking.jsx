@@ -1,7 +1,7 @@
 // DeliveryTracking.jsx
 import React, { useState } from "react";
-import NewDeliveryCard from "./NewDeliveryCard";
-import DeliveryDetailCard from "./DeliveryDetailCard";
+import NewDeliveryCard from "./components/NewDeliveryCard";
+import DeliveryDetailCard from "./components/DeliveryDetailCard";
 
 const deliveries = [
   {

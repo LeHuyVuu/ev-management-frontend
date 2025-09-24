@@ -1,64 +1,65 @@
-import React from 'react';
+import React from "react";
+import { Link } from "react-router-dom";
 
 const Sidebar = () => (
     <div className="w-64 h-screen bg-white shadow-md flex flex-col justify-between">
-        {/* <!-- Menu --> */}
+        {/* Menu */}
         <div>
-            {/* <!-- Bảng điều khiển --> */}
-            <div class="px-4 py-2 text-gray-700 font-medium flex items-center space-x-2">
-                <span class="text-lg">📊</span>
+            {/* Bảng điều khiển */}
+            <div className="px-4 py-2 text-gray-700 font-medium flex items-center space-x-2">
+                <span className="text-lg">📊</span>
                 <span>Bảng điều khiển</span>
             </div>
 
-            {/* <!-- BÁN HÀNG & CRM --> */}
-            <p class="px-4 mt-4 mb-2 text-xs font-bold text-gray-400 uppercase">Bán hàng & CRM</p>
-            <nav class="space-y-1">
-                <a href="#" class="flex items-center px-4 py-2 text-gray-700 hover:bg-gray-100 space-x-2">
+            {/* BÁN HÀNG & CRM */}
+            <p className="px-4 mt-4 mb-2 text-xs font-bold text-gray-400 uppercase">Bán hàng & CRM</p>
+            <nav className="space-y-1">
+                <Link to="/dealer/vehicle-search" className="flex items-center px-4 py-2 text-gray-700 hover:bg-gray-100 space-x-2">
                     <span>🚗</span><span>Thông tin xe</span>
-                </a>
-                <a href="#" class="flex items-center px-4 py-2 text-gray-700 hover:bg-gray-100 space-x-2">
+                </Link>
+                <Link to="/dealer/quote-management" className="flex items-center px-4 py-2 text-gray-700 hover:bg-gray-100 space-x-2">
                     <span>📋</span><span>Quản lý báo giá</span>
-                </a>
-                <a href="#" class="flex items-center px-4 py-2 text-gray-700 hover:bg-gray-100 space-x-2">
+                </Link>
+                <Link to="/dealer/contract" className="flex items-center px-4 py-2 text-gray-700 hover:bg-gray-100 space-x-2">
                     <span>🛡️</span><span>Quản lý hợp đồng</span>
-                </a>
-                <a href="#" class="flex items-center px-4 py-2 text-gray-700 hover:bg-gray-100 space-x-2">
+                </Link>
+                <Link to="/dealer/driver-schedule" className="flex items-center px-4 py-2 text-gray-700 hover:bg-gray-100 space-x-2">
                     <span>📅</span><span>Lịch lái thử</span>
-                </a>
-                <a href="#" class="flex items-center px-4 py-2 text-gray-700 hover:bg-gray-100 space-x-2">
+                </Link>
+                <Link to="/dealer/customer-crm" className="flex items-center px-4 py-2 text-gray-700 hover:bg-gray-100 space-x-2">
                     <span>👤</span><span>Quản lý khách hàng</span>
-                </a>
+                </Link>
             </nav>
 
-            {/* <!-- HOẠT ĐỘNG --> */}
-            <p class="px-4 mt-4 mb-2 text-xs font-bold text-gray-400 uppercase">Hoạt động</p>
-            <nav class="space-y-1">
-                <a href="#" class="flex items-center px-4 py-2 text-gray-700 hover:bg-gray-100 space-x-2">
+            {/* HOẠT ĐỘNG */}
+            <p className="px-4 mt-4 mb-2 text-xs font-bold text-gray-400 uppercase">Hoạt động</p>
+            <nav className="space-y-1">
+                <Link to="/dealer/vehicle-allocation" className="flex items-center px-4 py-2 text-gray-700 hover:bg-gray-100 space-x-2">
                     <span>🚚</span><span>Yêu cầu phân bổ xe</span>
-                </a>
-                <a href="#" class="flex items-center px-4 py-2 text-gray-700 hover:bg-gray-100 space-x-2">
+                </Link>
+                <Link to="/dealer/delivery-tracking" className="flex items-center px-4 py-2 text-gray-700 hover:bg-gray-100 space-x-2">
                     <span>📄</span><span>Theo dõi giao hàng</span>
-                </a>
+                </Link>
             </nav>
 
-            {/* <!-- BÁO CÁO --> */}
-            <p class="px-4 mt-4 mb-2 text-xs font-bold text-gray-400 uppercase">Báo cáo</p>
+            {/* BÁO CÁO */}
+            <p className="px-4 mt-4 mb-2 text-xs font-bold text-gray-400 uppercase">Báo cáo</p>
             <nav>
-                <a href="#" class="flex items-center px-4 py-2 text-gray-700 hover:bg-gray-100 space-x-2">
+                <Link to="/evm/reports-analytics" className="flex items-center px-4 py-2 text-gray-700 hover:bg-gray-100 space-x-2">
                     <span>📂</span><span>Báo cáo doanh số & nợ</span>
-                </a>
+                </Link>
             </nav>
         </div>
 
-        {/* <!-- Footer --> */}
-        <div class="border-t p-4">
-            <a href="#" class="flex items-center space-x-2 text-gray-700 hover:bg-gray-100 px-2 py-2 rounded">
+        {/* Footer */}
+        {/* <div className="border-t p-4">
+            <Link to="/dealer/profile" className="flex items-center space-x-2 text-gray-700 hover:bg-gray-100 px-2 py-2 rounded">
                 <span>⚙️</span><span>Cài đặt</span>
-            </a>
-            <a href="#" class="flex items-center justify-center mt-3 px-4 py-2 bg-red-500 text-white rounded hover:bg-red-600">
+            </Link>
+            <Link to="/login" className="flex items-center justify-center mt-3 px-4 py-2 bg-red-500 text-white rounded hover:bg-red-600">
                 Đăng xuất
-            </a>
-        </div>
+            </Link>
+        </div> */}
     </div>
 );
 
