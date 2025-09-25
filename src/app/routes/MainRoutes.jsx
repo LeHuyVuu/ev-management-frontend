@@ -41,7 +41,7 @@ const MainRoutes = () => {
         <Route
           path="/*"
           element={
-            <ProtectedRoute>
+            // <ProtectedRoute>
               <Routes>
                 {/* Dealer group */}
                 <Route path="dealer" element={<DealerLayout />}>
@@ -69,7 +69,7 @@ const MainRoutes = () => {
                 {/* 404 fallback */}
                 <Route path="*" element={<div className="p-6">Not Found</div>} />
               </Routes>
-            </ProtectedRoute>
+            // </ProtectedRoute>
           }
         />
       </Routes>
