@@ -1,10 +1,33 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
+import UpdateDealerModal from "./UpdateDealerModal";
+import CreateDealerModal from "./CreateDealerModal";
+import { Lock, Pencil, Trash, Settings, Loader2 } from "lucide-react";
 
 const DealerAccounts = () => {
+  const [dealers, setDealers] = useState([]);
+  const [selectedDealer, setSelectedDealer] = useState(null);
+  const [showModal, setShowModal] = useState(false);
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [loading, setLoading] = useState(true);
+
+  // pagination state
+  const [page, setPage] = useState(1);
+  const [pageSize] = useState(5); // số record mỗi trang
+  const [totalPages, setTotalPages] = useState(1);
+
+  // helper normalize status
+  const normalizeDealer = (dealer) => ({
+    ...dealer,
+    status: dealer.status ? dealer.status.toLowerCase() : "inactive",
+  });
+
   const getStatusColor = (status) => {
-    switch (status.toLowerCase()) {
+    const normalized = typeof status === "string" ? status.toLowerCase() : "";
+    switch (normalized) {
       case "active":
         return "bg-green-100 text-green-800";
+      case "inactive":
+        return "bg-yellow-100 text-yellow-800";
       case "locked":
         return "bg-red-100 text-red-800";
       default:
@@ -12,43 +35,113 @@ const DealerAccounts = () => {
     }
   };
 
-  const dealers = [
-    {
-      name: "EVM Motors North",
-      contact: "john.doe@evm.com",
-      role: "Dealer Manager",
-      status: "Active",
-      lastActivity: "2023-11-28",
-    },
-    {
-      name: "EVM Motors South",
-      contact: "jane.smith@evm.com",
-      role: "Dealer Staff",
-      status: "Active",
-      lastActivity: "2023-11-27",
-    },
-    {
-      name: "EVM Motors Central",
-      contact: "alex.k@evm.com",
-      role: "Dealer Manager",
-      status: "Locked",
-      lastActivity: "2023-11-20",
-    },
-    {
-      name: "EVM Motors West",
-      contact: "sarah.l@evm.com",
-      role: "Dealer Staff",
-      status: "Active",
-      lastActivity: "2023-11-29",
-    },
-    {
-      name: "EVM Motors East",
-      contact: "mike.t@evm.com",
-      role: "Dealer Manager",
-      status: "Active",
-      lastActivity: "2023-11-26",
-    },
-  ];
+  // fetch dealers with pagination
+  useEffect(() => {
+    const fetchDealers = async () => {
+      try {
+        setLoading(true);
+        const res = await fetch(
+          `https://evm.webredirect.org/brand-service/api/Dealers?pageNumber=${page}&pageSize=${pageSize}`
+        );
+        const json = await res.json();
+        if (json?.status === 200 && json?.data?.items) {
+          setDealers(json.data.items.map(normalizeDealer));
+          setTotalPages(json.data.totalPages);
+        }
+      } catch (error) {
+        console.error("Failed to fetch dealers:", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchDealers();
+  }, [page, pageSize]);
+
+  const handleEdit = (dealer) => {
+    setSelectedDealer({ ...dealer });
+    setShowModal(true);
+  };
+
+  const handleSave = async () => {
+    try {
+      const res = await fetch(
+        `https://evm.webredirect.org/brand-service/api/Dealers/${selectedDealer.dealerId}`,
+        {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            ...selectedDealer,
+            status: selectedDealer.status?.toLowerCase(),
+          }),
+        }
+      );
+
+      if (res.ok) {
+        const updated = await res.json();
+        setDealers((prev) =>
+          prev.map((d) =>
+            d.dealerId === updated.dealerId ? normalizeDealer(updated) : d
+          )
+        );
+        setShowModal(false);
+      }
+    } catch (error) {
+      console.error("Error updating dealer:", error);
+    }
+  };
+
+  const handleCreate = async (newDealer) => {
+    try {
+      const res = await fetch(
+        "https://evm.webredirect.org/brand-service/api/Dealers",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            ...newDealer,
+            status: newDealer.status?.toLowerCase(),
+          }),
+        }
+      );
+
+      if (res.ok) {
+        const created = await res.json();
+        // khi thêm mới → load lại trang 1
+        setPage(1);
+      } else {
+        console.error("Create failed:", res.status);
+      }
+    } catch (error) {
+      console.error("Error creating dealer:", error);
+    }
+  };
+
+  const SkeletonRow = () => (
+    <tr className="animate-pulse">
+      <td className="px-6 py-4">
+        <div className="h-4 w-16 bg-gray-200 rounded"></div>
+      </td>
+      <td className="px-6 py-4">
+        <div className="h-4 w-32 bg-gray-200 rounded"></div>
+      </td>
+      <td className="px-6 py-4">
+        <div className="h-4 w-20 bg-gray-200 rounded"></div>
+      </td>
+      <td className="px-6 py-4">
+        <div className="space-y-1">
+          <div className="h-4 w-40 bg-gray-200 rounded"></div>
+          <div className="h-4 w-28 bg-gray-200 rounded"></div>
+        </div>
+      </td>
+      <td className="px-6 py-4">
+        <div className="h-5 w-16 bg-gray-200 rounded-full"></div>
+      </td>
+      <td className="px-6 py-4">
+        <Loader2 className="w-4 h-4 text-gray-400 animate-spin" />
+      </td>
+    </tr>
+  );
 
   return (
     <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
@@ -56,11 +149,14 @@ const DealerAccounts = () => {
       <div className="flex justify-between items-center mb-6">
         <h2 className="text-2xl font-bold text-gray-900">Dealer Accounts</h2>
         <div className="flex space-x-3">
-          <button className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700">
+          <button
+            className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700"
+            onClick={() => setShowCreateModal(true)}
+          >
             + Create Account
           </button>
           <button className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50 flex items-center space-x-2">
-            <span>⚙️</span>
+            <Settings className="w-4 h-4" />
             <span>Assign Roles</span>
           </button>
         </div>
@@ -72,19 +168,19 @@ const DealerAccounts = () => {
           <thead className="bg-gray-50">
             <tr>
               <th className="px-6 py-3 text-left text-sm font-medium text-gray-500">
+                Dealer Code
+              </th>
+              <th className="px-6 py-3 text-left text-sm font-medium text-gray-500">
                 Dealer Name
+              </th>
+              <th className="px-6 py-3 text-left text-sm font-medium text-gray-500">
+                Region
               </th>
               <th className="px-6 py-3 text-left text-sm font-medium text-gray-500">
                 Contact
               </th>
               <th className="px-6 py-3 text-left text-sm font-medium text-gray-500">
-                Role
-              </th>
-              <th className="px-6 py-3 text-left text-sm font-medium text-gray-500">
                 Status
-              </th>
-              <th className="px-6 py-3 text-left text-sm font-medium text-gray-500">
-                Last Activity
               </th>
               <th className="px-6 py-3 text-left text-sm font-medium text-gray-500">
                 Actions
@@ -92,59 +188,102 @@ const DealerAccounts = () => {
             </tr>
           </thead>
           <tbody className="bg-white divide-y divide-gray-200">
-            {dealers.map((dealer, index) => (
-              <tr key={index}>
-                <td className="px-6 py-4 text-sm font-medium text-gray-900">
-                  {dealer.name}
-                </td>
-                <td className="px-6 py-4 text-sm text-gray-600">
-                  {dealer.contact}
-                </td>
-                <td className="px-6 py-4">
-                  <span className="px-3 py-1 text-xs font-medium rounded-full bg-gray-100 text-gray-700">
-                    {dealer.role}
-                  </span>
-                </td>
-                <td className="px-6 py-4">
-                  <span
-                    className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(
-                      dealer.status
-                    )}`}
-                  >
-                    {dealer.status}
-                  </span>
-                </td>
-                <td className="px-6 py-4 text-sm text-gray-500">
-                  {dealer.lastActivity}
-                </td>
-                <td className="px-6 py-4 text-sm space-x-3 flex items-center">
-                  {/* Lock */}
-                  <button
-                    className="text-gray-500 hover:text-gray-700"
-                    title="Lock/Unlock"
-                  >
-                    🔒
-                  </button>
-                  {/* Edit */}
-                  <button
-                    className="text-gray-500 hover:text-gray-700"
-                    title="Edit"
-                  >
-                    ✏️
-                  </button>
-                  {/* Delete */}
-                  <button
-                    className="text-gray-500 hover:text-red-600"
-                    title="Delete"
-                  >
-                    🗑️
-                  </button>
+            {loading &&
+              Array.from({ length: pageSize }).map((_, i) => <SkeletonRow key={i} />)}
+
+            {!loading &&
+              dealers.map((dealer, index) => (
+                <tr key={dealer.dealerId || index}>
+                  <td className="px-6 py-4 text-sm font-medium text-gray-900">
+                    {dealer.dealerCode}
+                  </td>
+                  <td className="px-6 py-4 text-sm font-medium text-gray-900">
+                    {dealer.name}
+                  </td>
+                  <td className="px-6 py-4 text-sm text-gray-600">
+                    {dealer.region}
+                  </td>
+                  <td className="px-6 py-4 text-sm text-gray-600">
+                    {dealer.contactEmail} <br />
+                    {dealer.contactPhone}
+                  </td>
+                  <td className="px-6 py-4">
+                    <span
+                      className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(
+                        dealer.status
+                      )}`}
+                    >
+                      {dealer.status || "n/a"}
+                    </span>
+                  </td>
+                  <td className="px-6 py-4 text-sm space-x-3 flex items-center">
+                    <button className="text-gray-500 hover:text-gray-700">
+                      <Lock className="w-4 h-4" />
+                    </button>
+                    <button
+                      className="text-gray-500 hover:text-gray-700"
+                      onClick={() => handleEdit(dealer)}
+                    >
+                      <Pencil className="w-4 h-4" />
+                    </button>
+                    <button className="text-gray-500 hover:text-red-600">
+                      <Trash className="w-4 h-4" />
+                    </button>
+                  </td>
+                </tr>
+              ))}
+
+            {!loading && dealers.length === 0 && (
+              <tr>
+                <td
+                  colSpan="6"
+                  className="px-6 py-4 text-center text-gray-500"
+                >
+                  No dealer data available
                 </td>
               </tr>
-            ))}
+            )}
           </tbody>
         </table>
       </div>
+
+      {/* Pagination */}
+      <div className="flex justify-between items-center mt-4">
+        <button
+          className="px-3 py-1 border rounded disabled:opacity-50"
+          disabled={page === 1}
+          onClick={() => setPage((p) => Math.max(1, p - 1))}
+        >
+          Previous
+        </button>
+        <span>
+          Page {page} of {totalPages}
+        </span>
+        <button
+          className="px-3 py-1 border rounded disabled:opacity-50"
+          disabled={page === totalPages}
+          onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+        >
+          Next
+        </button>
+      </div>
+
+      {/* Modals */}
+      {showModal && (
+        <UpdateDealerModal
+          dealer={selectedDealer}
+          setDealer={setSelectedDealer}
+          onClose={() => setShowModal(false)}
+          onSave={handleSave}
+        />
+      )}
+
+      {showCreateModal && (
+        <CreateDealerModal
+          onClose={() => setShowCreateModal(false)}
+          onCreate={handleCreate}
+        />
+      )}
     </div>
   );
 };
