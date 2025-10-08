@@ -1,10 +1,11 @@
-// AddCustomerModal.jsx
 import React, { useState } from "react";
 
 export default function AddCustomerModal({ isOpen, onClose, onSave }) {
   const [form, setForm] = useState({
     name: "",
     phone: "",
+    email: "",
+    address: "",
     status: "Active",
   });
 
@@ -18,7 +19,13 @@ export default function AddCustomerModal({ isOpen, onClose, onSave }) {
   const handleSubmit = (e) => {
     e.preventDefault();
     onSave(form);
-    setForm({ name: "", phone: "", status: "Active" });
+    setForm({
+      name: "",
+      phone: "",
+      email: "",
+      address: "",
+      status: "Active",
+    });
     onClose();
   };
 
@@ -44,6 +51,28 @@ export default function AddCustomerModal({ isOpen, onClose, onSave }) {
               type="text"
               name="phone"
               value={form.phone}
+              onChange={handleChange}
+              className="w-full border rounded px-3 py-2 mt-1 text-sm"
+              required
+            />
+          </div>
+          <div>
+            <label className="text-sm font-medium">Email</label>
+            <input
+              type="email"
+              name="email"
+              value={form.email}
+              onChange={handleChange}
+              className="w-full border rounded px-3 py-2 mt-1 text-sm"
+              required
+            />
+          </div>
+          <div>
+            <label className="text-sm font-medium">Địa chỉ</label>
+            <input
+              type="text"
+              name="address"
+              value={form.address}
               onChange={handleChange}
               className="w-full border rounded px-3 py-2 mt-1 text-sm"
               required

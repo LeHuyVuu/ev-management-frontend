@@ -92,7 +92,9 @@ const UpdateDealerModal = ({ dealer, onClose, onSave, setDealer }) => {
               className="mt-1 w-full border border-gray-300 rounded-md p-2"
             >
               <option value="active">Active</option>
-              <option value="inactive">Inactive</option>
+              <option value="terminated">Terminated</option>
+              <option value="expired">expired</option>
+
             </select>
           </div>
         </div>

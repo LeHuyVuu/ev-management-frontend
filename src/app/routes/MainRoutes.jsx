@@ -27,7 +27,7 @@ import Profile from "../pages/Profile/UserProfilePage";
 import Authentication from "../pages/Authentication/Authentication";
 
 // Protected wrapper
-import ProtectedRoute from "../context/ProtectedRoute";
+import ProtectedRoute from "../routes/ProtectedRoute";
 
 const MainRoutes = () => {
   return (
@@ -42,7 +42,9 @@ const MainRoutes = () => {
           path="/*"
           element={
             // <ProtectedRoute>
-              <Routes>
+            <Routes>
+
+              <Route element={<ProtectedRoute allowedRoles={[3, 4, 1 ,2]} />}>
                 {/* Dealer group */}
                 <Route path="dealer" element={<DealerLayout />}>
                   <Route path="dashboard" element={<ManagerDashboard />} />
@@ -56,7 +58,12 @@ const MainRoutes = () => {
                   <Route path="vehicle-management" element={<VehicleManagement />} />
                   <Route path="profile" element={<Profile />} />
                 </Route>
+              </Route>
 
+
+
+
+              <Route element={<ProtectedRoute allowedRoles={[1, 2, 3, 4]} />}>
                 {/* EVM group */}
                 <Route path="evm" element={<EVMLayout />}>
                   <Route path="product-distribution" element={<ProductDistribution />} />
@@ -66,9 +73,11 @@ const MainRoutes = () => {
                   <Route path="staff-controller" element={<StaffController />} />
                 </Route>
 
-                {/* 404 fallback */}
-                <Route path="*" element={<div className="p-6">Not Found</div>} />
-              </Routes>
+              </Route>
+
+              {/* 404 fallback */}
+              <Route path="*" element={<div className="p-6">Not Found</div>} />
+            </Routes>
             // </ProtectedRoute>
           }
         />

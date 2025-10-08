@@ -43,16 +43,6 @@ const InventoryAndSpeed = () => {
           </table>
         </div>
       </div>
-
-      {/* Sales Speed */}
-      <div>
-        <h3 className="text-lg font-semibold text-gray-900 mb-4">
-          Sales Speed Per Model
-        </h3>
-        <div className="h-64 bg-gray-50 border border-gray-200 rounded-md flex items-center justify-center text-gray-400">
-          [Chart Placeholder]
-        </div>
-      </div>
     </div>
   );
 };

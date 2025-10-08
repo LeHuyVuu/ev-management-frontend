@@ -39,21 +39,13 @@ const SalesReport = () => {
       </div>
 
       {/* Charts */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
-        <div className="p-4 border border-gray-200 rounded-md">
+      <div className="w-full mb-8">
+        <div className="p-4 border border-gray-200 rounded-md w-full">
           <h3 className="text-lg font-semibold text-gray-900 mb-2">
             Sales by Model and Region
           </h3>
-          <div className="h-64 bg-gray-50 rounded-md flex items-center justify-center text-gray-400">
-            [Bar Chart Placeholder]
-          </div>
-        </div>
-        <div className="p-4 border border-gray-200 rounded-md">
-          <h3 className="text-lg font-semibold text-gray-900 mb-2">
-            Sales Trend Over Time
-          </h3>
-          <div className="h-64 bg-gray-50 rounded-md flex items-center justify-center text-gray-400">
-            [Line Chart Placeholder]
+          <div className="h-64 bg-gray-50 rounded-md flex items-center justify-center text-gray-400 w-full">
+            [Bar Chart Placeholder — Full Width]
           </div>
         </div>
       </div>
