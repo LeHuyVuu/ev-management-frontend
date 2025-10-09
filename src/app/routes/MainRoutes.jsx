@@ -44,7 +44,7 @@ const MainRoutes = () => {
             // <ProtectedRoute>
             <Routes>
 
-              <Route element={<ProtectedRoute allowedRoles={[3, 4, 1 ,2]} />}>
+              {/* <Route element={<ProtectedRoute allowedRoles={[3, 4, 1 ,2]} />}> */}
                 {/* Dealer group */}
                 <Route path="dealer" element={<DealerLayout />}>
                   <Route path="dashboard" element={<ManagerDashboard />} />
@@ -58,12 +58,12 @@ const MainRoutes = () => {
                   <Route path="vehicle-management" element={<VehicleManagement />} />
                   <Route path="profile" element={<Profile />} />
                 </Route>
-              </Route>
+              {/* </Route> */}
 
 
 
 
-              <Route element={<ProtectedRoute allowedRoles={[1, 2, 3, 4]} />}>
+              {/* <Route element={<ProtectedRoute allowedRoles={[1, 2, 3, 4]} />}> */}
                 {/* EVM group */}
                 <Route path="evm" element={<EVMLayout />}>
                   <Route path="product-distribution" element={<ProductDistribution />} />
@@ -73,7 +73,7 @@ const MainRoutes = () => {
                   <Route path="staff-controller" element={<StaffController />} />
                 </Route>
 
-              </Route>
+              {/* </Route> */}
 
               {/* 404 fallback */}
               <Route path="*" element={<div className="p-6">Not Found</div>} />
