@@ -2,32 +2,49 @@ import React, { useEffect, useState } from "react";
 import api from "../../../../../context/api";
 import { toast, ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
+import { Package, Clock } from "lucide-react"; // ✨ icon cho tab đơn hàng
 
 export default function CustomerProfile({ customer }) {
   const [activeTab, setActiveTab] = useState("profile");
   const [contracts, setContracts] = useState([]);
+  const [orders, setOrders] = useState([]); // ✅ thêm orders
   const [form, setForm] = useState({});
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     if (customer?.customerId) {
       setForm(customer);
+
+      // 🔹 Lấy hợp đồng
       fetch(`${api.customer}/customers/${customer.customerId}/contracts`)
         .then((res) => res.json())
         .then((res) => {
-          if (res.status === 200) {
-            setContracts(res.data || []);
-          } else {
-            setContracts([]);
-          }
+          if (res.status === 200) setContracts(res.data || []);
+          else setContracts([]);
         })
         .catch((err) => {
           console.error("Error loading contracts:", err);
           setContracts([]);
         });
+
+      // 🔹 Lấy đơn hàng
+      fetch(
+        `https://prn232.freeddns.org/customer-service/customers/${customer.customerId}/orders`,
+        { headers: { Accept: "*/*" } }
+      )
+        .then((res) => res.json())
+        .then((res) => {
+          if (res.status === 200) setOrders(res.data || []);
+          else setOrders([]);
+        })
+        .catch((err) => {
+          console.error("Error loading orders:", err);
+          setOrders([]);
+        });
     } else {
       setForm({});
       setContracts([]);
+      setOrders([]);
     }
   }, [customer]);
 
@@ -100,10 +117,20 @@ export default function CustomerProfile({ customer }) {
           >
             Hợp đồng khách hàng
           </button>
+          <button
+            onClick={() => setActiveTab("orders")}
+            className={`px-4 py-2 text-sm font-medium rounded-md ${
+              activeTab === "orders"
+                ? "bg-white shadow-sm text-gray-800"
+                : "text-gray-500"
+            }`}
+          >
+            Đơn hàng khách hàng
+          </button>
         </div>
       </div>
 
-      {/* Content */}
+      {/* Tab Hồ sơ */}
       {activeTab === "profile" && (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div>
@@ -151,18 +178,10 @@ export default function CustomerProfile({ customer }) {
               className="mt-2 block w-full border border-gray-200 rounded-md px-3 py-2 bg-white text-gray-700"
             />
           </div>
-          <div className="md:col-span-2 flex justify-end mt-4">
-            {/* <button
-              onClick={handleUpdate}
-              disabled={saving}
-              className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 disabled:opacity-50"
-            >
-              {saving ? "Đang lưu..." : "Lưu thông tin"}
-            </button> */}
-          </div>
         </div>
       )}
 
+      {/* Tab Hợp đồng */}
       {activeTab === "contracts" && (
         <div>
           <h2 className="text-lg font-semibold mb-4">Hợp đồng khách hàng</h2>
@@ -180,11 +199,60 @@ export default function CustomerProfile({ customer }) {
                   </h3>
                   <p className="text-sm">Trạng thái: {c.status || ""}</p>
                   <p className="text-sm">
-                    Tạo: {c.createdAt ? new Date(c.createdAt).toLocaleDateString() : ""}
+                    Tạo:{" "}
+                    {c.createdAt
+                      ? new Date(c.createdAt).toLocaleDateString()
+                      : ""}
                   </p>
                   <p className="text-sm">
-                    Cập nhật: {c.updatedAt ? new Date(c.updatedAt).toLocaleDateString() : ""}
+                    Cập nhật:{" "}
+                    {c.updatedAt
+                      ? new Date(c.updatedAt).toLocaleDateString()
+                      : ""}
                   </p>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ✅ Tab Đơn hàng khách hàng */}
+      {activeTab === "orders" && (
+        <div>
+          <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
+            <Package className="text-blue-600" size={18} />
+            Danh sách đơn hàng
+          </h2>
+          {orders.length === 0 ? (
+            <p className="text-sm text-gray-500 italic">
+              Khách hàng chưa có đơn hàng nào.
+            </p>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {orders.map((o) => (
+                <div
+                  key={o.orderId}
+                  className="border rounded-lg p-4 shadow-sm hover:shadow-md transition bg-gray-50"
+                >
+                  <div className="flex justify-between items-center">
+                    <p className="font-medium text-gray-800 text-sm">
+                      Mã đơn: {o.orderId.slice(0, 8)}...
+                    </p>
+                    <span
+                      className={`text-xs px-2 py-1 rounded ${
+                        o.status === "preparing"
+                          ? "bg-yellow-200 text-yellow-800"
+                          : "bg-green-200 text-green-800"
+                      }`}
+                    >
+                      {o.status}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-1 mt-2 text-xs text-gray-600">
+                    <Clock size={12} />
+                    Ngày giao: {o.deliveryDate}
+                  </div>
                 </div>
               ))}
             </div>
