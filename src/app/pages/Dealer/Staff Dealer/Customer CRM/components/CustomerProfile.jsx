@@ -152,13 +152,13 @@ export default function CustomerProfile({ customer }) {
             />
           </div>
           <div className="md:col-span-2 flex justify-end mt-4">
-            <button
+            {/* <button
               onClick={handleUpdate}
               disabled={saving}
               className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 disabled:opacity-50"
             >
               {saving ? "Đang lưu..." : "Lưu thông tin"}
-            </button>
+            </button> */}
           </div>
         </div>
       )}
