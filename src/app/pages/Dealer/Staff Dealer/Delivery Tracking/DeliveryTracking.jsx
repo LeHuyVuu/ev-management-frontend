@@ -14,17 +14,45 @@ function getTokenFromLocalStorage() {
   return null;
 }
 
-// Map status từ API -> label VN + progress màu
+// Map status API -> UI (label + màu + progress)
 const statusMap = {
-  preparing: { label: "Đang chuẩn bị", color: "bg-black", progress: "w-2/4" },
-  pending: { label: "Đang chờ", color: "bg-gray-500", progress: "w-1/4" },
-  arrived: { label: "Đã đến", color: "bg-blue-500", progress: "w-3/4" },
-  completed: { label: "Đã hoàn thành", color: "bg-green-500", progress: "w-full" },
+  preparing: { label: "Đang chuẩn bị", color: "bg-yellow-500", progress: "w-1/6" },
+  shipped_from_warehouse: { label: "Đã xuất kho", color: "bg-orange-500", progress: "w-2/6" },
+  in_transit: { label: "Đang vận chuyển", color: "bg-blue-500", progress: "w-3/6" },
+  arrived_hub: { label: "Đã đến", color: "bg-purple-500", progress: "w-4/6" },
+  out_for_delivery: { label: "Đang giao hàng", color: "bg-indigo-500", progress: "w-5/6" },
+  delivered: { label: "Đã hoàn thành", color: "bg-green-500", progress: "w-full" },
+  failed: { label: "Giao hàng thất bại", color: "bg-red-500", progress: "w-full" },
+  pending: { label: "Đang chờ", color: "bg-gray-500", progress: "w-0" },
 };
 
-function mapStatus(apiStatus) {
-  const key = String(apiStatus || "").toLowerCase();
-  return statusMap[key] || { label: apiStatus || "Đang chờ", color: "bg-gray-500", progress: "w-1/4" };
+// Tạo reverse map: VN label -> enum API
+const vnToApi = Object.entries(statusMap).reduce((acc, [apiKey, v]) => {
+  acc[v.label] = apiKey;
+  return acc;
+}, {});
+
+function mapStatus(status) {
+  if (!status) return { label: "Đang chờ", color: "bg-gray-500", progress: "w-0" };
+
+  // 1) Nếu là enum API
+  const asKey = String(status).toLowerCase();
+  if (statusMap[asKey]) return statusMap[asKey];
+
+  // 2) Nếu là nhãn VN
+  const apiFromVN = vnToApi[status];
+  if (apiFromVN && statusMap[apiFromVN]) return statusMap[apiFromVN];
+
+  // 3) Fallback
+  return { label: status || "Đang chờ", color: "bg-gray-500", progress: "w-1/4" };
+}
+
+function toApiStatus(status) {
+  // nhận enum hoặc nhãn VN, trả về enum API (fallback pending)
+  if (!status) return "pending";
+  const asKey = String(status).toLowerCase();
+  if (statusMap[asKey]) return asKey;          // đã là enum API
+  return vnToApi[status] || "pending";         // là nhãn VN
 }
 
 function formatCar(brand, modelName, color) {
@@ -34,7 +62,6 @@ function formatCar(brand, modelName, color) {
 
 function formatDate(d) {
   if (!d) return "";
-  // API trả "YYYY-MM-DD", hiển thị dạng "YYYY-MM-DD 00:00" cho đồng nhất UI cũ
   try {
     const date = new Date(d);
     if (isNaN(date.getTime())) return d;
@@ -57,7 +84,7 @@ export default function DeliveryTracking() {
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState("");
 
-  // Load từ API orders
+  // Load danh sách orders
   useEffect(() => {
     let mounted = true;
     async function load() {
@@ -84,20 +111,17 @@ export default function DeliveryTracking() {
         const json = await res.json();
         const arr = Array.isArray(json?.data) ? json.data : [];
 
-        // Map về cấu trúc UI đang dùng
         const mapped = arr.map((o) => {
-          const st = mapStatus(o.status);
+          const st = mapStatus(o.status); // nhận enum -> style
           return {
-            // các field UI cần
             id: o.orderId,
             customer: o.name,
             car: formatCar(o.brand, o.modelName, o.color),
             address: o.deliveryAddress || "",
             time: formatDate(o.deliveryDate),
             status: st.label,
-            // giữ thêm info thô nếu modal detail cần xài
             _raw: o,
-            _style: st, // chứa color, progress
+            _style: st,
           };
         });
 
@@ -115,7 +139,6 @@ export default function DeliveryTracking() {
   }, []);
 
   const handleAddNewDelivery = (newDelivery) => {
-    // newDelivery nên có cấu trúc giống deliveriesList item
     setDeliveriesList((prev) => [newDelivery, ...prev]);
   };
 
@@ -124,9 +147,11 @@ export default function DeliveryTracking() {
     setShowDeliveryDetail(true);
   };
 
-  const handleUpdateStatus = (deliveryId, newStatusKey) => {
-    // newStatusKey: dùng key của statusMap (e.g., 'preparing','pending','arrived','completed')
-    const mapped = mapStatus(newStatusKey);
+  // Nhận từ modal: newStatus có thể là enum API *hoặc* nhãn VN
+  const handleUpdateStatus = (deliveryId, newStatus) => {
+    const apiKey = toApiStatus(newStatus);
+    const mapped = mapStatus(apiKey); // trả label + màu + progress
+
     setDeliveriesList((prev) =>
       prev.map((delivery) =>
         delivery.id === deliveryId
@@ -134,8 +159,13 @@ export default function DeliveryTracking() {
           : delivery
       )
     );
+
     if (selectedDelivery && selectedDelivery.id === deliveryId) {
-      setSelectedDelivery((prev) => ({ ...prev, status: mapped.label, _style: mapped }));
+      setSelectedDelivery((prev) => ({
+        ...prev,
+        status: mapped.label,
+        _style: mapped,
+      }));
     }
   };
 
@@ -246,3 +276,4 @@ export default function DeliveryTracking() {
     </div>
   );
 }
+  
