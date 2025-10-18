@@ -99,22 +99,9 @@ const Header = ({ logoutRedirectTo = "/login" }) => {
 
           {/* Right side actions */}
           <div className="flex items-center space-x-4">
-            {/* Search */}
-            <button
-              type="button"
-              className="p-2 text-gray-400 hover:text-gray-600 transition-colors"
-            >
-              <Search className="w-5 h-5" />
-            </button>
+           
 
-            {/* Notifications */}
-            <button
-              type="button"
-              className="p-2 text-gray-400 hover:text-gray-600 transition-colors relative"
-            >
-              <Bell className="w-5 h-5" />
-              <span className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full"></span>
-            </button>
+            
 
             {/* Logout */}
             <button
