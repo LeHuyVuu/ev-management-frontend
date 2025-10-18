@@ -17,7 +17,7 @@ const menuItems = [
   },
   {
     id: "products",
-    label: "Products & Distribution",
+    label: "Manage Sale, Promotion & Discount",
     path: "/evm/product-distribution",
     icon: <Package className="w-4 h-4" />,
   },

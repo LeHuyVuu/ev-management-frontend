@@ -1,5 +1,26 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { X, User, Mail, Shield, Eye, EyeOff } from "lucide-react";
+
+// ====== Thêm cấu hình API + helper (không đổi UI cũ) ======
+const API_URL = "https://prn232.freeddns.org/identity-service/api/admin/users";
+
+function getTokenFromLocalStorage() {
+  const keys = ["access_token", "token", "authToken", "jwt"];
+  for (const k of keys) {
+    const v = window.localStorage.getItem(k);
+    if (v) return v;
+  }
+  return null;
+}
+
+const roleMap = {
+  1: "Admin",
+  2: "EVM Staff",
+  3: "Dealer Manager",
+  4: "Dealer Staff",
+  5: "Auditor",
+};
+// =========================================================
 
 const UserManagement = () => {
   const [users, setUsers] = useState([
@@ -9,6 +30,16 @@ const UserManagement = () => {
     { name: "Diana Prince", email: "diana.p@evm.com", role: "EVM Staff", status: "Inactive" },
     { name: "Eve Adams", email: "eve.a@dealers.com", role: "Dealer Staff", status: "Locked" },
   ]);
+
+  // ==== Thêm state tải/lỗi + phân trang ====
+  const [loading, setLoading] = useState(false);
+  const [err, setErr] = useState("");
+
+  const [pageNumber, setPageNumber] = useState(1); // bắt đầu từ 1 theo API
+  const [pageSize, setPageSize] = useState(10);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalItems, setTotalItems] = useState(0);
+  // =========================================
 
   // State for popup management
   const [showModal, setShowModal] = useState(false);
@@ -29,6 +60,62 @@ const UserManagement = () => {
   const [errors, setErrors] = useState({});
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+
+  // ====== Gọi API load users (đổ data + phân trang) ======
+  useEffect(() => {
+    let mounted = true;
+
+    async function loadUsers() {
+      try {
+        setLoading(true);
+        setErr("");
+
+        const token = getTokenFromLocalStorage();
+        const url = new URL(API_URL);
+        url.searchParams.set("pageNumber", String(pageNumber));
+        url.searchParams.set("pageSize", String(pageSize));
+
+        const res = await fetch(url.toString(), {
+          headers: {
+            accept: "*/*",
+            // API này có thể public; nếu có token thì gửi kèm, không thì thôi
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          },
+        });
+
+        if (!res.ok) {
+          const txt = await res.text();
+          throw new Error(`API lỗi (${res.status}): ${txt || res.statusText}`);
+        }
+
+        const json = await res.json();
+        const items = json?.data?.items || [];
+
+        const mapped = items.map((u) => ({
+          name: u.name,
+          email: u.email,
+          role: roleMap[u.roleId] || "Unknown",
+          status: u.status === "active" ? "Active" : (u.status || "Inactive"),
+        }));
+
+        if (!mounted) return;
+        // Chỉ ghi đè nếu API có dữ liệu; nếu rỗng thì vẫn set rỗng
+        setUsers(mapped);
+        setTotalItems(json?.data?.totalItems ?? mapped.length);
+        setTotalPages(json?.data?.totalPages ?? 1);
+      } catch (e) {
+        if (!mounted) return;
+        setErr(e.message || "Không tải được danh sách người dùng.");
+        // Giữ nguyên users mock nếu lỗi
+      } finally {
+        if (mounted) setLoading(false);
+      }
+    }
+
+    loadUsers();
+    return () => { mounted = false; };
+  }, [pageNumber, pageSize]);
+  // =======================================================
 
   // Handler functions
   const resetForm = () => {
@@ -107,7 +194,7 @@ const UserManagement = () => {
     if (!validateForm()) return;
 
     if (editingUser) {
-      // Update existing user
+      // Update existing user (chỉ cập nhật local list)
       const updatedUsers = [...users];
       updatedUsers[selectedUserId] = {
         name: formData.name,
@@ -117,7 +204,7 @@ const UserManagement = () => {
       };
       setUsers(updatedUsers);
     } else {
-      // Add new user
+      // Add new user (local)
       const newUser = {
         name: formData.name,
         email: formData.email,
@@ -159,6 +246,9 @@ const UserManagement = () => {
     }
   };
 
+  const canPrev = pageNumber > 1;
+  const canNext = pageNumber < totalPages;
+
   return (
     <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
       {/* Header */}
@@ -175,6 +265,10 @@ const UserManagement = () => {
         </div>
       </div>
 
+      {/* Loading / Error */}
+      {loading && <p className="text-gray-500 mb-3">Đang tải danh sách người dùng...</p>}
+      {err && <p className="text-red-600 mb-3">⚠️ {err}</p>}
+
       {/* User Table */}
       <div className="overflow-x-auto">
         <table className="min-w-full border border-gray-200">
@@ -189,7 +283,7 @@ const UserManagement = () => {
           </thead>
           <tbody className="bg-white divide-y divide-gray-200">
             {users.map((user, i) => (
-              <tr key={i}>
+              <tr key={`${user.email}-${i}`}>
                 <td className="px-6 py-4 text-sm font-medium text-gray-900">{user.name}</td>
                 <td className="px-6 py-4 text-sm text-gray-600">{user.email}</td>
                 <td className="px-6 py-4 text-sm text-gray-900">{user.role}</td>
@@ -218,11 +312,55 @@ const UserManagement = () => {
                 </td>
               </tr>
             ))}
+            {users.length === 0 && !loading && (
+              <tr>
+                <td colSpan={5} className="px-6 py-8 text-center text-sm text-gray-500">
+                  Không có người dùng nào.
+                </td>
+              </tr>
+            )}
           </tbody>
         </table>
       </div>
 
-      {/* User Form Modal */}
+      {/* Pagination (mới thêm) */}
+      <div className="mt-4 flex items-center justify-between gap-3">
+        <div className="text-sm text-gray-600">
+          Trang <span className="font-medium">{pageNumber}</span> / {totalPages} • Tổng {totalItems} users
+        </div>
+        <div className="flex items-center gap-2">
+          <label className="text-sm text-gray-600">Page size:</label>
+          <select
+            value={pageSize}
+            onChange={(e) => {
+              setPageSize(Number(e.target.value));
+              setPageNumber(1); // quay lại trang 1 khi đổi size
+            }}
+            className="border rounded-md px-2 py-1 text-sm"
+          >
+            {[5, 10, 20, 50].map((n) => (
+              <option key={n} value={n}>{n}</option>
+            ))}
+          </select>
+
+          <button
+            disabled={!canPrev}
+            onClick={() => canPrev && setPageNumber((p) => p - 1)}
+            className={`px-3 py-1 rounded-md border text-sm ${canPrev ? "hover:bg-gray-50" : "opacity-50 cursor-not-allowed"}`}
+          >
+            ← Prev
+          </button>
+          <button
+            disabled={!canNext}
+            onClick={() => canNext && setPageNumber((p) => p + 1)}
+            className={`px-3 py-1 rounded-md border text-sm ${canNext ? "hover:bg-gray-50" : "opacity-50 cursor-not-allowed"}`}
+          >
+            Next →
+          </button>
+        </div>
+      </div>
+
+      {/* User Form Modal (giữ nguyên UI cũ) */}
       {showModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-xl shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
@@ -306,6 +444,7 @@ const UserManagement = () => {
                       <option value="EVM Staff">EVM Staff</option>
                       <option value="Dealer Manager">Dealer Manager</option>
                       <option value="Dealer Staff">Dealer Staff</option>
+                      <option value="Auditor">Auditor</option>
                     </select>
                   </div>
                   {errors.role && (
