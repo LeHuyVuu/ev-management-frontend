@@ -1,128 +1,170 @@
-import React from "react";
+import { data } from "autoprefixer";
+import React, { useEffect, useState } from "react";
 
-const cars = [
-    {
-        id: 1,
-        name: "Toyota Vios E CVT (2023)",
-        price: 520000000,
-        image: "https://live.staticflickr.com/65535/49932658111_30214a4229_b.jpg", // thay ảnh thật
-        engine: "1.5L Xăng",
-        fuel: "5.8L/100km",
-        seats: "5 chỗ",
-        hp: 107,
-        tags: ["Ghế da", "Màn hình giải trí", "+1 phụ kiện"],
-        badge: "Giảm thuế trước bạ",
-    },
-    {
-        id: 2,
-        name: "Hyundai Accent 1.4 AT Đặc biệt (2023)",
-        price: 540000000,
-        image: "https://th.bing.com/th/id/R.94d5393a29e122936349a70b4c8dbf68?rik=jo4%2fl0l7lBPKzw&pid=ImgRaw&r=0",
-        engine: "1.4L Xăng",
-        fuel: "6.2L/100km",
-        seats: "5 chỗ",
-        hp: 98,
-        tags: ["Phim cách nhiệt", "Thảm sàn", "+1 phụ kiện"],
-        badge: "Giảm giá 20 triệu",
-    },
-    {
-        id: 3,
-        name: "Kia K3 1.6 Luxury (2023)",
-        price: 620000000,
-        image: "https://img.freepik.com/premium-photo/black-car-with-headlights-headlights_1240491-775.jpg",
-        engine: "1.6L Xăng",
-        fuel: "6.8L/100km",
-        seats: "5 chỗ",
-        hp: 126,
-        tags: ["Bọc ghế da", "Màn hình Android", "+1 phụ kiện"],
-        badge: "Tặng gói phụ kiện",
-    },
-    // ... thêm các xe khác
-];
+// ===== Config =====
+const BASE_URL =
+  "https://prn232.freeddns.org/brand-service/api/vehicle-versions/dealer";
+const TOKEN = localStorage.getItem("token");
 
 function formatPrice(price) {
-    return price.toLocaleString("vi-VN") + " ₫";
+  return price.toLocaleString("vi-VN") + " ₫";
 }
 
 export default function CarList() {
-    return (
-        <div className="w-full">
-            {/* Header */}
-            <div className="flex items-center justify-between mb-4">
-                <h2 className="font-semibold text-lg">
-                    Kết quả Tìm kiếm ({cars.length} xe)
-                </h2>
-                <select className="border rounded-md px-2 py-1 text-sm">
-                    <option>Giá (Thấp đến Cao)</option>
-                    <option>Giá (Cao đến Thấp)</option>
-                    <option>Năm sản xuất</option>
-                </select>
+  const [cars, setCars] = useState([]);
+  const [pageNumber, setPageNumber] = useState(1);
+  const [pageSize] = useState(6);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalItems, setTotalItems] = useState(0);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  // ===== Fetch data =====
+  const fetchCars = async (page = 1) => {
+    setLoading(true);
+    setError(null);
+
+    try {
+      const res = await fetch(`${BASE_URL}?pageNumber=${page}&pageSize=${pageSize}`, {
+        headers: {
+          Authorization: `Bearer ${TOKEN}`,
+          "Content-Type": "application/json",
+        },
+      });
+
+      if (!res.ok) throw new Error("Không thể tải dữ liệu từ máy chủ.");
+
+      const data = await res.json();
+
+      if (data.status === 200 && data.data?.items) {
+        setCars(data.data.items);
+        setTotalPages(data.data.totalPages);
+        setTotalItems(data.data.totalItems);
+      } else {
+        setError("Không có dữ liệu xe.");
+      }
+    } catch (err) {
+      setError(data?.message || "Không thể tải dữ liệu từ máy chủ.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchCars(pageNumber);
+  }, [pageNumber]);
+
+  // ===== Pagination handler =====
+  const handlePageChange = (newPage) => {
+    if (newPage >= 1 && newPage <= totalPages) {
+      setPageNumber(newPage);
+    }
+  };
+
+  // ===== Render =====
+  if (loading) return <p>Đang tải dữ liệu xe...</p>;
+  if (error) return <p className="text-red-600">Lỗi: {error}</p>;
+
+  return (
+    <div className="w-full">
+      {/* Header */}
+      <div className="flex items-center justify-between mb-4">
+        <h2 className="font-semibold text-lg">
+          Kết quả Tìm kiếm ({totalItems} xe)
+        </h2>
+        <select className="border rounded-md px-2 py-1 text-sm">
+          <option>Giá (Thấp đến Cao)</option>
+          <option>Giá (Cao đến Thấp)</option>
+          <option>Công suất (HP)</option>
+        </select>
+      </div>
+
+      {/* Grid hiển thị xe */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        {cars.map((car) => (
+          <div
+            key={car.vehicleVersionId}
+            className="border rounded-xl shadow-sm bg-white overflow-hidden flex flex-col relative"
+          >
+            {/* Badge */}
+            {car.stockQuantity <= 10 && (
+              <div className="absolute bg-red-500 text-white text-xs px-2 py-1 rounded-br-lg">
+                Sắp hết hàng
+              </div>
+            )}
+
+            {/* Ảnh */}
+            <img
+              src={
+                car.imageUrl ||
+                "https://via.placeholder.com/400x200?text=No+Image"
+              }
+              alt={`${car.brand} ${car.modelName}`}
+              className="w-full h-40 object-cover"
+            />
+
+            {/* Nội dung */}
+            <div className="p-3 flex-1 flex flex-col">
+              <h3 className="font-medium text-sm mb-1">
+                {car.brand} {car.modelName} {car.versionName}
+              </h3>
+              <p className="text-blue-600 font-bold text-lg mb-2">
+                {formatPrice(car.basePrice)}
+              </p>
+
+              <div className="text-xs text-gray-600 mb-2 space-y-1">
+                <p>
+                  Màu: {car.color} • Kiểu: {car.evType}
+                </p>
+                <p>
+                  HP: {car.horsePower} • Tồn kho: {car.stockQuantity}
+                </p>
+              </div>
+
+              <div className="flex justify-between mt-auto">
+                <label className="flex items-center space-x-1 text-sm">
+                  <input type="checkbox" className="rounded" />
+                  <span>So sánh</span>
+                </label>
+                <button className="text-sm text-blue-600 font-medium hover:underline">
+                  Xem chi tiết
+                </button>
+              </div>
             </div>
+          </div>
+        ))}
+      </div>
 
-            {/* Grid hiển thị xe */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {cars.map((car) => (
-                    <div
-                        key={car.id}
-                        className="border rounded-xl shadow-sm bg-white overflow-hidden flex flex-col"
-                    >
-                        {/* Badge ưu đãi */}
-                        {car.badge && (
-                            <div className="absolute bg-red-500 text-white text-xs px-2 py-1 rounded-br-lg">
-                                {car.badge}
-                            </div>
-                        )}
+      {/* Pagination */}
+      <div className="flex justify-center items-center space-x-2 mt-6">
+        <button
+          onClick={() => handlePageChange(pageNumber - 1)}
+          disabled={pageNumber === 1}
+          className={`px-3 py-1 border rounded ${
+            pageNumber === 1
+              ? "text-gray-400 cursor-not-allowed"
+              : "hover:bg-gray-100"
+          }`}
+        >
+          ← Trước
+        </button>
 
-                        {/* Hình ảnh */}
-                        <img
-                            src={car.image}
-                            alt={car.name}
-                            className="w-full h-40 object-cover"
-                        />
+        <span className="text-sm">
+          Trang {pageNumber} / {totalPages}
+        </span>
 
-                        {/* Nội dung */}
-                        <div className="p-3 flex-1 flex flex-col">
-                            <h3 className="font-medium text-sm mb-1">{car.name}</h3>
-                            <p className="text-blue-600 font-bold text-lg mb-2">
-                                {formatPrice(car.price)}
-                            </p>
-
-                            {/* Thông số */}
-                            <div className="text-xs text-gray-600 mb-2 space-y-1">
-                                <p>
-                                    {car.engine} • {car.fuel}
-                                </p>
-                                <p>
-                                    {car.seats} • HP: {car.hp}
-                                </p>
-                            </div>
-
-                            {/* Tag phụ kiện */}
-                            <div className="flex flex-wrap gap-1 mb-3">
-                                {car.tags.map((tag, i) => (
-                                    <span
-                                        key={i}
-                                        className="text-xs bg-gray-100 border rounded px-2 py-0.5"
-                                    >
-                                        {tag}
-                                    </span>
-                                ))}
-                            </div>
-
-                            {/* Nút */}
-                            <div className="flex justify-between mt-auto">
-                                <label className="flex items-center space-x-1 text-sm">
-                                    <input type="checkbox" className="rounded" />
-                                    <span>So sánh</span>
-                                </label>
-                                <button className="text-sm text-blue-600 font-medium hover:underline">
-                                    Xem chi tiết
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                ))}
-            </div>
-        </div>
-    );
+        <button
+          onClick={() => handlePageChange(pageNumber + 1)}
+          disabled={pageNumber === totalPages}
+          className={`px-3 py-1 border rounded ${
+            pageNumber === totalPages
+              ? "text-gray-400 cursor-not-allowed"
+              : "hover:bg-gray-100"
+          }`}
+        >
+          Sau →
+        </button>
+      </div>
+    </div>
+  );
 }
