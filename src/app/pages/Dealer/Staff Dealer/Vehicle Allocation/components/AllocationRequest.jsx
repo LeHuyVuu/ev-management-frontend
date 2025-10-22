@@ -1,156 +1,236 @@
-import React, { useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
+import { ToastContainer, toast } from "react-toastify";
+
+const API_TOKEN =
+  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJVc2VySWQiOiJhNzRlOWUwMy03YzRkLTQ0ZDAtOGY0Yy0wZjAxODRiN2U2ZjQiLCJSb2xlSWQiOiI0IiwiUm9sZU5hbWUiOiJEZWFsZXIgU3RhZmYiLCJEZWFsZXJJZCI6ImViODAyYjcxLTRhZTAtNGNiMy1iYzg1LThjNTZmNjdiZDc1NyIsIm5iZiI6MTc2MTE0NjUxMCwiZXhwIjoxNzY5MDk1MzEwLCJpYXQiOjE3NjExNDY1MTAsImlzcyI6IkVWTSIsImF1ZCI6IlVzZXIifQ.Pr-9xC1ZungY2cTIIDUeFs7lHr6Sm2L0spguOLRaCpY";
+// Gợi ý production: const API_TOKEN = import.meta.env.VITE_API_TOKEN;
 
 export default function AllocationRequest() {
-    const [form, setForm] = useState({
-        model: "",
-        version: "",
-        color: "",
-        quantity: 1,
-        desiredDate: "",
-        destination: "",
-    });
+  const [versions, setVersions] = useState([]);
+  const [loadingVersions, setLoadingVersions] = useState(true);
+  const [versionsError, setVersionsError] = useState("");
 
-    const handleChange = (e) => {
-        const { name, value } = e.target;
-        setForm({ ...form, [name]: value });
+  const [submitting, setSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState("");
+  const [successMsg, setSuccessMsg] = useState("");
+
+  const [form, setForm] = useState({
+    vehicleVersionId: "",
+    quantity: 1,
+    expectedDelivery: "", // yyyy-mm-dd (tùy chọn)
+  });
+
+  useEffect(() => {
+    const fetchVersions = async () => {
+      try {
+        setLoadingVersions(true);
+        setVersionsError("");
+        const res = await fetch(
+          "https://prn232.freeddns.org/brand-service/api/vehicle-versions/dealer?pageNumber=1&pageSize=100",
+          {
+            headers: {
+              accept: "*/*",
+              Authorization: `Bearer ${API_TOKEN}`,
+            },
+          }
+        );
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const json = await res.json();
+        const items = json?.data?.items ?? json?.data ?? json ?? [];
+        const mapped = (Array.isArray(items) ? items : []).map((v) => ({
+          id: v.vehicleVersionId || v.id,
+          label: `${v.brand ?? v.brandName ?? ""} ${v.versionName ?? ""}`.trim(),
+        }));
+        setVersions(mapped.filter((v) => v.id && v.label));
+      } catch (err) {
+        setVersionsError(err?.message || "Không thể tải danh sách mẫu xe.");
+        toast.error(err?.message || "Không thể tải danh sách mẫu xe.");
+      } finally {
+        setLoadingVersions(false);
+      }
+    };
+    fetchVersions();
+  }, []);
+
+  const handleChange = (e) => {
+    const { name, value } = e.target;
+    if (name === "quantity") {
+      const n = Math.max(1, Number(value || 1));
+      setForm((p) => ({ ...p, quantity: n }));
+      return;
+    }
+    setForm((p) => ({ ...p, [name]: value }));
+  };
+
+  const toISODateZ = (dateStr) => {
+    if (!dateStr) return null;
+    const d = new Date(dateStr + "T00:00:00Z");
+    return d.toISOString();
+  };
+
+  const resetForm = () =>
+    setForm({ vehicleVersionId: "", quantity: 1, expectedDelivery: "" });
+
+  const canSubmit = useMemo(
+    () => !!form.vehicleVersionId && !!form.quantity && !submitting,
+    [form.vehicleVersionId, form.quantity, submitting]
+  );
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setSubmitError("");
+    setSuccessMsg("");
+
+    if (!canSubmit) {
+      const msg = "Vui lòng chọn mẫu xe và số lượng hợp lệ.";
+      setSubmitError(msg);
+      toast.warn(msg);
+      return;
+    }
+
+    // Lấy thời điểm thực (UTC) cho requestDate
+    const nowIso = new Date().toISOString();
+
+    const payload = {
+      vehicleVersionId: form.vehicleVersionId,
+      quantity: Number(form.quantity),
+      requestDate: nowIso,
+      expectedDelivery: form.expectedDelivery ? toISODateZ(form.expectedDelivery) : null,
+      // Truyền cố định trạng thái: "received" (Đã tạo/nhận yêu cầu)
+      status: "received",
     };
 
-    const handleReset = () => {
-        setForm({
-            model: "",
-            version: "",
-            color: "",
-            quantity: 1,
-            desiredDate: "",
-            destination: "",
-        });
-    };
+    try {
+      setSubmitting(true);
+      const res = await fetch(
+        "https://prn232.freeddns.org/order-service/api/VehicleAllocation",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            accept: "*/*",
+            Authorization: `Bearer ${API_TOKEN}`,
+          },
+          body: JSON.stringify(payload),
+        }
+      );
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        const msg = json?.message || `Tạo yêu cầu thất bại (HTTP ${res.status}).`;
+        throw new Error(msg);
+      }
+      setSuccessMsg("Tạo yêu cầu thành công!");
+      toast.success("Tạo yêu cầu thành công!");
+      resetForm();
+    } catch (err) {
+      const msg = err?.message || "Đã xảy ra lỗi khi tạo yêu cầu.";
+      setSubmitError(msg);
+      toast.error(msg);
+    } finally {
+      setSubmitting(false);
+    }
+  };
 
-    const handleSubmit = (e) => {
-        e.preventDefault();
-        console.log("Yêu cầu phân bổ:", form);
-        alert("Tạo yêu cầu thành công!");
-    };
+  return (
+    <div className="border rounded-lg p-6 bg-white shadow-sm">
+      <h2 className="text-lg font-semibold mb-2">Tạo yêu cầu mới</h2>
+      <p className="text-sm text-gray-500 mb-6">
+        Chọn mẫu xe và số lượng. Ngày tạo sẽ tự động lấy theo thời điểm hiện tại.
+      </p>
 
-    return (
-        <div>
-            <div className="border rounded-lg p-6 bg-white shadow-sm">
-                <h2 className="text-lg font-semibold mb-2">Tạo yêu cầu mới</h2>
-                <p className="text-sm text-gray-500 mb-6">
-                    Điền thông tin chi tiết cho yêu cầu phân bổ xe.
-                </p>
+      {versionsError && (
+        <div className="mb-4 text-sm text-red-600">Lỗi tải mẫu xe: {versionsError}</div>
+      )}
+      {submitError && (
+        <div className="mb-4 text-sm text-red-600">Lỗi gửi yêu cầu: {submitError}</div>
+      )}
+      {successMsg && <div className="mb-4 text-sm text-green-600">{successMsg}</div>}
 
-                <form onSubmit={handleSubmit}>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        {/* Mẫu xe */}
-                        <div>
-                            <label className="block text-sm text-gray-600 mb-1">Mẫu xe</label>
-                            <select
-                                name="model"
-                                value={form.model}
-                                onChange={handleChange}
-                                className="w-full border border-gray-300 rounded-md px-3 py-2"
-                            >
-                                <option value="">Chọn mẫu xe</option>
-                                <option value="Sedan">Sedan</option>
-                                <option value="SUV">SUV</option>
-                                <option value="Truck">Truck</option>
-                            </select>
-                        </div>
+      <form onSubmit={handleSubmit}>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          {/* Mẫu xe */}
+          <div>
+            <label className="block text-sm text-gray-600 mb-1">
+              Mẫu xe <span className="text-red-500">*</span>
+            </label>
+            <select
+              name="vehicleVersionId"
+              value={form.vehicleVersionId}
+              onChange={handleChange}
+              disabled={loadingVersions}
+              className="w-full border border-gray-300 rounded-md px-3 py-2 disabled:bg-gray-100"
+            >
+              <option value="">
+                {loadingVersions ? "Đang tải..." : "Chọn mẫu xe"}
+              </option>
+              {versions.map((v) => (
+                <option key={v.id} value={v.id}>
+                  {v.label}
+                </option>
+              ))}
+            </select>
+          </div>
 
-                        {/* Phiên bản */}
-                        <div>
-                            <label className="block text-sm text-gray-600 mb-1">Phiên bản</label>
-                            <select
-                                name="version"
-                                value={form.version}
-                                onChange={handleChange}
-                                className="w-full border border-gray-300 rounded-md px-3 py-2"
-                            >
-                                <option value="">Chọn phiên bản</option>
-                                <option value="Standard">Standard</option>
-                                <option value="Premium">Premium</option>
-                                <option value="Luxury">Luxury</option>
-                            </select>
-                        </div>
+          {/* Số lượng */}
+          <div>
+            <label className="block text-sm text-gray-600 mb-1">
+              Số lượng <span className="text-red-500">*</span>
+            </label>
+            <input
+              type="number"
+              name="quantity"
+              value={form.quantity}
+              onChange={handleChange}
+              min={1}
+              className="w-full border border-gray-300 rounded-md px-3 py-2"
+            />
+          </div>
 
-                        {/* Màu sắc */}
-                        <div>
-                            <label className="block text-sm text-gray-600 mb-1">Màu sắc</label>
-                            <select
-                                name="color"
-                                value={form.color}
-                                onChange={handleChange}
-                                className="w-full border border-gray-300 rounded-md px-3 py-2"
-                            >
-                                <option value="">Chọn màu sắc</option>
-                                <option value="Đỏ">Đỏ</option>
-                                <option value="Trắng">Trắng</option>
-                                <option value="Đen">Đen</option>
-                                <option value="Xanh">Xanh</option>
-                            </select>
-                        </div>
-
-                        {/* Số lượng */}
-                        <div>
-                            <label className="block text-sm text-gray-600 mb-1">Số lượng</label>
-                            <input
-                                type="number"
-                                name="quantity"
-                                value={form.quantity}
-                                onChange={handleChange}
-                                min="1"
-                                className="w-full border border-gray-300 rounded-md px-3 py-2"
-                            />
-                        </div>
-
-                        {/* Ngày mong muốn */}
-                        <div>
-                            <label className="block text-sm text-gray-600 mb-1">Ngày mong muốn</label>
-                            <input
-                                type="date"
-                                name="desiredDate"
-                                value={form.desiredDate}
-                                onChange={handleChange}
-                                className="w-full border border-gray-300 rounded-md px-3 py-2"
-                            />
-                        </div>
-
-                        {/* Địa điểm đến */}
-                        <div>
-                            <label className="block text-sm text-gray-600 mb-1">Địa điểm đến</label>
-                            <select
-                                name="destination"
-                                value={form.destination}
-                                onChange={handleChange}
-                                className="w-full border border-gray-300 rounded-md px-3 py-2"
-                            >
-                                <option value="">Chọn địa điểm đến</option>
-                                <option value="Hà Nội">Hà Nội</option>
-                                <option value="TP.HCM">TP.HCM</option>
-                                <option value="Đà Nẵng">Đà Nẵng</option>
-                            </select>
-                        </div>
-                    </div>
-
-                    {/* Buttons */}
-                    <div className="flex justify-end gap-3 mt-6">
-                        <button
-                            type="button"
-                            onClick={handleReset}
-                            className="px-4 py-2 border border-gray-300 rounded-md text-gray-600 hover:bg-gray-100"
-                        >
-                            Đặt lại
-                        </button>
-                        <button
-                            type="submit"
-                            className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
-                        >
-                            Tạo yêu cầu
-                        </button>
-                    </div>
-                </form>
-            </div>
+          {/* Ngày giao dự kiến (tùy chọn) */}
+          <div>
+            <label className="block text-sm text-gray-600 mb-1">Ngày mong muốn giao</label>
+            <input
+              type="date"
+              name="expectedDelivery"
+              value={form.expectedDelivery}
+              onChange={handleChange}
+              className="w-full border border-gray-300 rounded-md px-3 py-2"
+            />
+          </div>
         </div>
-    );
+
+        <div className="flex justify-end gap-3 mt-6">
+          <button
+            type="button"
+            onClick={() => resetForm()}
+            className="px-4 py-2 border border-gray-300 rounded-md text-gray-600 hover:bg-gray-100"
+            disabled={submitting}
+          >
+            Đặt lại
+          </button>
+          <button
+            type="submit"
+            disabled={!canSubmit}
+            className={`px-4 py-2 rounded-md text-white ${
+              canSubmit ? "bg-blue-600 hover:bg-blue-700" : "bg-blue-300 cursor-not-allowed"
+            }`}
+          >
+            {submitting ? "Đang tạo..." : "Tạo yêu cầu"}
+          </button>
+        </div>
+      </form>
+
+      {/* Toastify container */}
+      <ToastContainer
+        position="top-right"
+        autoClose={2200}
+        hideProgressBar={false}
+        newestOnTop
+        closeOnClick
+        pauseOnHover
+        draggable
+        theme="colored"
+      />
+    </div>
+  );
 }
