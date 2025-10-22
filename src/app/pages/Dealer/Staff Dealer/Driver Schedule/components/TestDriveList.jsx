@@ -10,15 +10,34 @@ function TestDriveList({ selectedDate }) {
   const [selectedTestDrive, setSelectedTestDrive] = useState(null);
   const [newStatus, setNewStatus] = useState('');
   const [updating, setUpdating] = useState(false);
+  const token = localStorage.getItem('token'); 
 
   useEffect(() => {
     setLoading(true);
     const dateQuery = selectedDate ? `&date=${selectedDate.format('YYYY-MM-DD')}` : '';
-    fetch(`https://prn232.freeddns.org/order-service/api/TestDrive?pageNumber=1&pageSize=10${dateQuery}`)
+
+    fetch(`https://prn232.freeddns.org/order-service/api/TestDrive?pageNumber=1&pageSize=100${dateQuery}`, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+        Accept: 'application/json',
+      },
+    })
       .then((res) => res.json())
       .then((data) => {
         if (data?.status === 200) {
-          setTestDrives(data.data.items);
+          let items = data.data.items || [];
+
+          // ✅ Lọc chính xác lịch theo ngày được chọn (đảm bảo hiển thị đúng)
+          if (selectedDate) {
+            const selectedDay = selectedDate.format('YYYY-MM-DD');
+            items = items.filter(
+              (item) =>
+                item.driveDate &&
+                item.driveDate.startsWith(selectedDay)
+            );
+          }
+
+          setTestDrives(items);
         }
         setLoading(false);
       })
@@ -52,7 +71,7 @@ function TestDriveList({ selectedDate }) {
       .then((res) => {
         if (!res.ok) throw new Error('Failed to update status');
         toast.success('Cập nhật trạng thái thành công');
-        // Update local state
+        // ✅ Cập nhật lại trạng thái trong state local
         setTestDrives((prev) =>
           prev.map((td) =>
             td.testDriveId === selectedTestDrive.testDriveId
@@ -98,7 +117,9 @@ function TestDriveList({ selectedDate }) {
                         ? 'bg-blue-100 text-blue-700'
                         : item.status === 'completed'
                         ? 'bg-green-100 text-green-700'
-                        : 'bg-red-100 text-red-700'
+                        : item.status === 'pending'
+                        ? 'bg-red-100 text-red-700'
+                        : 'bg-gray-100 text-gray-600'
                     }`}
                   >
                     {item.status}
@@ -107,7 +128,12 @@ function TestDriveList({ selectedDate }) {
                 <p className="text-sm text-gray-600 mb-1">{item.vehicleName}</p>
                 <p className="text-sm text-gray-500">{item.dealerName}</p>
                 <p className="text-xs text-gray-400">
-                  {item.driveDate} | {item.timeSlot}
+                  {item.driveDate?.split('T')[0]} |{' '}
+                  {item.timeSlot === 'morning'
+                    ? 'Buổi sáng'
+                    : item.timeSlot === 'afternoon'
+                    ? 'Buổi chiều'
+                    : item.timeSlot}
                 </p>
               </li>
             ))
@@ -115,14 +141,16 @@ function TestDriveList({ selectedDate }) {
         </ul>
       )}
 
-      {/* Modal */}
+      {/* Modal cập nhật trạng thái */}
       <Modal
         isOpen={!!selectedTestDrive}
         onRequestClose={closeModal}
         className="bg-white max-w-lg w-full p-6 rounded-lg shadow-lg mx-auto mt-24 outline-none border"
         overlayClassName="fixed inset-0 bg-black bg-opacity-30 flex justify-center items-start z-50 px-4"
       >
-        <h3 className="text-lg font-bold mb-4 text-gray-800">Cập nhật trạng thái lịch lái thử</h3>
+        <h3 className="text-lg font-bold mb-4 text-gray-800">
+          Cập nhật trạng thái lịch lái thử
+        </h3>
         {selectedTestDrive && (
           <div className="space-y-4 text-sm text-gray-700">
             <div>
@@ -143,6 +171,7 @@ function TestDriveList({ selectedDate }) {
                 <option value="scheduled">Đã lên lịch</option>
                 <option value="completed">Hoàn thành</option>
                 <option value="cancelled">Hủy</option>
+                <option value="pending">Chờ xử lý</option>
               </select>
             </div>
             <div className="flex justify-end pt-4 gap-2">
