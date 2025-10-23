@@ -64,7 +64,7 @@ export default function BookingForm({ selectedDate, onDateSelect }) {
         if (data.status === 200) {
           const options = data.data.items.map((v) => ({
             value: v.vehicleVersionId,
-            label: `${v.brand} ${v.versionName}`,
+            label: `${v.brand} - ${v.versionName} - ${v.color} - ${v.evType}`,
           }));
           setVehicles(options);
         }

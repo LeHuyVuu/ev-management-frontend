@@ -42,7 +42,7 @@ export default function QuoteDetailModal({ open, quoteId, onClose, onUpdated }) 
   const [err, setErr] = useState("");
   const [detail, setDetail] = useState(null);
 
-  // form state để PUT
+  // form state để PUT (ẩn trên UI nhưng vẫn lưu & gửi)
   const [customerId, setCustomerId] = useState("");
   const [vehicleVersionId, setVehicleVersionId] = useState("");
   const [optionsJson, setOptionsJson] = useState("");
@@ -124,7 +124,6 @@ export default function QuoteDetailModal({ open, quoteId, onClose, onUpdated }) 
 
     setSaving(true);
     try {
-      // truyển đúng payload như cURL bạn đưa
       const payload = {
         customerId: customerId || null,
         vehicleVersionId: vehicleVersionId || null,
@@ -149,11 +148,7 @@ export default function QuoteDetailModal({ open, quoteId, onClose, onUpdated }) 
       }
 
       showToast("Cập nhật báo giá thành công!", "success");
-
-      // refetch để hiển thị giá trị mới
       await fetchDetail();
-
-      // callback cho parent nếu cần
       onUpdated?.(quoteId);
     } catch (e) {
       showToast(e.message || "Cập nhật thất bại.", "error");
@@ -176,9 +171,8 @@ export default function QuoteDetailModal({ open, quoteId, onClose, onUpdated }) 
       {/* Modal */}
       <div className="relative bg-white w-full max-w-2xl rounded-2xl shadow-xl border border-gray-200 p-5">
         <div className="flex items-center justify-between mb-4">
-          <h3 className="text-xl font-semibold">
-            Chi tiết báo giá {quoteId ? `#${quoteId}` : ""}
-          </h3>
+          {/* BỎ hiển thị quoteId */}
+          <h3 className="text-xl font-semibold">Chi tiết báo giá</h3>
           <div className="flex items-center gap-2">
             <button
               onClick={onClose}
@@ -212,7 +206,7 @@ export default function QuoteDetailModal({ open, quoteId, onClose, onUpdated }) 
 
         {!loading && !err && detail && (
           <>
-            {/* Info khái quát */}
+            {/* Info khái quát — KHÔNG hiển thị bất kỳ ID nào */}
             <div className="space-y-2 text-sm mb-4">
               <div className="grid grid-cols-2 gap-3">
                 <div>
@@ -263,29 +257,9 @@ export default function QuoteDetailModal({ open, quoteId, onClose, onUpdated }) 
               </div>
             </div>
 
-            {/* Form edit (PUT) */}
+            {/* Form edit: ẨN các ô ID, chỉ cho sửa Options/Discount/Status */}
             <form onSubmit={handleSave} className="grid grid-cols-2 gap-4 text-sm">
-              <div className="col-span-1">
-                <label className="block text-gray-600 mb-1">Customer ID</label>
-                <input
-                  type="text"
-                  value={customerId}
-                  onChange={(e) => setCustomerId(e.target.value)}
-                  placeholder="3fa85f64-..."
-                  className="w-full border rounded-lg px-3 py-2 outline-none focus:ring-2 focus:ring-indigo-400"
-                />
-              </div>
-
-              <div className="col-span-1">
-                <label className="block text-gray-600 mb-1">Vehicle Version ID</label>
-                <input
-                  type="text"
-                  value={vehicleVersionId}
-                  onChange={(e) => setVehicleVersionId(e.target.value)}
-                  placeholder="3fa85f64-..."
-                  className="w-full border rounded-lg px-3 py-2 outline-none focus:ring-2 focus:ring-indigo-400"
-                />
-              </div>
+              {/* customerId & vehicleVersionId giữ trong state nhưng KHÔNG render input */}
 
               <div className="col-span-2">
                 <label className="block text-gray-600 mb-1">
