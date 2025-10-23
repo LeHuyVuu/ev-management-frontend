@@ -1,206 +1,337 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
+import {
+  Table,
+  Tag,
+  Button,
+  Modal,
+  Select,
+  Form,
+  Input,
+  Space,
+  Typography,
+  message,
+  Popconfirm,
+  Alert,
+} from "antd";
+import {
+  EyeOutlined,
+  EditOutlined,
+  DeleteOutlined,
+  SyncOutlined,
+} from "@ant-design/icons";
 
-/**
- * AllocationRequestsList
- * - Sort theo ngày (desc)
- * - Hiển thị ID rút gọn
- */
-
+/** ===== Config ===== */
 const SHORT_ID_LEN = 8;
+const STATUS_OPTIONS = [
+  "received",
+  "approved",
+  "rejected",
+  "assigned",
+  "in_transit",
+  "at_dealer",
+  "delivered",
+  "cancelled",
+];
 
+const STATUS_META = {
+  received: { label: "Đã nhận yêu cầu", color: "default" },
+  approved: { label: "Đã duyệt", color: "blue" },
+  rejected: { label: "Từ chối", color: "red" },
+  assigned: { label: "Đã phân xe", color: "purple" },
+  in_transit: { label: "Đang vận chuyển", color: "gold" },
+  at_dealer: { label: "Tại đại lý", color: "cyan" },
+  delivered: { label: "Đã giao", color: "green" },
+  cancelled: { label: "Đã hủy", color: "volcano" },
+};
+
+const TOKEN =
+  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJVc2VySWQiOiJhNzRlOWUwMy03YzRkLTQ0ZDAtOGY0Yy0wZjAxODRiN2U2ZjQiLCJSb2xlSWQiOiI0IiwiUm9sZU5hbWUiOiJEZWFsZXIgU3RhZmYiLCJEZWFsZXJJZCI6ImViODAyYjcxLTRhZTAtNGNiMy1iYzg1LThjNTZmNjdiZDc1NyIsIm5iZiI6MTc2MTE0NjUxMCwiZXhwIjoxNzY5MDk1MzEwLCJpYXQiOjE3NjExNDY1MTAsImlzcyI6IkVWTSIsImF1ZCI6IlVzZXIifQ.Pr-9xC1ZungY2cTIIDUeFs7lHr6Sm2L0spguOLRaCpY";
+
+/** ===== Helpers ===== */
 function shortId(id = "") {
   if (!id) return "";
   return id.length > SHORT_ID_LEN ? id.slice(0, SHORT_ID_LEN) + "…" : id;
 }
 
-function StatusCell({ status }) {
-  const displayStatus = (() => {
-    switch (status) {
-      case "in_transit":
-        return "Đang vận chuyển";
-      case "received":
-        return "Đã nhận yêu cầu";
-      case "at_dealer":
-        return "Tại đại lý";
-      default:
-        return status;
-    }
-  })();
-
-  if (displayStatus === "Đã nhận yêu cầu") {
-    return (
-      <span className="inline-block bg-gray-100 text-gray-700 text-xs px-2 py-1 rounded-full">
-        {displayStatus}
-      </span>
-    );
-  }
-  return <span className="text-gray-800">{displayStatus}</span>;
+function StatusTag({ value }) {
+  const meta = STATUS_META[value] || { label: value || "-", color: "default" };
+  return <Tag color={meta.color}>{meta.label}</Tag>;
 }
 
+/** ===== Component ===== */
 export default function AllocationRequestsList() {
-  const [requests, setRequests] = useState([]);
+  const [data, setData] = useState([]); // rows
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
+  const [loadErr, setLoadErr] = useState("");
 
-  const token =
-    "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJVc2VySWQiOiJhNzRlOWUwMy03YzRkLTQ0ZDAtOGY0Yy0wZjAxODRiN2U2ZjQiLCJSb2xlSWQiOiI0IiwiUm9sZU5hbWUiOiJEZWFsZXIgU3RhZmYiLCJEZWFsZXJJZCI6ImViODAyYjcxLTRhZTAtNGNiMy1iYzg1LThjNTZmNjdiZDc1NyIsIm5iZiI6MTc2MTE0NjUxMCwiZXhwIjoxNzY5MDk1MzEwLCJpYXQiOjE3NjExNDY1MTAsImlzcyI6IkVWTSIsImF1ZCI6IlVzZXIifQ.Pr-9xC1ZungY2cTIIDUeFs7lHr6Sm2L0spguOLRaCpY";
+  // Update modal state
+  const [open, setOpen] = useState(false);
+  const [updating, setUpdating] = useState(false);
+  const [current, setCurrent] = useState(null); // record đang update
+  const [form] = Form.useForm();
 
+  const [lastUpdated, setLastUpdated] = useState(null); // {id,status,at}
+
+  // Fetch list
   useEffect(() => {
-    const fetchData = async () => {
+    (async () => {
       try {
+        setLoading(true);
+        setLoadErr("");
         const res = await fetch(
           "https://prn232.freeddns.org/order-service/api/VehicleAllocation?pageNumber=1&pageSize=10",
           {
             headers: {
               accept: "*/*",
-              Authorization: `Bearer ${token}`,
+              Authorization: `Bearer ${TOKEN}`,
             },
           }
         );
         const json = await res.json();
         if (json.status === 200 && json.data?.items) {
           const mapped = json.data.items.map((item) => ({
+            key: item.allocationId,
             id: item.allocationId,
             idShort: shortId(item.allocationId),
             car: item.vehicleName,
             destination: item.dealerName,
             quantity: item.quantity,
-            date: item.requestDate, // ISO string yyyy-mm-dd
+            date: item.requestDate,
             status: item.status,
           }));
-
-          // Sort theo ngày: mới → cũ
-          mapped.sort((a, b) => {
-            const da = new Date(a.date ?? 0).getTime();
-            const db = new Date(b.date ?? 0).getTime();
-            return db - da; // desc
-          });
-
-          setRequests(mapped);
+          mapped.sort((a, b) => new Date(b.date || 0) - new Date(a.date || 0));
+          setData(mapped);
         } else {
-          setError("Không thể tải dữ liệu.");
+          throw new Error("Không thể tải dữ liệu.");
         }
       } catch (err) {
-        setError(err.message);
+        setLoadErr(err.message || "Lỗi không xác định.");
       } finally {
         setLoading(false);
       }
-    };
-
-    fetchData();
+    })();
   }, []);
 
-  const onView = (req) => alert(`Xem ${req.id}`);
-  const onDelete = (req) => {
-    if (confirm(`Xóa ${req.id}?`)) alert(`${req.id} đã được xóa (mock)`);
+  // Open modal (prefill)
+  const openModal = (record) => {
+    setCurrent(record || null);
+    form.setFieldsValue({
+      id: record?.id || "",
+      status: record?.status || "",
+    });
+    setOpen(true);
   };
 
+  const handleCancel = () => {
+    if (updating) return;
+    setOpen(false);
+    form.resetFields();
+  };
+
+  // Submit update
+  const onFinish = async (values) => {
+    const { id, status } = values || {};
+    if (!id || !status) {
+      message.warning("Vui lòng nhập ID và chọn trạng thái");
+      return;
+    }
+    try {
+      setUpdating(true);
+      const resp = await fetch(
+        `https://prn232.freeddns.org/order-service/api/VehicleAllocation/${encodeURIComponent(
+          id
+        )}/status`,
+        {
+          method: "PUT",
+          headers: {
+            "Content-Type": "application/json", // nếu server yêu cầu text/plain: đổi thành text/plain và body: status
+            accept: "*/*",
+            Authorization: `Bearer ${TOKEN}`,
+          },
+          body: JSON.stringify(status), // backend khai báo body là "string"
+        }
+      );
+      if (!resp.ok) {
+        let msg = `Cập nhật thất bại (HTTP ${resp.status}).`;
+        try {
+          const j = await resp.json();
+          msg = j?.message || msg;
+        } catch {}
+        throw new Error(msg);
+      }
+
+      // Update ngay trong table
+      setData((prev) =>
+        prev.map((row) => (row.id === id ? { ...row, status } : row))
+      );
+
+      setLastUpdated({ id, status, at: new Date().toLocaleString() });
+      message.success("Cập nhật trạng thái thành công");
+      setOpen(false);
+      form.resetFields();
+    } catch (err) {
+      message.error(err.message || "Có lỗi khi cập nhật trạng thái");
+    } finally {
+      setUpdating(false);
+    }
+  };
+
+  const columns = [
+    {
+      title: "ID",
+      dataIndex: "idShort",
+      width: 120,
+      render: (val, row) => (
+        <Typography.Text copyable={{ text: row.id }} title={row.id}>
+          {val}
+        </Typography.Text>
+      ),
+    },
+    { title: "Xe", dataIndex: "car", ellipsis: true },
+    { title: "Địa điểm đến", dataIndex: "destination", ellipsis: true },
+    {
+      title: "SL",
+      dataIndex: "quantity",
+      width: 80,
+      align: "center",
+    },
+    {
+      title: "Ngày yêu cầu",
+      dataIndex: "date",
+      width: 180,
+      render: (v) =>
+        v ? new Date(v).toLocaleString() : <Typography.Text type="secondary">-</Typography.Text>,
+    },
+    {
+      title: "Trạng thái",
+      dataIndex: "status",
+      width: 160,
+      render: (v) => <StatusTag value={v} />,
+      filters: STATUS_OPTIONS.map((s) => ({
+        text: STATUS_META[s]?.label || s,
+        value: s,
+      })),
+      onFilter: (value, record) => record.status === value,
+    },
+    {
+      title: "Hành động",
+      key: "actions",
+      width: 170,
+      render: (_, record) => (
+        <Space>
+          <Button
+            size="small"
+            icon={<EyeOutlined />}
+            onClick={() => message.info(`Xem ${record.id}`)}
+          />
+          <Button
+            size="small"
+            type="default"
+            icon={<EditOutlined />}
+            onClick={() => openModal(record)}
+          >
+            Cập nhật
+          </Button>
+          <Popconfirm
+            title="Xóa (mock)?"
+            description={`Xóa yêu cầu ${record.id}?`}
+            okText="Xóa"
+            cancelText="Hủy"
+            onConfirm={() => message.success(`${record.id} đã xóa (mock)`)}
+          >
+            <Button danger size="small" icon={<DeleteOutlined />} />
+          </Popconfirm>
+        </Space>
+      ),
+    },
+  ];
+
   return (
-    <div className="border rounded-lg p-6 bg-white shadow-sm">
-      <h2 className="text-lg font-semibold mb-2">Các yêu cầu phân bổ hiện có</h2>
-      <p className="text-sm text-gray-500 mb-4">
-        Theo dõi trạng thái của các yêu cầu xe.
-      </p>
-
-      {loading && (
-        <p className="text-sm text-gray-500 italic">Đang tải dữ liệu...</p>
-      )}
-      {error && <p className="text-sm text-red-500 italic">Lỗi: {error}</p>}
-
-      {!loading && !error && (
-        <div className="overflow-x-auto">
-          <table className="min-w-full text-sm text-left">
-            <thead>
-              <tr className="text-xs text-gray-500">
-                <th className="px-4 py-3">ID Yêu cầu</th>
-                <th className="px-4 py-3">Xe</th>
-                <th className="px-4 py-3">Địa điểm đến</th>
-                <th className="px-4 py-3 text-center">Số lượng</th>
-                <th className="px-4 py-3">Ngày yêu cầu</th>
-                <th className="px-4 py-3">Trạng thái</th>
-                <th className="px-4 py-3">Hành động</th>
-              </tr>
-            </thead>
-
-            <tbody className="divide-y">
-              {requests.length > 0 ? (
-                requests.map((r) => (
-                  <tr key={r.id} className="hover:bg-gray-50">
-                    <td
-                      className="px-4 py-4 text-gray-700 w-28"
-                      title={r.id} // hover vẫn xem full id
-                    >
-                      {r.idShort}
-                    </td>
-                    <td className="px-4 py-4 text-gray-800">{r.car}</td>
-                    <td className="px-4 py-4 text-gray-700">{r.destination}</td>
-                    <td className="px-4 py-4 text-center text-gray-700 w-16">
-                      {r.quantity}
-                    </td>
-                    <td className="px-4 py-4 text-gray-700">{r.date}</td>
-                    <td className="px-4 py-4">
-                      <StatusCell status={r.status} />
-                    </td>
-                    <td className="px-4 py-4">
-                      <div className="flex items-center gap-4">
-                        <button
-                          onClick={() => onView(r)}
-                          className="text-gray-600 hover:text-gray-800"
-                        >
-                          <svg
-                            xmlns="http://www.w3.org/2000/svg"
-                            className="h-5 w-5"
-                            fill="none"
-                            viewBox="0 0 24 24"
-                            stroke="currentColor"
-                          >
-                            <path
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                              strokeWidth="1.5"
-                              d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
-                            />
-                            <path
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                              strokeWidth="1.5"
-                              d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"
-                            />
-                          </svg>
-                        </button>
-
-                        <button
-                          onClick={() => onDelete(r)}
-                          className="text-red-500 hover:text-red-700"
-                        >
-                          <svg
-                            xmlns="http://www.w3.org/2000/svg"
-                            className="h-5 w-5"
-                            viewBox="0 0 20 20"
-                            fill="currentColor"
-                          >
-                            <path
-                              fillRule="evenodd"
-                              d="M10 8.586l4.95-4.95 1.414 1.414L11.414 10l4.95 4.95-1.414 1.414L10 11.414l-4.95 4.95-1.414-1.414L8.586 10 3.636 5.05l1.414-1.414L10 8.586z"
-                              clipRule="evenodd"
-                            />
-                          </svg>
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))
-              ) : (
-                <tr>
-                  <td colSpan="7" className="px-4 py-6 text-center text-gray-500">
-                    Không có yêu cầu phân bổ nào.
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
+    <div style={{ background: "#fff", borderRadius: 12, padding: 16 }}>
+      <Space style={{ width: "100%", justifyContent: "space-between", marginBottom: 12 }}>
+        <div>
+          <Typography.Title level={4} style={{ margin: 0 }}>
+            Các yêu cầu phân bổ hiện có
+          </Typography.Title>
+          <Typography.Text type="secondary">
+            Theo dõi trạng thái và cập nhật trực tiếp.
+          </Typography.Text>
         </div>
+        <Button type="primary" icon={<SyncOutlined />} onClick={() => openModal(null)}>
+          Cập nhật trạng thái
+        </Button>
+      </Space>
+
+      {lastUpdated && lastUpdated.id ? (
+        <Alert
+          style={{ marginBottom: 12 }}
+          type="success"
+          message={
+            <>
+              Đã cập nhật:&nbsp;
+              <Typography.Text code>{shortId(lastUpdated.id)}</Typography.Text>
+              &nbsp;→&nbsp;
+              <StatusTag value={lastUpdated.status} /> lúc {lastUpdated.at}
+            </>
+          }
+          showIcon
+        />
+      ) : null}
+
+      {loadErr ? (
+        <Alert type="error" message={loadErr} showIcon />
+      ) : (
+        <Table
+          rowKey="id"
+          columns={columns}
+          dataSource={data}
+          loading={loading}
+          pagination={{ pageSize: 10, showSizeChanger: false }}
+          bordered
+        />
       )}
+
+      {/* Modal cập nhật */}
+      <Modal
+        title="Cập nhật trạng thái"
+        open={open}
+        onCancel={handleCancel}
+        okText="Cập nhật"
+        confirmLoading={updating}
+        onOk={() => form.submit()}
+        destroyOnClose
+      >
+        <Form
+          form={form}
+          layout="vertical"
+          onFinish={onFinish}
+          initialValues={{ id: "", status: "" }}
+        >
+          <Form.Item
+            name="id"
+            label="Allocation ID"
+            rules={[{ required: true, message: "Nhập Allocation ID" }]}
+          >
+            <Input placeholder="Nhập ID (UUID)" />
+          </Form.Item>
+
+          <Form.Item
+            name="status"
+            label="Trạng thái"
+            rules={[{ required: true, message: "Chọn trạng thái" }]}
+          >
+            <Select
+              placeholder="Chọn trạng thái"
+              options={STATUS_OPTIONS.map((s) => ({
+                value: s,
+                label: STATUS_META[s]?.label || s,
+              }))}
+              showSearch
+              optionFilterProp="label"
+            />
+          </Form.Item>
+        </Form>
+      </Modal>
     </div>
   );
 }

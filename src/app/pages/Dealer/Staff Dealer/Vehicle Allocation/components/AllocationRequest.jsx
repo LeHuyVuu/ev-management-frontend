@@ -182,7 +182,7 @@ export default function AllocationRequest() {
               value={form.quantity}
               onChange={handleChange}
               min={1}
-              className="w-full border border-gray-300 rounded-md px-3 py-2"
+              className="w-full border border-gray-300 rounded-md px-3 py-2"  
             />
           </div>
 
