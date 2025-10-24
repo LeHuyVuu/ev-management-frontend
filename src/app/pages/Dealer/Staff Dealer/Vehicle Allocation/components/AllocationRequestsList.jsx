@@ -35,20 +35,18 @@ const STATUS_OPTIONS = [
 ];
 
 const STATUS_META = {
-  requested:  { label: "Đã gửi yêu cầu",  color: "default" },
-  approved:   { label: "Đã duyệt",        color: "blue" },
-  rejected:   { label: "Từ chối",         color: "red" },
-  assigned:   { label: "Đã phân xe",      color: "purple" },
+  requested: { label: "Đã gửi yêu cầu", color: "default" },
+  approved: { label: "Đã duyệt", color: "blue" },
+  rejected: { label: "Từ chối", color: "red" },
+  assigned: { label: "Đã phân xe", color: "purple" },
   in_transit: { label: "Đang vận chuyển", color: "gold" },
-  at_dealer:  { label: "Tại đại lý",      color: "cyan" },
-  delivered:  { label: "Đã giao",         color: "green" },
-  cancelled:  { label: "Đã hủy",          color: "volcano" },
+  at_dealer: { label: "Tại đại lý", color: "cyan" },
+  delivered: { label: "Đã giao", color: "green" },
+  cancelled: { label: "Đã hủy", color: "volcano" },
 };
 
 
-const TOKEN =
-  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJVc2VySWQiOiJhNzRlOWUwMy03YzRkLTQ0ZDAtOGY0Yy0wZjAxODRiN2U2ZjQiLCJSb2xlSWQiOiI0IiwiUm9sZU5hbWUiOiJEZWFsZXIgU3RhZmYiLCJEZWFsZXJJZCI6ImViODAyYjcxLTRhZTAtNGNiMy1iYzg1LThjNTZmNjdiZDc1NyIsIm5iZiI6MTc2MTE0NjUxMCwiZXhwIjoxNzY5MDk1MzEwLCJpYXQiOjE3NjExNDY1MTAsImlzcyI6IkVWTSIsImF1ZCI6IlVzZXIifQ.Pr-9xC1ZungY2cTIIDUeFs7lHr6Sm2L0spguOLRaCpY";
-
+const TOKEN = localStorage.getItem("token");// G
 /** ===== Helpers ===== */
 function shortId(id = "") {
   if (!id) return "";
@@ -95,7 +93,10 @@ export default function AllocationRequestsList() {
             key: item.allocationId,
             id: item.allocationId,
             idShort: shortId(item.allocationId),
-            car: item.vehicleName,
+            car: (item.vehicleName || "") +
+              (item.versionName ? " " + item.versionName : "") +
+              (item.color ? " " + item.color : "") +
+              (item.evType ? ` - ${item.evType}` : ""),
             destination: item.dealerName,
             quantity: item.quantity,
             date: item.requestDate,
@@ -158,7 +159,7 @@ export default function AllocationRequestsList() {
         try {
           const j = await resp.json();
           msg = j?.message || msg;
-        } catch {}
+        } catch { }
         throw new Error(msg);
       }
 

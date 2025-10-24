@@ -37,7 +37,7 @@ export default function AllocationRequest() {
         const items = json?.data?.items ?? json?.data ?? json ?? [];
         const mapped = (Array.isArray(items) ? items : []).map((v) => ({
           id: v.vehicleVersionId || v.id,
-          label: `${v.brand ?? v.brandName ?? ""} ${v.versionName ?? ""}`.trim(),
+            label: `${v.brand} - ${v.versionName} - ${v.color} - ${v.evType}`,
         }));
         setVersions(mapped.filter((v) => v.id && v.label));
       } catch (err) {
