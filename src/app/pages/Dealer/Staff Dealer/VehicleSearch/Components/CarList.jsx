@@ -29,61 +29,45 @@ export default function CarList({ filters }) {
     setError(null);
 
     try {
-      const colorsToFetch =
-        filters.selectedColors?.length > 0 ? filters.selectedColors : [null];
+      const params = new URLSearchParams({
+        pageNumber: page,
+        pageSize: pageSize,
+      });
 
-      const responses = await Promise.all(
-        colorsToFetch.map(async (color) => {
-          const params = new URLSearchParams({
-            pageNumber: page,
-            pageSize: pageSize,
-          });
+      if (filters.searchValue)
+        params.append("searchValue", filters.searchValue);
+      if (filters.selectedModel && filters.selectedModel !== "Tất cả")
+        params.append("vehicleId", filters.selectedModel);
+      if (filters.priceMin) params.append("minPrice", filters.priceMin);
+      if (filters.priceMax) params.append("maxPrice", filters.priceMax);
 
-          if (filters.searchValue)
-            params.append("searchValue", filters.searchValue);
-          if (filters.selectedModel && filters.selectedModel !== "Tất cả")
-            params.append("vehicleId", filters.selectedModel);
-          if (filters.priceMin) params.append("minPrice", filters.priceMin);
-          if (filters.priceMax) params.append("maxPrice", filters.priceMax);
+      // ✅ Thêm danh sách màu (dạng list<string>)
+      if (filters.selectedColors?.length > 0) {
+        filters.selectedColors.forEach((color) =>
+          params.append("colors", color)
+        );
+      }
 
-          if (color) params.append("searchValue", color);
+      const url = `${BASE_URL}?${params.toString()}`;
 
-          const url = `${BASE_URL}?${params.toString()}`;
-          const res = await fetch(url, {
-            headers: {
-              Authorization: `Bearer ${TOKEN}`,
-              "Content-Type": "application/json",
-            },
-          });
+      const res = await fetch(url, {
+        headers: {
+          Authorization: `Bearer ${TOKEN}`,
+          "Content-Type": "application/json",
+        },
+      });
 
-          if (!res.ok) throw new Error("Không thể tải dữ liệu từ máy chủ.");
+      if (!res.ok) throw new Error("Không thể tải dữ liệu từ máy chủ.");
 
-          const data = await res.json();
-          if (data.status === 200 && data.data?.items) {
-            return {
-              items: data.data.items,
-              totalItems: data.data.totalItems || 0,
-              totalPages: data.data.totalPages || 1,
-            };
-          }
-          return { items: [], totalItems: 0, totalPages: 1 };
-        })
-      );
-
-      const allItems = responses.flatMap((r) => r.items);
-      const unique = Array.from(
-        new Map(allItems.map((c) => [c.vehicleVersionId, c])).values()
-      );
-
-      if (responses.length === 1) {
-        const res = responses[0];
-        setCars(res.items);
-        setTotalItems(res.totalItems);
-        setTotalPages(res.totalPages);
+      const data = await res.json();
+      if (data.status === 200 && data.data?.items) {
+        setCars(data.data.items);
+        setTotalItems(data.data.totalItems || 0);
+        setTotalPages(data.data.totalPages || 1);
       } else {
-        setCars(unique);
-        setTotalItems(unique.length);
-        setTotalPages(Math.ceil(unique.length / pageSize));
+        setCars([]);
+        setTotalItems(0);
+        setTotalPages(1);
       }
     } catch (err) {
       setError(err.message || "Không thể tải dữ liệu từ máy chủ.");
