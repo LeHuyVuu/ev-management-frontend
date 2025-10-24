@@ -113,8 +113,19 @@ export default function CarList({ filters }) {
       const exists = prev.find(
         (c) => c.vehicleVersionId === car.vehicleVersionId
       );
-      if (exists)
+
+      // Nếu xe đã tồn tại → bỏ chọn
+      if (exists) {
         return prev.filter((c) => c.vehicleVersionId !== car.vehicleVersionId);
+      }
+
+      // Giới hạn tối đa 5 xe
+      if (prev.length >= 5) {
+        alert("Chỉ có thể so sánh tối đa 5 xe cùng lúc!");
+        return prev;
+      }
+
+      // Thêm xe mới
       return [...prev, car];
     });
   };
@@ -324,10 +335,20 @@ export default function CarList({ filters }) {
         </div>
       )}
 
-      {/* Modal so sánh */}
+      {/* Modal so sánh dạng bảng */}
       {showCompare && (
         <div className="fixed inset-0 bg-black/60 flex justify-center items-center z-50">
-          <div className="bg-white w-full max-w-6xl rounded-2xl shadow-xl p-6 relative overflow-x-auto">
+          <div
+            className={`bg-white rounded-2xl shadow-xl p-6 relative overflow-x-auto ${
+              compareList.length === 1
+                ? "max-w-md" // 1 xe → bảng nhỏ gọn
+                : compareList.length === 2
+                ? "max-w-3xl" // 2 xe → vừa
+                : compareList.length === 3
+                ? "max-w-5xl" // 3 xe → rộng hơn
+                : "max-w-7xl" // ≥4 xe → full rộng
+            } w-full`}
+          >
             <button
               onClick={() => setShowCompare(false)}
               className="absolute top-2 right-3 text-gray-500 hover:text-black text-lg"
@@ -344,68 +365,130 @@ export default function CarList({ filters }) {
                 Bạn chưa chọn xe nào để so sánh.
               </p>
             ) : (
-              <div
-                className="flex gap-4 overflow-x-auto pb-4"
-                style={{
-                  scrollSnapType: "x mandatory",
-                }}
-              >
-                {compareList.map((car) => (
-                  <div
-                    key={car.vehicleVersionId}
-                    className="min-w-[280px] sm:min-w-[300px] md:min-w-[320px] border rounded-xl p-4 shadow-sm bg-gray-50 relative group flex-shrink-0 scroll-snap-align-start transition hover:shadow-md"
-                  >
-                    {/* Nút xoá */}
-                    <button
-                      onClick={() => {
-                        // Xoá xe khỏi danh sách
-                        setCompareList((prev) =>
-                          prev.filter(
-                            (x) => x.vehicleVersionId !== car.vehicleVersionId
-                          )
-                        );
-
-                        // Bỏ tick checkbox ở danh sách chính
-                        document
-                          .querySelectorAll("input[type='checkbox']")
-                          .forEach((checkbox) => {
-                            if (
-                              checkbox.value === car.vehicleVersionId ||
-                              checkbox.dataset.id === car.vehicleVersionId
-                            ) {
-                              checkbox.checked = false;
+              <div className="overflow-x-auto">
+                <table className="min-w-full border border-gray-200 text-sm text-gray-700 rounded-lg overflow-hidden">
+                  <thead>
+                    <tr className="bg-gray-100 text-center">
+                      <th className="p-2 w-40 text-left">Thông số</th>
+                      {compareList.map((car) => (
+                        <th key={car.vehicleVersionId} className="p-2 relative">
+                          {/* Nút xoá */}
+                          <button
+                            onClick={() =>
+                              setCompareList((prev) =>
+                                prev.filter(
+                                  (x) =>
+                                    x.vehicleVersionId !== car.vehicleVersionId
+                                )
+                              )
                             }
-                          });
-                      }}
-                      className="absolute top-2 right-2 text-gray-400 hover:text-red-500 text-sm font-bold hidden group-hover:block"
-                      title="Xóa khỏi so sánh"
-                    >
-                      ✕
-                    </button>
+                            className="absolute top-1 right-1 text-gray-400 hover:text-red-500"
+                            title="Xóa khỏi so sánh"
+                          >
+                            ✕
+                          </button>
 
-                    <img
-                      src={car.imageUrl}
-                      alt={car.modelName}
-                      className="w-full h-36 object-cover rounded-md mb-3"
-                    />
-                    <h4 className="font-semibold text-sm mb-1 text-gray-800 text-center">
-                      {car.brand} {car.modelName}{" "}
-                      <span className="text-gray-500">{car.versionName}</span>
-                    </h4>
-                    <p className="text-blue-600 font-bold text-lg text-center mb-2">
-                      {formatPrice(car.basePrice)}
-                    </p>
+                          <div className="flex flex-col items-center">
+                            <img
+                              src={car.imageUrl}
+                              alt={car.modelName}
+                              className="w-32 h-24 object-cover rounded-md mb-1"
+                            />
+                            <div className="font-semibold text-xs text-gray-800">
+                              {car.brand} {car.modelName}
+                            </div>
+                            <div className="text-gray-500 text-xs">
+                              {car.versionName}
+                            </div>
+                            <div className="text-blue-600 font-bold text-sm mt-1">
+                              {formatPrice(car.basePrice)}
+                            </div>
+                          </div>
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
 
-                    <div className="text-xs text-gray-600 space-y-1 mt-2">
-                      <p>Hãng: {car.brand}</p>
-                      <p>Model: {car.modelName}</p>
-                      <p>Màu: {car.color}</p>
-                      <p>Kiểu: {car.evType}</p>
-                      <p>Công suất: {car.horsePower} HP</p>
-                      <p>Tồn kho: {car.stockQuantity}</p>
-                    </div>
-                  </div>
-                ))}
+                  <tbody>
+                    <tr className="border-t">
+                      <td className="font-medium px-3 py-2">Hãng</td>
+                      {compareList.map((car) => (
+                        <td
+                          key={car.vehicleVersionId}
+                          className="text-center px-3 py-2"
+                        >
+                          {car.brand}
+                        </td>
+                      ))}
+                    </tr>
+                    <tr className="border-t bg-gray-50">
+                      <td className="font-medium px-3 py-2">Model</td>
+                      {compareList.map((car) => (
+                        <td
+                          key={car.vehicleVersionId}
+                          className="text-center px-3 py-2"
+                        >
+                          {car.modelName}
+                        </td>
+                      ))}
+                    </tr>
+                    <tr className="border-t">
+                      <td className="font-medium px-3 py-2">Phiên bản</td>
+                      {compareList.map((car) => (
+                        <td
+                          key={car.vehicleVersionId}
+                          className="text-center px-3 py-2"
+                        >
+                          {car.versionName}
+                        </td>
+                      ))}
+                    </tr>
+                    <tr className="border-t bg-gray-50">
+                      <td className="font-medium px-3 py-2">Màu sắc</td>
+                      {compareList.map((car) => (
+                        <td
+                          key={car.vehicleVersionId}
+                          className="text-center px-3 py-2"
+                        >
+                          {car.color}
+                        </td>
+                      ))}
+                    </tr>
+                    <tr className="border-t">
+                      <td className="font-medium px-3 py-2">Kiểu xe</td>
+                      {compareList.map((car) => (
+                        <td
+                          key={car.vehicleVersionId}
+                          className="text-center px-3 py-2"
+                        >
+                          {car.evType}
+                        </td>
+                      ))}
+                    </tr>
+                    <tr className="border-t bg-gray-50">
+                      <td className="font-medium px-3 py-2">Công suất</td>
+                      {compareList.map((car) => (
+                        <td
+                          key={car.vehicleVersionId}
+                          className="text-center px-3 py-2"
+                        >
+                          {car.horsePower} HP
+                        </td>
+                      ))}
+                    </tr>
+                    <tr className="border-t">
+                      <td className="font-medium px-3 py-2">Tồn kho</td>
+                      {compareList.map((car) => (
+                        <td
+                          key={car.vehicleVersionId}
+                          className="text-center px-3 py-2"
+                        >
+                          {car.stockQuantity}
+                        </td>
+                      ))}
+                    </tr>
+                  </tbody>
+                </table>
               </div>
             )}
           </div>
