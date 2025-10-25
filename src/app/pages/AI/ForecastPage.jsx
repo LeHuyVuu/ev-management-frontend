@@ -32,6 +32,7 @@ import {
   PlusOutlined,
 } from "@ant-design/icons";
 import { searchForecast, askForecast } from "../../context/forecast.api";
+import ChatBox from "./Chatbot";
 
 const { Text, Title, Paragraph } = Typography;
 const { TextArea } = Input;
@@ -457,116 +458,17 @@ export default function ForecastPage() {
             </div>
           </Card>
 
-          {/* ASK AI – giữ nguyên */}
-          {answer && (
-            <div
-              style={{
-                position: "fixed",
-                left: "50%",
-                transform: "translateX(-50%)",
-                bottom: aiBarCollapsed ? 72 : 88,
-                width: "min(760px, 96vw)",
-                zIndex: 1003,
-              }}
-            >
-              <Card
-                size="small"
-                style={{ boxShadow: "0 10px 30px rgba(0,0,0,0.18)", borderRadius: 12 }}
-                extra={<Button type="text" onClick={() => setAnswer("")}>Đóng</Button>}
-              >
-                <Paragraph style={{ whiteSpace: "pre-wrap", margin: 0 }}>{answer}</Paragraph>
-              </Card>
-            </div>
-          )}
+          <ChatBox
+            q={q}
+            setQ={setQ}
+            asking={asking}
+            onAsk={onAsk}
+            answer={answer}
+            setAnswer={setAnswer}
+            aiBarCollapsed={aiBarCollapsed}
+            setAiBarCollapsed={setAiBarCollapsed}
+          />
 
-          {aiBarCollapsed && (
-            <div style={{ position: "fixed", left: "50%", transform: "translateX(-50%)", bottom: 24, zIndex: 1002 }}>
-              <Button
-                type="primary"
-                shape="round"
-                size="large"
-                icon={<RobotOutlined />}
-                onClick={() => setAiBarCollapsed(false)}
-                style={{ paddingInline: 20, boxShadow: "0 8px 28px rgba(0,0,0,0.18)" }}
-              >
-                Hỏi AI
-              </Button>
-            </div>
-          )}
-
-          <div
-            style={{
-              position: "fixed",
-              left: "50%",
-              transform: "translateX(-50%)",
-              bottom: 24,
-              width: "min(980px, 92vw)",
-              zIndex: 1002,
-            }}
-          >
-            <Card
-              size="small"
-              bodyStyle={{ padding: 8 }}
-              style={{
-                borderRadius: 20,
-                boxShadow: "0 14px 40px rgba(0,0,0,0.22)",
-                overflow: "hidden",
-                border: "1px solid rgba(255,255,255,0.35)",
-                background: "linear-gradient(135deg, rgba(255,255,255,0.92), rgba(245,247,250,0.92))",
-                backdropFilter: "saturate(120%) blur(8px)",
-              }}
-            >
-              <Space align="center" size={8} style={{ width: "100%" }}>
-                <div
-                  style={{
-                    height: 36,
-                    width: 36,
-                    borderRadius: 12,
-                    background: "#fff",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    boxShadow: "inset 0 0 0 1px #f0f0f0",
-                    flex: "0 0 auto",
-                  }}
-                >
-                  <RobotOutlined />
-                </div>
-
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <TextArea
-                    value={q}
-                    onChange={(e) => setQ(e.target.value)}
-                    placeholder="Hey! Tôi có thể giúp gì cho bạn? (Enter để gửi, Shift+Enter xuống dòng)"
-                    autoSize={{ minRows: 1, maxRows: 4 }}
-                    bordered={false}
-                    style={{ width: "100%", background: "transparent", paddingInline: 8 }}
-                    onPressEnter={(e) => {
-                      if (!e.shiftKey) {
-                        e.preventDefault();
-                        onAsk();
-                      }
-                    }}
-                  />
-                </div>
-
-                <div style={{ flex: "0 0 auto" }}>
-                  <Space align="center" size={6}>
-                    <Button
-                      type="text"
-                      shape="circle"
-                      title="Thu gọn"
-                      icon={<MinusOutlined />}
-                      onClick={() => setAiBarCollapsed(true)}
-                    />
-                    <Button type="primary" onClick={onAsk} loading={asking}>
-                      Gửi
-                    </Button>
-                  </Space>
-                </div>
-              </Space>
-            </Card>
-          </div>
         </Space>
       </div>
     </Spin>
