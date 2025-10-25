@@ -1,6 +1,6 @@
 // Gọi API backend (đặt proxy hoặc cùng domain để tránh CORS).
 // Nếu backend chạy khác origin, chỉnh BASE thành https://localhost:7050
-const BASE = "https://localhost:7050"; // để trống = gọi cùng origin (frontend phục vụ bởi reverse proxy)
+const BASE = "https://prn232.freeddns.org"; // để trống = gọi cùng origin (frontend phục vụ bởi reverse proxy)
 
 export async function searchForecast(params) {
   const qs = new URLSearchParams();

@@ -22,7 +22,15 @@ import {
   Tooltip,
   FloatButton,
 } from "antd";
-import { SearchOutlined, ReloadOutlined, ArrowLeftOutlined, ArrowRightOutlined, RobotOutlined, MinusOutlined, PlusOutlined } from "@ant-design/icons";
+import {
+  SearchOutlined,
+  ReloadOutlined,
+  ArrowLeftOutlined,
+  ArrowRightOutlined,
+  RobotOutlined,
+  MinusOutlined,
+  PlusOutlined,
+} from "@ant-design/icons";
 import { searchForecast, askForecast } from "../../context/forecast.api";
 
 const { Text, Title, Paragraph } = Typography;
@@ -32,8 +40,28 @@ function formatDateInput(d) {
   if (!d) return "";
   const dt = new Date(d);
   if (isNaN(dt)) return "";
-  // yyyy-mm-dd
   return dt.toISOString().slice(0, 10);
+}
+
+// 🔁 CHANGED: helper chung để lấy tất cả trang
+async function fetchAllPages(baseUrl, pageSize = 100) {
+  const items = [];
+  let pageNumber = 1;
+  while (true) {
+    const url = `${baseUrl}?pageNumber=${pageNumber}&pageSize=${pageSize}`;
+    const res = await fetch(url, { headers: { accept: "text/plain" } });
+    if (!res.ok) {
+      throw new Error(`HTTP ${res.status} khi gọi ${url}`);
+    }
+    const json = await res.json();
+    const data = json?.data;
+    if (!data?.items) break;
+    items.push(...data.items);
+    const totalPages = data.totalPages ?? 1;
+    if (pageNumber >= totalPages) break;
+    pageNumber += 1;
+  }
+  return items;
 }
 
 export default function ForecastPage() {
@@ -60,18 +88,71 @@ export default function ForecastPage() {
   const [aiBarOpen, setAiBarOpen] = useState(false);
   const [aiBarCollapsed, setAiBarCollapsed] = useState(false);
 
-  // lấy danh sách dealer/version để fill dropdown từ data đã tải (tạm thời)
-  const dealerOptions = useMemo(() => {
-    const m = new Map();
-    rows.forEach((r) => m.set(r.dealer_id, r.dealer_name));
-    return Array.from(m.entries()).map(([id, name]) => ({ value: id, label: `${name} (${id})` }));
-  }, [rows]);
+  // 🔁 CHANGED: state & loading cho options
+  const [dealerOptions, setDealerOptions] = useState([]);
+  const [versionOptions, setVersionOptions] = useState([]);
+  const [loadingDealerOpt, setLoadingDealerOpt] = useState(false);
+  const [loadingVersionOpt, setLoadingVersionOpt] = useState(false);
+  const [optError, setOptError] = useState("");
 
-  const versionOptions = useMemo(() => {
-    const m = new Map();
-    rows.forEach((r) => m.set(r.vehicle_version_id, r.version_name));
-    return Array.from(m.entries()).map(([id, name]) => ({ value: id, label: `${name} (${id})` }));
-  }, [rows]);
+  // 🔁 CHANGED: gọi API lấy dealers & versions (giữ tách biệt, không ảnh hưởng table)
+  useEffect(() => {
+    let mounted = true;
+
+    async function loadDealerOptions() {
+      try {
+        setLoadingDealerOpt(true);
+        // dealers
+        const dealers = await fetchAllPages(
+          "https://prn232.freeddns.org/dealer-service/api/Dealers",
+          100
+        );
+        if (!mounted) return;
+        const opts = dealers.map((d) => ({
+          value: d.dealerId, // dùng dealerId làm value để gửi filter
+          label: `${d.name} (${d.dealerCode}) ${d.dealerId}`,
+          raw: d,
+        }));
+        setDealerOptions(opts);
+      } catch (e) {
+        console.error(e);
+        if (mounted) setOptError((prev) => prev || e.message || "Lỗi tải dealer options");
+      } finally {
+        if (mounted) setLoadingDealerOpt(false);
+      }
+    }
+
+    async function loadVersionOptions() {
+      try {
+        setLoadingVersionOpt(true);
+        // versions (có phân trang 2 trang trong ví dụ → dùng fetchAllPages)
+        const versions = await fetchAllPages(
+          "https://prn232.freeddns.org/brand-service/api/vehicle-versions",
+          100
+        );
+        if (!mounted) return;
+        const opts = versions.map((v) => ({
+          value: v.vehicleVersionId, // dùng vehicleVersionId làm value để gửi filter
+
+          label: `${v.brand} ${v.modelName} - ${v.versionName}${v.color ? ` · ${v.color}` : ""} - ${v.vehicleVersionId}`,
+          raw: v,
+        }));
+        setVersionOptions(opts);
+      } catch (e) {
+        console.error(e);
+        if (mounted) setOptError((prev) => prev || e.message || "Lỗi tải version options");
+      } finally {
+        if (mounted) setLoadingVersionOpt(false);
+      }
+    }
+
+    loadDealerOptions();
+    loadVersionOptions();
+
+    return () => {
+      mounted = false;
+    };
+  }, []);
 
   async function loadData(p = 1) {
     try {
@@ -81,6 +162,7 @@ export default function ForecastPage() {
         page: p,
         pageSize,
       };
+      // LOGIC PRESERVED: truyền dealerId & vehicleVersionId nếu có
       if (dealerId) payload.dealerId = dealerId;
       if (vehicleVersionId) payload.vehicleVersionId = vehicleVersionId;
       if (fromWeek) payload.fromWeek = fromWeek;
@@ -132,7 +214,6 @@ export default function ForecastPage() {
     try {
       setAsking(true);
       setAnswer("");
-      // gửi kèm rows hiện tại (tối đa ~100 items để payload nhẹ)
       const partialRows = rows.slice(0, 100);
       const res = await askForecast(q, partialRows);
       setAnswer(res.answer || "");
@@ -155,7 +236,9 @@ export default function ForecastPage() {
       render: (text, r) => (
         <div>
           <div>{r.dealer_name}</div>
-          <Text type="secondary" style={{ fontSize: 12 }}>{r.dealer_id}</Text>
+          <Text type="secondary" style={{ fontSize: 12 }}>
+            {r.dealer_id}
+          </Text>
         </div>
       ),
     },
@@ -166,7 +249,9 @@ export default function ForecastPage() {
       render: (text, r) => (
         <div>
           <div>{r.version_name}</div>
-          <Text type="secondary" style={{ fontSize: 12 }}>{r.vehicle_version_id}</Text>
+          <Text type="secondary" style={{ fontSize: 12 }}>
+            {r.vehicle_version_id}
+          </Text>
         </div>
       ),
     },
@@ -188,7 +273,8 @@ export default function ForecastPage() {
       dataIndex: "discount_rate_active",
       key: "discount_rate_active",
       align: "right",
-      render: (v) => `${Number(v).toLocaleString("vi-VN", { maximumFractionDigits: 2 })}%`,
+      render: (v) =>
+        `${Number(v).toLocaleString("vi-VN", { maximumFractionDigits: 2 })}%`,
     },
     {
       title: "Has Promo",
@@ -211,7 +297,9 @@ export default function ForecastPage() {
       <div style={{ padding: 16 }}>
         <Space direction="vertical" size={16} style={{ width: "100%" }}>
           <div>
-            <Title level={3} style={{ margin: 0 }}>Dự báo nhu cầu (Forecast)</Title>
+            <Title level={3} style={{ margin: 0 }}>
+              Dự báo nhu cầu (Forecast)
+            </Title>
             <Text type="secondary">Giao diện dùng Ant Design · Logic giữ nguyên</Text>
           </div>
 
@@ -225,10 +313,13 @@ export default function ForecastPage() {
                       allowClear
                       showSearch
                       placeholder="-- tất cả --"
-                      value={dealerId || undefined}
-                      onChange={(v) => setDealerId(v || "")}
+                      // 🔁 CHANGED: dùng options từ API
                       options={dealerOptions}
                       optionFilterProp="label"
+                      // giữ nguyên state + value
+                      value={dealerId || undefined}
+                      onChange={(v) => setDealerId(v || "")}
+                      loading={loadingDealerOpt}
                     />
                   </Form.Item>
                 </Col>
@@ -239,10 +330,13 @@ export default function ForecastPage() {
                       allowClear
                       showSearch
                       placeholder="-- tất cả --"
-                      value={vehicleVersionId || undefined}
-                      onChange={(v) => setVehicleVersionId(v || "")}
+                      // 🔁 CHANGED: dùng options từ API
                       options={versionOptions}
                       optionFilterProp="label"
+                      // giữ nguyên state + value
+                      value={vehicleVersionId || undefined}
+                      onChange={(v) => setVehicleVersionId(v || "")}
+                      loading={loadingVersionOpt}
                     />
                   </Form.Item>
                 </Col>
@@ -269,12 +363,27 @@ export default function ForecastPage() {
 
                 <Col span={24}>
                   <Space>
-                    <Button type="primary" htmlType="submit" icon={<SearchOutlined />}>Áp dụng lọc</Button>
-                    <Button onClick={onClearFilter} icon={<ReloadOutlined />}>Xóa lọc</Button>
+                    <Button type="primary" htmlType="submit" icon={<SearchOutlined />}>
+                      Áp dụng lọc
+                    </Button>
+                    <Button onClick={onClearFilter} icon={<ReloadOutlined />}>
+                      Xóa lọc
+                    </Button>
                   </Space>
                 </Col>
               </Row>
             </Form>
+
+            {/* 🔁 CHANGED: báo lỗi options (không chặn UI chính) */}
+            {optError && (
+              <Alert
+                style={{ marginTop: 8 }}
+                type="warning"
+                showIcon
+                message="Không tải được danh sách Dealer/Version"
+                description={optError}
+              />
+            )}
           </Card>
 
           {/* SUMMARY / STATUS */}
@@ -296,9 +405,7 @@ export default function ForecastPage() {
             </Col>
           </Row>
 
-          {err && (
-            <Alert type="error" message={err} showIcon />
-          )}
+          {err && <Alert type="error" message={err} showIcon />}
 
           {/* TABLE */}
           <Card size="small" bodyStyle={{ padding: 0 }}>
@@ -311,52 +418,67 @@ export default function ForecastPage() {
             />
 
             {/* PAGINATION (LOGIC PRESERVED) */}
-            <div style={{ padding: 12, display: "flex", justifyContent: "space-between", alignItems: "center", borderTop: "1px solid #f0f0f0" }}>
+            <div
+              style={{
+                padding: 12,
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                borderTop: "1px solid #f0f0f0",
+              }}
+            >
               <Space>
-                <Button onClick={goPrev} disabled={page <= 1} icon={<ArrowLeftOutlined />}>Trước</Button>
-                <Button onClick={goNext} disabled={page >= maxPage} icon={<ArrowRightOutlined />} iconPosition="end">Sau</Button>
+                <Button onClick={goPrev} disabled={page <= 1} icon={<ArrowLeftOutlined />}>
+                  Trước
+                </Button>
+                <Button
+                  onClick={goNext}
+                  disabled={page >= maxPage}
+                  icon={<ArrowRightOutlined />}
+                  iconPosition="end"
+                >
+                  Sau
+                </Button>
               </Space>
 
               <Space align="center">
                 <Text>Số dòng/trang</Text>
                 <Select
                   value={pageSize}
-                  onChange={(v) => { setPageSize(v); setTimeout(() => loadData(1), 0); }}
+                  onChange={(v) => {
+                    setPageSize(v);
+                    setTimeout(() => loadData(1), 0);
+                  }}
                   options={[10, 20, 50, 100, 200].map((n) => ({ value: n, label: n }))}
                   style={{ width: 120 }}
                 />
-                <Pagination
-                  simple
-                  current={page}
-                  pageSize={pageSize}
-                  total={total}
-                  onChange={(p) => loadData(p)}
-                />
+                <Pagination simple current={page} pageSize={pageSize} total={total} onChange={(p) => loadData(p)} />
               </Space>
             </div>
           </Card>
 
-          {/* ASK AI – Docked bottom bar (Thinkstack-like). LOGIC PRESERVED */}
-
-          {/* Answer bubble (shows above the bar when there's an answer) */}
+          {/* ASK AI – giữ nguyên */}
           {answer && (
             <div
-            style={{
-              position: "fixed",
-              left: "50%",
-              transform: "translateX(-50%)",
-              bottom: aiBarCollapsed ? 72 : 88,
-              width: "min(760px, 96vw)",
-              zIndex: 1003,
-            }}
+              style={{
+                position: "fixed",
+                left: "50%",
+                transform: "translateX(-50%)",
+                bottom: aiBarCollapsed ? 72 : 88,
+                width: "min(760px, 96vw)",
+                zIndex: 1003,
+              }}
             >
-              <Card size="small" style={{ boxShadow: "0 10px 30px rgba(0,0,0,0.18)", borderRadius: 12 }} extra={<Button type="text" onClick={() => setAnswer("")}>Đóng</Button>}>
+              <Card
+                size="small"
+                style={{ boxShadow: "0 10px 30px rgba(0,0,0,0.18)", borderRadius: 12 }}
+                extra={<Button type="text" onClick={() => setAnswer("")}>Đóng</Button>}
+              >
                 <Paragraph style={{ whiteSpace: "pre-wrap", margin: 0 }}>{answer}</Paragraph>
               </Card>
             </div>
           )}
 
-          {/* Collapsed pill button */}
           {aiBarCollapsed && (
             <div style={{ position: "fixed", left: "50%", transform: "translateX(-50%)", bottom: 24, zIndex: 1002 }}>
               <Button
@@ -372,7 +494,6 @@ export default function ForecastPage() {
             </div>
           )}
 
-          {/* Fixed bottom bar */}
           <div
             style={{
               position: "fixed",
