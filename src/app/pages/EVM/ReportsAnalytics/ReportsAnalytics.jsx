@@ -4,6 +4,7 @@ import { TrendingUp, Package2, Brain } from "lucide-react";
 import SalesReport from "./components/SalesReport";
 import InventoryAndSpeed from "./components/InventoryAndSpeed";
 import AIForecast from "./components/AIForecast";
+import ForecastPage from "../../AI/ForecastPage";
 
 function ReportsManagement() {
   const [activeTab, setActiveTab] = useState("sales-inventory");
@@ -24,7 +25,7 @@ function ReportsManagement() {
       id: "forecast",
       label: "AI Forecast",
       icon: Brain,
-      component: <AIForecast />,
+      component: <ForecastPage />,
     },
   ];
 

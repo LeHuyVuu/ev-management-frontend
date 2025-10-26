@@ -1,66 +1,133 @@
 import React from "react";
-import { Link } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
+import { Layout, Menu, Typography } from "antd";
+import {
+  DashboardOutlined,
+  CarOutlined,
+  FileTextOutlined,
+  SafetyCertificateOutlined,
+  CalendarOutlined,
+  UserOutlined,
+  DeploymentUnitOutlined,
+  AuditOutlined,
+  BarChartOutlined,
+  FolderOpenOutlined,
+  TruckOutlined,
+} from "@ant-design/icons";
 
-const Sidebar = () => (
-    <div className="w-64 h-screen bg-white shadow-md flex flex-col justify-between">
-        {/* Menu */}
-        <div>
-            {/* Bảng điều khiển */}
-            <div className="px-4 py-2 text-gray-700 font-medium flex items-center space-x-2">
-                <span className="text-lg">📊</span>
-                <span>Bảng điều khiển</span>
-            </div>
+const { Sider } = Layout;
+const { Text } = Typography;
 
-            {/* BÁN HÀNG & CRM */}
-            <p className="px-4 mt-4 mb-2 text-xs font-bold text-gray-400 uppercase">Bán hàng & CRM</p>
-            <nav className="space-y-1">
-                <Link to="/dealer/vehicle-search" className="flex items-center px-4 py-2 text-gray-700 hover:bg-gray-100 space-x-2">
-                    <span>🚗</span><span>Thông tin xe</span>
-                </Link>
-                <Link to="/dealer/quote-management" className="flex items-center px-4 py-2 text-gray-700 hover:bg-gray-100 space-x-2">
-                    <span>📋</span><span>Quản lý báo giá</span>
-                </Link>
-                <Link to="/dealer/contract" className="flex items-center px-4 py-2 text-gray-700 hover:bg-gray-100 space-x-2">
-                    <span>🛡️</span><span>Quản lý hợp đồng</span>
-                </Link>
-                <Link to="/dealer/driver-schedule" className="flex items-center px-4 py-2 text-gray-700 hover:bg-gray-100 space-x-2">
-                    <span>📅</span><span>Lịch lái thử</span>
-                </Link>
-                <Link to="/dealer/customer-crm" className="flex items-center px-4 py-2 text-gray-700 hover:bg-gray-100 space-x-2">
-                    <span>👤</span><span>Quản lý khách hàng</span>
-                </Link>
-            </nav>
+const Sidebar = () => {
+  const { pathname } = useLocation();
 
-            {/* HOẠT ĐỘNG */}
-            <p className="px-4 mt-4 mb-2 text-xs font-bold text-gray-400 uppercase">Hoạt động</p>
-            <nav className="space-y-1">
-                <Link to="/dealer/vehicle-allocation" className="flex items-center px-4 py-2 text-gray-700 hover:bg-gray-100 space-x-2">
-                    <span>🚚</span><span>Yêu cầu phân bổ xe</span>
-                </Link>
-                <Link to="/dealer/delivery-tracking" className="flex items-center px-4 py-2 text-gray-700 hover:bg-gray-100 space-x-2">
-                    <span>📄</span><span>Theo dõi giao hàng</span>
-                </Link>
-            </nav>
+  const items = [
+   
 
-            {/* BÁO CÁO */}
-            <p className="px-4 mt-4 mb-2 text-xs font-bold text-gray-400 uppercase">Báo cáo</p>
-            <nav>
-                <Link to="/evm/reports-analytics" className="flex items-center px-4 py-2 text-gray-700 hover:bg-gray-100 space-x-2">
-                    <span>📂</span><span>Báo cáo doanh số & nợ</span>
-                </Link>
-            </nav>
-        </div>
+    // Bán hàng & CRM
+    {
+      key: "group-sales",
+      type: "group",
+      label: <Text type="secondary" style={{ textTransform: "uppercase", fontSize: 12 }}>Bán hàng & CRM</Text>,
+      children: [
+        {
+          key: "/dealer/vehicle-search",
+          icon: <CarOutlined />,
+          label: <Link to="/dealer/vehicle-search">Thông tin xe</Link>,
+        },
+        {
+          key: "/dealer/quote-management",
+          icon: <FileTextOutlined />,
+          label: <Link to="/dealer/quote-management">Quản lý báo giá</Link>,
+        },
+        {
+          key: "/dealer/contract",
+          icon: <SafetyCertificateOutlined />,
+          label: <Link to="/dealer/contract">Quản lý hợp đồng</Link>,
+        },
+        {
+          key: "/dealer/driver-schedule",
+          icon: <CalendarOutlined />,
+          label: <Link to="/dealer/driver-schedule">Lịch lái thử</Link>,
+        },
+        {
+          key: "/dealer/customer-crm",
+          icon: <UserOutlined />,
+          label: <Link to="/dealer/customer-crm">Quản lý khách hàng</Link>,
+        },
+      ],
+    },
 
-        {/* Footer */}
-        {/* <div className="border-t p-4">
-            <Link to="/dealer/profile" className="flex items-center space-x-2 text-gray-700 hover:bg-gray-100 px-2 py-2 rounded">
-                <span>⚙️</span><span>Cài đặt</span>
-            </Link>
-            <Link to="/login" className="flex items-center justify-center mt-3 px-4 py-2 bg-red-500 text-white rounded hover:bg-red-600">
-                Đăng xuất
-            </Link>
-        </div> */}
-    </div>
-);
+    // Hoạt động
+    {
+      key: "group-ops",
+      type: "group",
+      label: <Text type="secondary" style={{ textTransform: "uppercase", fontSize: 12 }}>Hoạt động</Text>,
+      children: [
+        {
+          key: "/dealer/vehicle-allocation",
+          icon: <TruckOutlined />,
+          label: <Link to="/dealer/vehicle-allocation">Yêu cầu phân bổ xe</Link>,
+        },
+        {
+          key: "/dealer/delivery-tracking",
+          icon: <AuditOutlined />,
+          label: <Link to="/dealer/delivery-tracking">Theo dõi giao hàng</Link>,
+        },
+      ],
+    },
+
+    // Báo cáo (1)
+    {
+      key: "group-report-1",
+      type: "group",
+      label: <Text type="secondary" style={{ textTransform: "uppercase", fontSize: 12 }}>Báo cáo</Text>,
+      children: [
+        {
+          key: "/dealer/dashboard",
+          icon: <BarChartOutlined />,
+          label: <Link to="/dealer/dashboard">My Dashboard</Link>,
+        },
+      ],
+    },
+
+    // Báo cáo (2)
+    {
+      key: "group-report-2",
+      type: "group",
+      label: <Text type="secondary" style={{ textTransform: "uppercase", fontSize: 12 }}>Báo cáo</Text>,
+      children: [
+        {
+          key: "/evm/reports-analytics",
+          icon: <FolderOpenOutlined />,
+          label: <Link to="/evm/reports-analytics">TRANG CỦA EVM ==></Link>,
+        },
+      ],
+    },
+  ];
+
+  return (
+    <Sider
+      width={256}
+      theme="light"
+      style={{ height: "100vh", position: "sticky", top: 0, boxShadow: "0 1px 8px rgba(0,0,0,0.06)" }}
+    >
+    
+
+      <Menu
+        mode="inline"
+        selectedKeys={[pathname]}
+        defaultOpenKeys={[
+          "group-sales",
+          "group-ops",
+          "group-report-1",
+          "group-report-2",
+        ]}
+        items={items}
+        style={{ borderRight: 0, padding: "8px 0" }}
+      />
+    </Sider>
+  );
+};
 
 export default Sidebar;
