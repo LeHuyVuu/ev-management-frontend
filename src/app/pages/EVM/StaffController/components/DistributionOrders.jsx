@@ -264,7 +264,7 @@ export default function AllocationRequestsList() {
       <Space style={{ width: "100%", justifyContent: "space-between", marginBottom: 12 }}>
         <div>
           <Typography.Title level={4} style={{ margin: 0 }}>
-            Các yêu cầu phân bổ hiện có
+            Các yêu cầu phân bổ từ các đại lý
           </Typography.Title>
           <Typography.Text type="secondary">Theo dõi trạng thái và cập nhật trực tiếp.</Typography.Text>
         </div>

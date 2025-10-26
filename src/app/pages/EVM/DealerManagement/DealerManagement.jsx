@@ -1,10 +1,11 @@
 import React, { useState } from "react";
-import { Users, FileBarChart, Target, ClipboardList } from "lucide-react";
+import { Users, FileBarChart, Target, ClipboardList, Boxes } from "lucide-react";
 
 import DealerAccounts from "./components/DealerAccounts";
 import ContractsAndDebts from "./components/ContractsAndDebts";
 import SalesTargets from "./components/SalesTargets";
 import OrderDistribution from "./components/OrderDistribution";
+import DealerInventoryStatus from "../StaffController/components/DealerInventoryStatus";
 
 function DealerManagement() {
   const [activeTab, setActiveTab] = useState("dealer-contracts");
@@ -17,21 +18,21 @@ function DealerManagement() {
       component: (
         <div className="space-y-8">
           <DealerAccounts />
-          <ContractsAndDebts />
+            <DealerInventoryStatus />
         </div>
       ),
     },
-    {
-      id: "targets-orders",
-      label: "Targets & Orders",
-      icon: Target,
-      component: (
-        <div className="space-y-8">
-          <SalesTargets />
-          <OrderDistribution />
-        </div>
-      ),
-    },
+    // {
+    //   id: "targets-orders",
+    //   label: "Targets & Orders",
+    //   icon: Target,
+    //   component: (
+    //     <div className="space-y-8">
+    //       <SalesTargets />
+        
+    //     </div>
+    //   ),
+    // }
   ];
 
   return (
@@ -45,11 +46,10 @@ function DealerManagement() {
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
-                className={`flex items-center gap-2 px-4 py-2 rounded-t-lg border-b-2 transition-colors ${
-                  activeTab === tab.id
+                className={`flex items-center gap-2 px-4 py-2 rounded-t-lg border-b-2 transition-colors ${activeTab === tab.id
                     ? "border-blue-600 text-blue-600 font-semibold"
                     : "border-transparent text-gray-600 hover:text-blue-500"
-                }`}
+                  }`}
               >
                 <Icon className="w-4 h-4" />
                 {tab.label}

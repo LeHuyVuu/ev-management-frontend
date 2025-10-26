@@ -29,6 +29,7 @@ import Authentication from "../pages/Authentication/Authentication";
 // Protected wrapper
 import ProtectedRoute from "../routes/ProtectedRoute";
 import ForecastPage from "../pages/AI/ForecastPage";
+import ManageVehicleAllocationTransfer from "../pages/EVM/ManageVehicleAllocationTransfer/ManageVehicleAllocationTransfer";
 
 const MainRoutes = () => {
   return (
@@ -72,6 +73,8 @@ const MainRoutes = () => {
                 <Route path="reports-analytics" element={<ReportsAnalytics />} />
                 <Route path="system-administration" element={<SystemAdministration />} />
                 <Route path="staff-controller" element={<StaffController />} />
+                <Route path="/evm/vehicle-allocation-transfer" element={<ManageVehicleAllocationTransfer />} />
+
               </Route>
 
               {/* </Route> */}
