@@ -1,5 +1,6 @@
 import { createRoot } from "react-dom/client";
 import "./index.css";
+import "antd/dist/reset.css";
 import MainRoutes from "./app/routes/MainRoutes.jsx";
 import "primereact/resources/themes/lara-light-blue/theme.css"; // Chủ đề sáng
 import "primereact/resources/primereact.min.css"; /* Core CSS */
