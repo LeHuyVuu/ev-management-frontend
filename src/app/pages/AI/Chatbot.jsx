@@ -1,9 +1,167 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useRef, useState, useMemo } from "react";
 import { createPortal } from "react-dom";
 import { AnimatePresence, motion } from "framer-motion";
 import { Card } from "primereact/card";
 import { InputTextarea } from "primereact/inputtextarea";
 import { Button } from "primereact/button";
+import { ResponsiveContainer, LineChart, Line, BarChart, Bar, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, Legend } from "recharts";
+
+/** ---------- InlineChart using Recharts (keeps other code intact) ---------- */
+function InlineChart({ spec }) {
+  const normalized = useMemo(() => {
+    const type = (spec?.type || "line").toLowerCase();
+    const title = spec?.title || undefined;
+    const xLabel = spec?.xLabel || undefined;
+    const yLabel = spec?.yLabel || undefined;
+
+    if (spec?.data?.labels && Array.isArray(spec?.data?.datasets)) {
+      const labels = spec.data.labels;
+      const series = spec.data.datasets.map((d, i) => ({ name: d.name || `Series ${i+1}`, data: d.data || [] }));
+      const rows = labels.map((label, idx) => {
+        const row = { label };
+        series.forEach((s, si) => { row[`s${si}`] = s.data[idx] ?? null; });
+        return row;
+      });
+      return { mode: "categorical", type, title, xLabel, yLabel, rows, seriesNames: series.map((s, i)=>s.name||`Series ${i+1}`) };
+    }
+
+    if (Array.isArray(spec?.series)) {
+      const isXY = !!spec.series[0]?.points?.length;
+      if (isXY) {
+        const seriesXY = spec.series.map((s, i) => ({ name: s.name || `Series ${i+1}`, points: s.points || [] }));
+        return { mode: "xy", type, title, xLabel, yLabel, seriesXY };
+      }
+    }
+
+    if (Array.isArray(spec?.points)) {
+      return { mode: "xy", type, title, xLabel, yLabel, seriesXY: [{ name: spec?.name || "Series 1", points: spec.points }] };
+    }
+
+    if (Array.isArray(spec?.labels) && Array.isArray(spec?.values)) {
+      const rows = spec.labels.map((label, idx) => ({ label, s0: spec.values[idx] ?? null }));
+      return { mode: "categorical", type, title, xLabel, yLabel, rows, seriesNames: [spec?.name || "Series 1"] };
+    }
+
+    throw new Error("Unsupported chart spec shape");
+  }, [spec]);
+
+  const ChartShell = ({ children, title }) => (
+    <div style={{ width: "100%", height: 420 }}>
+      {title && (
+        <div style={{ fontSize: 16, fontWeight: 600, marginBottom: 8, textAlign: "center", opacity: 0.85 }}>{title}</div>
+      )}
+      <ResponsiveContainer width="100%" height="100%">
+        {children}
+      </ResponsiveContainer>
+    </div>
+  );
+
+  if (normalized.mode === "categorical") {
+    const { rows, seriesNames, type, title, xLabel, yLabel } = normalized;
+
+    const common = (
+      <>
+        <CartesianGrid strokeDasharray="3 3" />
+        <XAxis dataKey="label" label={xLabel ? { value: xLabel, position: "insideBottom", offset: -6 } : undefined} />
+        <YAxis label={yLabel ? { value: yLabel, angle: -90, position: "insideLeft" } : undefined} />
+        <Tooltip />
+        <Legend />
+      </>
+    );
+
+    if (type === "bar") {
+      return (
+        <ChartShell title={title}>
+          <BarChart data={rows} margin={{ top: 12, right: 24, left: 0, bottom: 24 }}>
+            {common}
+            {seriesNames.map((name, i) => (
+              <Bar key={i} dataKey={`s${i}`} name={name} />
+            ))}
+          </BarChart>
+        </ChartShell>
+      );
+    }
+    if (type === "area") {
+      return (
+        <ChartShell title={title}>
+          <AreaChart data={rows} margin={{ top: 12, right: 24, left: 0, bottom: 24 }}>
+            {common}
+            {seriesNames.map((name, i) => (
+              <Area key={i} type="monotone" dataKey={`s${i}`} name={name} />
+            ))}
+          </AreaChart>
+        </ChartShell>
+      );
+    }
+    return (
+      <ChartShell title={title}>
+        <LineChart data={rows} margin={{ top: 12, right: 24, left: 0, bottom: 24 }}>
+          {common}
+          {seriesNames.map((name, i) => (
+            <Line key={i} type="monotone" dataKey={`s${i}`} name={name} dot={false} />
+          ))}
+        </LineChart>
+      </ChartShell>
+    );
+  }
+
+  // XY mode
+  const { seriesXY, type, title, xLabel, yLabel } = normalized;
+  const allX = Array.from(new Set(seriesXY.flatMap(s => s.points.map(p => p.x))));
+  const rows = allX.map(x => {
+    const row = { x };
+    seriesXY.forEach((s, i) => {
+      const found = s.points.find(p => String(p.x) === String(x));
+      row[`s${i}`] = found ? found.y : null;
+    });
+    return row;
+  });
+
+  const commonXY = (
+    <>
+      <CartesianGrid strokeDasharray="3 3" />
+      <XAxis dataKey="x" label={xLabel ? { value: xLabel, position: "insideBottom", offset: -6 } : undefined} />
+      <YAxis label={yLabel ? { value: yLabel, angle: -90, position: "insideLeft" } : undefined} />
+      <Tooltip />
+      <Legend />
+    </>
+  );
+
+  if (type === "bar") {
+    return (
+      <ChartShell title={title}>
+        <BarChart data={rows} margin={{ top: 12, right: 24, left: 0, bottom: 24 }}>
+          {commonXY}
+          {seriesXY.map((s, i) => (
+            <Bar key={i} dataKey={`s${i}`} name={s.name} />
+          ))}
+        </BarChart>
+      </ChartShell>
+    );
+  }
+  if (type === "area") {
+    return (
+      <ChartShell title={title}>
+        <AreaChart data={rows} margin={{ top: 12, right: 24, left: 0, bottom: 24 }}>
+          {commonXY}
+          {seriesXY.map((s, i) => (
+            <Area key={i} type="monotone" dataKey={`s${i}`} name={s.name} />
+          ))}
+        </AreaChart>
+      </ChartShell>
+    );
+  }
+  return (
+    <ChartShell title={title}>
+      <LineChart data={rows} margin={{ top: 12, right: 24, left: 0, bottom: 24 }}>
+        {commonXY}
+        {seriesXY.map((s, i) => (
+          <Line key={i} type="monotone" dataKey={`s${i}`} name={s.name} dot={false} />
+        ))}
+      </LineChart>
+    </ChartShell>
+  );
+}
 
 /** ---------- Message bubble (one-row horizontal) ---------- */
 function MessageBubble({ sender, text, ts }) {
@@ -91,27 +249,55 @@ function MessageBubble({ sender, text, ts }) {
 
           {/* nội dung */}
           <div style={{ display: "grid", gap: 10 }}>
-            {pieces.map((p, i) =>
-              p.t === "code" ? (
-                <pre
-                  key={i}
-                  style={{
-                    margin: 0,
-                    background: isUser ? "rgba(255,255,255,0.18)" : "#0f172a",
-                    color: isUser ? "#fff" : "#e2e8f0",
-                    borderRadius: 12,
-                    padding: "10px 12px",
-                    overflow: "auto",
-                  }}
-                >
-                  <code style={{ fontFamily: "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas" }}>{p.v}</code>
-                </pre>
-              ) : (
+            {pieces.map((p, i) => {
+              if (p.t === "code") {
+                let spec = null;
+                try {
+                  const trimmed = p.v.trim();
+                  if (trimmed.startsWith("{") && trimmed.endsWith("}")) {
+                    spec = JSON.parse(trimmed);
+                  }
+                } catch (e) {
+                  spec = null;
+                }
+                const looksChart = spec && (spec.type || spec.data || spec.series || spec.points || (spec.labels && spec.values));
+                if (looksChart) {
+                  return (
+                    <div key={i} style={{
+                      margin: 0,
+                      background: isUser ? "rgba(255,255,255,0.18)" : "#ffffff",
+                      color: isUser ? "#fff" : "#111827",
+                      borderRadius: 14,
+                      padding: 8,
+                      overflow: "hidden",
+                      border: isUser ? "1px solid rgba(255,255,255,0.28)" : "1px solid #eef0f3",
+                    }}>
+                      <InlineChart spec={spec} />
+                    </div>
+                  );
+                }
+                return (
+                  <pre
+                    key={i}
+                    style={{
+                      margin: 0,
+                      background: isUser ? "rgba(255,255,255,0.18)" : "#0f172a",
+                      color: isUser ? "#fff" : "#e2e8f0",
+                      borderRadius: 12,
+                      padding: "10px 12px",
+                      overflow: "auto",
+                    }}
+                  >
+                    <code style={{ fontFamily: "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas" }}>{p.v}</code>
+                  </pre>
+                );
+              }
+              return (
                 <div key={i} style={{ whiteSpace: "pre-wrap", wordBreak: "break-word", lineHeight: 1.65 }}>
                   {p.v}
                 </div>
-              )
-            )}
+              );
+            })}
           </div>
 
           {/* timestamp */}
