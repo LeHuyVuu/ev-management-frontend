@@ -97,6 +97,42 @@ export default function DashboardStats() {
         };
     }, []);
 
+    // Compute target status (Đạt / Gần đạt / Chưa đạt) and badge class
+    function computeTarget(summary) {
+        if (!summary) return { badge: "", className: "" };
+        // try to find monthly target and current revenue
+        const currRevenue = Number(summary.totalMonthlyRevenueVnd ?? summary.revenueVnd ?? 0);
+        const monthlyTarget = Number(summary.monthlyTargetVnd ?? summary.monthlyTarget ?? summary.targetMonthlyVnd ?? 0);
+
+        let ratioPct = null;
+        if (monthlyTarget > 0) {
+            ratioPct = (currRevenue / monthlyTarget) * 100;
+        } else if (typeof summary.targetAchievedPct === "number") {
+            // if API already provides a percent-like number
+            ratioPct = Number(summary.targetAchievedPct);
+        }
+
+        let badge = "";
+        // colorClass will be used to color the text only (no badge backgrounds)
+        let colorClass = "text-gray-700";
+        if (ratioPct != null) {
+            if (ratioPct >= 100) {
+                badge = "Đạt";
+                colorClass = "text-green-600";
+            } else if (ratioPct >= 80) {
+                badge = "Gần đạt";
+                colorClass = "text-yellow-600";
+            } else {
+                badge = "Chưa đạt";
+                colorClass = "text-red-600";
+            }
+        }
+
+        return { badge, colorClass, ratioPct };
+    }
+
+    const targetInfo = computeTarget(summary);
+
     const stats = [
         {
             title: "Tổng doanh số tháng",
@@ -151,11 +187,17 @@ export default function DashboardStats() {
                         <div className={`p-2 rounded-full ${item.iconBg}`}>{item.icon}</div>
                     </div>
                     <h3 className="text-xl font-bold">{item.value}</h3>
-                    <p
-                        className={`text-sm ${item.positive ? "text-green-600" : "text-red-600"}`}
-                    >
-                        {item.change}
-                    </p>
+                    {item.title === "Mục tiêu đạt được" ? (
+                        <div className="flex items-center space-x-2">
+                            <span className={`text-sm ${targetInfo.colorClass}`}>{targetInfo.badge || item.change}</span>
+                            {/* only show item.change when there is no computed badge to avoid duplicate text */}
+                            {!targetInfo.badge && item.change ? <span className="text-sm text-gray-500">{item.change}</span> : null}
+                        </div>
+                    ) : (
+                        <p className={`text-sm ${item.positive ? "text-green-600" : "text-red-600"}`}>
+                            {item.change}
+                        </p>
+                    )}
                 </div>
             ))}
         </div>
