@@ -1,236 +1,257 @@
-import { useEffect, useMemo, useState } from "react";
-import { Eye, Edit } from "lucide-react";
-import ContractContent from "./ContractCard";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Table, Tag, Space, Button, Select, Flex, Typography, Skeleton } from "antd";
+import { ReloadOutlined, CheckCircleOutlined } from "@ant-design/icons";
+import { ToastContainer, toast } from "react-toastify";
+import "react-toastify/dist/ReactToastify.css";
+import "antd/dist/reset.css";
 
-// ===== Config =====
-const API_URL = "https://prn232.freeddns.org/customer-service/contracts/dealers";
-// Prefer environment variables. Fallback lets you paste a token locally during dev.
-const TOKEN = localStorage.getItem("token"); 
+// ======= Config =======
+const BASE_URL = "https://prn232.freeddns.org/order-service";
+const TOKEN_KEYS = ["token", "accessToken", "jwt", "id_token"]; // we'll try these in order
 
-// ===== Helpers =====
-const statusMap = {
-  approved: "Đã duyệt",
-  completed: "Hoàn thành",
-  funded: "Đã tài trợ",
-  pending: "Chờ xử lý",
-};
+const STATUS_OPTIONS = [
+  "requested",
+  "approved",
+  "in_transit",
+  "received",
+  "cancelled",
+];
 
-const statusColors = {
-  "Đã duyệt": "bg-blue-100 text-blue-600",
-  "Hoàn thành": "bg-green-100 text-green-600",
-  "Đã tài trợ": "bg-purple-100 text-purple-600",
-  "Chờ xử lý": "bg-yellow-100 text-yellow-600",
-};
+function getTokenFromLocalStorage() {
+  for (const k of TOKEN_KEYS) {
+    const v = window.localStorage.getItem(k);
+    if (v) return v;
+  }
+  return null;
+}
 
-function formatVND(amount) {
-  if (amount == null || isNaN(Number(amount))) return "-";
-  try {
-    return new Intl.NumberFormat("vi-VN").format(Number(amount)) + " VND";
-  } catch {
-    return `${amount} VND`;
+function statusColor(status) {
+  switch ((status || "").toLowerCase()) {
+    case "requested":
+      return "geekblue";
+    case "approved":
+      return "purple";
+    case "in_transit":
+      return "gold";
+    case "received":
+      return "green";
+    case "cancelled":
+    case "canceled":
+      return "red";
+    default:
+      return "default";
   }
 }
 
-function formatDateISOToVN(iso) {
-  if (!iso) return "-";
-  const d = new Date(iso);
-  if (isNaN(d.getTime())) return iso;
-  const dd = String(d.getDate()).padStart(2, "0");
-  const mm = String(d.getMonth() + 1).padStart(2, "0");
-  const yyyy = d.getFullYear();
-  return `${dd}/${mm}/${yyyy}`;
-}
+const ContractTable = () => {
+  const [data, setData] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [updatingId, setUpdatingId] = useState(null);
+  const [pagination, setPagination] = useState({ current: 1, pageSize: 10, total: 0 });
+  const [pendingStatus, setPendingStatus] = useState({}); // { [id]: status }
+  const abortRef = useRef(null);
 
-function toViewModel(apiItem) {
-  // Keep the original UI shape, just map fields
-  return {
-    id: apiItem.contractId, // show full UUID to keep it unique; adjust if you want a short code
-    customer: apiItem.customerName,
-    car: [apiItem.brand, apiItem.vehicleName, apiItem.versionName].filter(Boolean).join(" "),
-    value: formatVND(apiItem.totalValue),
-    payment: "-", // API không trả về, giữ nguyên giao diện bằng dấu gạch ngang
-    status: statusMap[apiItem.status] || apiItem.status || "-",
-    date: formatDateISOToVN(apiItem.signedDate),
-    __raw: apiItem, // keep original payload for modal/details if needed
-  };
-}
+  const token = useMemo(() => getTokenFromLocalStorage(), []);
 
-export default function ContractTable() {
-  const [search, setSearch] = useState("");
-  const [viewContract, setViewContract] = useState(null);
+  const fetchOrders = useCallback(async (page = 1, pageSize = 10) => {
+    if (!token) {
+      toast.error("Không tìm thấy token trong LocalStorage.");
+      setLoading(false);
+      return;
+    }
+    setLoading(true);
 
-  const [contracts, setContracts] = useState([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
+    // cancel any in-flight request
+    if (abortRef.current) abortRef.current.abort();
+    const controller = new AbortController();
+    abortRef.current = controller;
 
-  const [page, setPage] = useState(1);
-  const pageSize = 10; // giữ nguyên giao diện phân trang, mỗi trang 10 dòng
+    try {
+      const url = `${BASE_URL}/api/VehicleTransferOrder?pageNumber=${page}&pageSize=${pageSize}`;
+      const res = await fetch(url, {
+        method: "GET",
+        headers: {
+          Accept: "*/*",
+          Authorization: `Bearer ${token}`,
+        },
+        signal: controller.signal,
+      });
+
+      if (!res.ok) {
+        const text = await res.text();
+        throw new Error(`${res.status} ${res.statusText}: ${text}`);
+      }
+
+      const json = await res.json();
+      const items = json?.data?.items ?? [];
+      const total = json?.data?.totalItems ?? 0;
+
+      setData(
+        items.map((it) => ({
+          key: it.vehicleTransferOrderId,
+          ...it,
+        }))
+      );
+      setPagination((p) => ({ ...p, current: page, pageSize, total }));
+    } catch (err) {
+      if (err.name !== "AbortError") {
+        console.error(err);
+        toast.error("Lỗi tải dữ liệu: " + err.message);
+      }
+    } finally {
+      setLoading(false);
+    }
+  }, [token]);
 
   useEffect(() => {
-    let isMounted = true;
-    async function load() {
-      setLoading(true);
-      setError("");
-      try {
-        const res = await fetch(API_URL, {
-          method: "GET",
-          headers: {
-            accept: "*/*",
-            Authorization: `Bearer ${TOKEN}`,
-          },
-        });
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const json = await res.json();
-        const list = Array.isArray(json?.data) ? json.data.map(toViewModel) : [];
-        if (isMounted) setContracts(list);
-      } catch (e) {
-        if (isMounted) setError(e?.message || "Lỗi không xác định");
-      } finally {
-        if (isMounted) setLoading(false);
-      }
+    fetchOrders(1, pagination.pageSize);
+    return () => abortRef.current?.abort();
+  }, [fetchOrders]);
+
+  const handleTableChange = (pag) => {
+    fetchOrders(pag.current, pag.pageSize);
+  };
+
+  const updateStatus = async (id, newStatus) => {
+    if (!id || !newStatus) return;
+    if (!token) {
+      toast.error("Không tìm thấy token trong LocalStorage.");
+      return;
     }
-    load();
-    return () => {
-      isMounted = false;
-    };
-  }, []);
 
-  // Search
-  const filteredContracts = useMemo(() => {
-    const s = search.trim().toLowerCase();
-    if (!s) return contracts;
-    return contracts.filter(
-      (c) => c.id?.toLowerCase().includes(s) || c.customer?.toLowerCase().includes(s)
-    );
-  }, [contracts, search]);
+    try {
+      setUpdatingId(id);
 
-  // Pagination (client-side, giữ nguyên UI)
-  const totalPages = Math.max(1, Math.ceil(filteredContracts.length / pageSize));
-  const currentPage = Math.min(page, totalPages);
-  const start = (currentPage - 1) * pageSize;
-  const end = start + pageSize;
-  const paginated = filteredContracts.slice(start, end);
+      // optimistic UI: update row right away
+      setData((prev) => prev.map((r) => (r.vehicleTransferOrderId === id ? { ...r, status: newStatus } : r)));
+
+      const res = await fetch(`${BASE_URL}/api/VehicleTransferOrder/${id}/status`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "*/*",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(newStatus), // API expects a raw JSON string, e.g. "received"
+      });
+
+      if (!res.ok) {
+        const text = await res.text();
+        throw new Error(`${res.status} ${res.statusText}: ${text}`);
+      }
+
+      toast.success("Cập nhật trạng thái thành công.");
+      setPendingStatus((m) => ({ ...m, [id]: undefined }));
+    } catch (err) {
+      console.error(err);
+      toast.error("Cập nhật thất bại: " + err.message);
+      // revert optimistic update by refetching current page
+      fetchOrders(pagination.current, pagination.pageSize);
+    } finally {
+      setUpdatingId(null);
+    }
+  };
+
+  const columns = useMemo(
+    () => [
+      {
+        title: "From Dealer",
+        dataIndex: "fromDealerName",
+        key: "fromDealerName",
+      },
+      {
+        title: "To Dealer",
+        dataIndex: "toDealerName",
+        key: "toDealerName",
+      },
+      {
+        title: "Vehicle",
+        dataIndex: "vehicleName",
+        key: "vehicleName",
+        responsive: ["md"],
+      },
+      {
+        title: "Qty",
+        dataIndex: "quantity",
+        key: "quantity",
+        width: 80,
+        align: "center",
+      },
+      {
+        title: "Request Date",
+        dataIndex: "requestDate",
+        key: "requestDate",
+        width: 140,
+      },
+      {
+        title: "Status",
+        dataIndex: "status",
+        key: "status",
+        render: (value) => <Tag color={statusColor(value)} style={{ textTransform: "capitalize" }}>{value}</Tag>,
+      },
+      {
+        title: "Actions",
+        key: "actions",
+        width: 320,
+        render: (_, record) => {
+          const id = record.vehicleTransferOrderId;
+          const selected = pendingStatus[id] ?? record.status;
+          return (
+            <Space.Compact block>
+              <Select
+                value={selected}
+                onChange={(val) => setPendingStatus((m) => ({ ...m, [id]: val }))}
+                options={STATUS_OPTIONS.map((s) => ({ value: s, label: s.replaceAll("_", " ") }))}
+                style={{ minWidth: 180 }}
+              />
+              <Button
+                type="primary"
+                icon={<CheckCircleOutlined />}
+                loading={updatingId === id}
+                onClick={() => updateStatus(id, pendingStatus[id] ?? record.status)}
+              >
+                Update
+              </Button>
+            </Space.Compact>
+          );
+        },
+      },
+    ],
+    [pendingStatus, updatingId]
+  );
 
   return (
-    <div>
-      <div className="bg-white rounded-xl shadow p-4">
-        <h2 className="text-lg font-semibold mb-4">Danh sách Hợp đồng</h2>
+    <div className="p-4">
+      <Flex align="center" justify="space-between" style={{ marginBottom: 12 }}>
+        <Typography.Title level={4} style={{ margin: 0 }}>
+          Vehicle Transfer Orders
+        </Typography.Title>
+        <Button icon={<ReloadOutlined />} onClick={() => fetchOrders(pagination.current, pagination.pageSize)}>
+          Refresh
+        </Button>
+      </Flex>
 
-        {/* Search */}
-        <input
-          type="text"
-          placeholder="Tìm kiếm hợp đồng..."
-          value={search}
-          onChange={(e) => {
-            setSearch(e.target.value);
-            setPage(1); // reset to first page on search
+      {loading && data.length === 0 ? (
+        <Skeleton active paragraph={{ rows: 4 }} />
+      ) : (
+        <Table
+          columns={columns}
+          dataSource={data}
+          loading={loading}
+          pagination={{
+            current: pagination.current,
+            pageSize: pagination.pageSize,
+            total: pagination.total,
+            showSizeChanger: true,
           }}
-          className="w-full border rounded-lg px-3 py-2 mb-4"
+          onChange={handleTableChange}
+          rowKey={(r) => r.vehicleTransferOrderId}
         />
-
-        {/* Loading / Error */}
-        {loading && (
-          <div className="mb-3 text-sm text-gray-600">Đang tải dữ liệu...</div>
-        )}
-        {error && (
-          <div className="mb-3 text-sm text-red-600">Lỗi tải dữ liệu: {error}</div>
-        )}
-
-        {/* Table */}
-        <table className="w-full text-sm border-collapse">
-          <thead>
-            <tr className="bg-gray-100 text-left">
-              <th className="p-3">ID Hợp đồng</th>
-              <th className="p-3">Khách hàng</th>
-              <th className="p-3">Mẫu xe</th>
-              <th className="p-3">Giá trị</th>
-              <th className="p-3">Thanh toán</th>
-              <th className="p-3">Trạng thái</th>
-              <th className="p-3">Ngày ký</th>
-              <th className="p-3">Hành động</th>
-            </tr>
-          </thead>
-          <tbody>
-            {paginated.map((contract) => (
-              <tr key={contract.id} className="border-b hover:bg-gray-50">
-                <td className="p-3 break-all">{contract.id}</td>
-                <td className="p-3">{contract.customer}</td>
-                <td className="p-3">{contract.car}</td>
-                <td className="p-3">{contract.value}</td>
-                <td className="p-3">{contract.payment}</td>
-                <td className="p-3">
-                  <span
-                    className={`px-2 py-1 rounded-lg text-xs font-medium ${
-                      statusColors[contract.status] || "bg-gray-100 text-gray-600"
-                    }`}
-                  >
-                    {contract.status}
-                  </span>
-                </td>
-                <td className="p-3">{contract.date}</td>
-                <td className="p-3 flex gap-2">
-                  <button
-                    className="p-1 hover:bg-gray-100 rounded-lg"
-                    onClick={() => setViewContract(contract)}
-                  >
-                    <Eye size={16} />
-                  </button>
-                  <button className="p-1 hover:bg-gray-100 rounded-lg">
-                    <Edit size={16} />
-                  </button>
-                </td>
-              </tr>
-            ))}
-            {!loading && !error && paginated.length === 0 && (
-              <tr>
-                <td colSpan={8} className="p-4 text-center text-gray-500">
-                  Không có dữ liệu.
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
-
-        {/* Pagination */}
-        <div className="flex justify-center items-center gap-4 mt-4 text-sm">
-          <button
-            className="text-gray-600 hover:underline disabled:opacity-50"
-            onClick={() => setPage((p) => Math.max(1, p - 1))}
-            disabled={currentPage === 1}
-          >
-            Previous
-          </button>
-          <div className="flex gap-2">
-            {Array.from({ length: totalPages }).map((_, idx) => {
-              const i = idx + 1;
-              const active = i === currentPage;
-              return (
-                <button
-                  key={i}
-                  onClick={() => setPage(i)}
-                  className={`px-3 py-1 rounded-lg ${
-                    active ? "bg-gray-200" : "hover:bg-gray-100"
-                  }`}
-                >
-                  {i}
-                </button>
-              );
-            })}
-          </div>
-          <button
-            className="text-gray-600 hover:underline disabled:opacity-50"
-            onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-            disabled={currentPage === totalPages}
-          >
-            Next
-          </button>
-        </div>
-      </div>
-
-      {/* Modal popup for contract content - only show when viewContract is not null */}
-      {viewContract && (
-        <ContractContent contract={viewContract} onClose={() => setViewContract(null)} />
       )}
+
+      <ToastContainer position="top-right" autoClose={2500} newestOnTop pauseOnHover theme="colored" />
     </div>
   );
-}
+};
+
+export default ContractTable;

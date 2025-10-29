@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { X, MapPin, User, Car, Phone, Edit, CheckCircle, XCircle, Truck } from "lucide-react";
+import { X, MapPin, User, Car } from "lucide-react";
 
 // ===== Config =====
 const API_ROOT = "https://prn232.freeddns.org/customer-service/api/orders";
@@ -16,40 +16,12 @@ const viStatus = {
   pending: "Đang chờ",
 };
 
-// VN label list for dropdown
-const statusOptions = [
-  "Đang chuẩn bị",
-  "Đã xuất kho",
-  "Đang vận chuyển",
-  "Đã đến",
-  "Đang giao hàng",
-  "Đã hoàn thành",
-  "Giao hàng thất bại",
-  "Đang chờ",
+const ORDER_STATUS_LIST = [
+  { value: "draft", label: "Nháp" },
+  { value: "confirmed", label: "Đã xác nhận" },
+  { value: "expired", label: "Hết hạn" },
+  { value: "cancelled", label: "Đã hủy" },
 ];
-
-const statusColors = {
-  "Đang chuẩn bị": "bg-yellow-500",
-  "Đã xuất kho": "bg-orange-500",
-  "Đang vận chuyển": "bg-blue-500",
-  "Đã đến": "bg-purple-500",
-  "Đang giao hàng": "bg-indigo-500",
-  "Đã hoàn thành": "bg-green-500",
-  "Giao hàng thất bại": "bg-red-500",
-  "Đang chờ": "bg-gray-500",
-};
-
-// VN -> API enum map
-const apiStatusMap = {
-  "Đang chuẩn bị": "preparing",
-  "Đã xuất kho": "shipped_from_warehouse",
-  "Đang vận chuyển": "in_transit",
-  "Đã đến": "arrived_hub",
-  "Đang giao hàng": "out_for_delivery",
-  "Đã hoàn thành": "delivered",
-  "Giao hàng thất bại": "failed",
-  "Đang chờ": "pending",
-};
 
 function formatDateISOToVN(iso) {
   if (!iso) return "-";
@@ -63,21 +35,27 @@ function formatDateISOToVN(iso) {
   return `${dd}/${mm}/${yyyy} ${hh}:${mi}`;
 }
 
-// Skeleton component
+// Simple skeleton
 function Skeleton({ className = "" }) {
   return <div className={`animate-pulse bg-gray-200 rounded ${className}`} />;
 }
 
-export default function DeliveryDetailCard({ delivery, isOpen, onClose, onUpdateStatus }) {
-  const [editMode, setEditMode] = useState(false);
+export default function DeliveryDetailCard({ delivery, isOpen, onClose }) {
   const [detail, setDetail] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  const [saving, setSaving] = useState(false);
-  const [saveError, setSaveError] = useState("");
 
-  // Token lấy từ localStorage như yêu cầu
-  const token = typeof window !== "undefined" ? window.localStorage.getItem("token") : "";
+  // Order status editor
+  const [orderStatus, setOrderStatus] = useState("draft");
+  const [updatingOrderStatus, setUpdatingOrderStatus] = useState(false);
+
+  // PATCH delivery info (no extra form)
+  const [savingInfo, setSavingInfo] = useState(false);
+  const [saveInfoError, setSaveInfoError] = useState("");
+
+  // Token từ localStorage
+  const token =
+    typeof window !== "undefined" ? window.localStorage.getItem("token") : "";
 
   // Fetch chi tiết đơn hàng khi mở
   useEffect(() => {
@@ -88,11 +66,20 @@ export default function DeliveryDetailCard({ delivery, isOpen, onClose, onUpdate
       setError("");
       try {
         const res = await fetch(`${API_ROOT}/${delivery.id}`, {
-          headers: { accept: "*/*", Authorization: token ? `Bearer ${token}` : undefined },
+          headers: {
+            accept: "application/json",
+            Authorization: token ? `Bearer ${token}` : undefined,
+          },
         });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const json = await res.json();
-        if (!ignore) setDetail(json?.data || null);
+        const d = json?.data || null;
+        if (!ignore) {
+          setDetail(d);
+          // ưu tiên statusOrder, fallback status, cuối cùng draft
+          const initial = (d?.statusOrder || d?.status || "draft").toLowerCase();
+          setOrderStatus(initial);
+        }
       } catch (e) {
         if (!ignore) setError(e?.message || "Không tải được chi tiết đơn hàng");
       } finally {
@@ -105,12 +92,13 @@ export default function DeliveryDetailCard({ delivery, isOpen, onClose, onUpdate
     };
   }, [isOpen, delivery?.id, token]);
 
-  // Chuẩn hoá dữ liệu cho UI (giữ nguyên giao diện)
+  // Chuẩn hoá dữ liệu hiển thị
   const ui = useMemo(() => {
     const d = detail || {};
-    const displayStatus = viStatus[d.status] || delivery?.status || "Đang chờ";
+    const displayStatus =
+      viStatus[d.status] || viStatus[d.statusOrder] || delivery?.status || "Đang chờ";
     return {
-      id: d.orderId || delivery?.id,
+      id: d?.id || d?.orderId || delivery?.id,
       customer: d.name || delivery?.customer,
       phone: d.phone || "+84 123 456 789",
       email: d.email || "customer@email.com",
@@ -118,45 +106,108 @@ export default function DeliveryDetailCard({ delivery, isOpen, onClose, onUpdate
       color: d.color || "Trắng ngọc trai",
       address: d.deliveryAddress || delivery?.address,
       time: formatDateISOToVN(d.deliveryDate) || delivery?.time,
+      note: d.note || "Giao hàng trong giờ hành chính",
       status: displayStatus,
     };
   }, [detail, delivery]);
 
-  const [newStatus, setNewStatus] = useState(ui.status);
-  useEffect(() => setNewStatus(ui.status), [ui.status]);
-
   if (!isOpen || !delivery) return null;
 
-  const trackingHistory = [
-    { status: "Đơn hàng được tạo", time: "2024-08-14 09:00", description: "Đơn giao hàng được khởi tạo trong hệ thống" },
-    { status: "Đang chuẩn bị", time: "2024-08-14 10:30", description: "Xe đang được chuẩn bị và kiểm tra trước giao" },
-    { status: "Đã xuất kho", time: "2024-08-15 08:00", description: "Xe đã được xuất khỏi kho và sẵn sàng vận chuyển" },
-    { status: "Đang vận chuyển", time: "2024-08-15 09:30", description: "Xe đang trên đường vận chuyển đến địa chỉ khách hàng" },
-  ];
+  // ===== PATCH: Order status (with validation & correct field name) =====
+  async function handleOrderStatusPatch() {
+    const ALLOWED = new Set(["draft", "confirmed", "expired", "cancelled"]);
+    const status = String(orderStatus || "").trim().toLowerCase();
 
-  async function handleStatusUpdate() {
+    if (!ALLOWED.has(status)) {
+      alert(
+        "Invalid status value. Only accepted: draft, confirmed, expired, cancelled."
+      );
+      return;
+    }
+
+    // id thật sự (khớp với route GET)
+    const id = (detail && (detail.id || detail.orderId)) || delivery?.id || "";
+    if (!id) {
+      alert("Thiếu order id.");
+      return;
+    }
+
+    // khớp tên trường với payload server trả về
+    const statusKey =
+      detail && Object.prototype.hasOwnProperty.call(detail, "statusOrder")
+        ? "statusOrder"
+        : "status";
+
     try {
-      setSaving(true);
-      setSaveError("");
-      const apiStatus = apiStatusMap[newStatus] || newStatus; // map VN -> enum
-      const res = await fetch(`${API_ROOT}/${ui.id}/status`, {
+      setUpdatingOrderStatus(true);
+      const res = await fetch(`${API_ROOT}/${id}/status`, {
         method: "PATCH",
         headers: {
           "Content-Type": "application/json",
-          accept: "*/*",
+          accept: "application/json",
           Authorization: token ? `Bearer ${token}` : undefined,
         },
-        body: JSON.stringify({ status: apiStatus }),
+        body: JSON.stringify({ [statusKey]: status }),
       });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      // cập nhật lạc quan và báo cho parent
-      setDetail((prev) => ({ ...(prev || {}), status: apiStatus }));
-      if (onUpdateStatus) onUpdateStatus(ui.id, newStatus);
-      setEditMode(false);
+
+      if (!res.ok) {
+        let msg = `HTTP ${res.status}`;
+        try {
+          const j = await res.json();
+          if (j?.message) msg = j.message;
+        } catch (_) {}
+        console.error("PATCH /status failed:", msg);
+        throw new Error(msg);
+      }
+
+      // đồng bộ UI ngay
+      setDetail((prev) => ({ ...(prev || {}), [statusKey]: status }));
+      alert("Đã cập nhật trạng thái đơn hàng.");
     } catch (e) {
-      setSaveError(e?.message || "Cập nhật trạng thái thất bại");
+      alert(e?.message || "Cập nhật trạng thái đơn hàng thất bại");
     } finally {
-      setSaving(false);
+      setUpdatingOrderStatus(false);
+    }
+  }
+
+  // ===== PATCH: Delivery info (không tạo form – lấy từ dữ liệu hiển thị) =====
+  async function handleSaveInfo() {
+    const id = (detail && (detail.id || detail.orderId)) || delivery?.id || "";
+    if (!id) {
+      setSaveInfoError("Thiếu order id.");
+      return;
+    }
+    try {
+      setSavingInfo(true);
+      setSaveInfoError("");
+      const payload = {
+        deliveryAddress: detail?.deliveryAddress || "",
+        deliveryDate: detail?.deliveryDate || "",
+        note: detail?.note || "",
+      };
+      const res = await fetch(`${API_ROOT}/${id}`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          accept: "application/json",
+          Authorization: token ? `Bearer ${token}` : undefined,
+        },
+        body: JSON.stringify(payload),
+      });
+      if (!res.ok) {
+        let msg = `HTTP ${res.status}`;
+        try {
+          const j = await res.json();
+          if (j?.message) msg = j.message;
+        } catch {}
+        throw new Error(msg);
+      }
+      setDetail((prev) => ({ ...(prev || {}), ...payload }));
+      alert("Đã cập nhật thông tin giao hàng.");
+    } catch (e) {
+      setSaveInfoError(e?.message || "Cập nhật thông tin giao hàng thất bại");
+    } finally {
+      setSavingInfo(false);
     }
   }
 
@@ -193,9 +244,15 @@ export default function DeliveryDetailCard({ delivery, isOpen, onClose, onUpdate
                         <User size={20} /> Thông tin khách hàng
                       </h3>
                       <div className="space-y-2">
-                        <p><span className="font-medium">Tên:</span> {ui.customer}</p>
-                        <p><span className="font-medium">Điện thoại:</span> {ui.phone}</p>
-                        <p><span className="font-medium">Email:</span> {ui.email}</p>
+                        <p>
+                          <span className="font-medium">Tên:</span> {ui.customer}
+                        </p>
+                        <p>
+                          <span className="font-medium">Điện thoại:</span> {ui.phone}
+                        </p>
+                        <p>
+                          <span className="font-medium">Email:</span> {ui.email}
+                        </p>
                       </div>
                     </div>
 
@@ -204,9 +261,15 @@ export default function DeliveryDetailCard({ delivery, isOpen, onClose, onUpdate
                         <Car size={20} /> Thông tin xe
                       </h3>
                       <div className="space-y-2">
-                        <p><span className="font-medium">Xe:</span> {ui.car}</p>
-                        <p><span className="font-medium">Màu:</span> {ui.color}</p>
-                        <p><span className="font-medium">VIN:</span> JTDKARFP8J0123456</p>
+                        <p>
+                          <span className="font-medium">Xe:</span> {ui.car}
+                        </p>
+                        <p>
+                          <span className="font-medium">Màu:</span> {ui.color}
+                        </p>
+                        <p>
+                          <span className="font-medium">VIN:</span> JTDKARFP8J0123456
+                        </p>
                       </div>
                     </div>
                   </div>
@@ -216,87 +279,61 @@ export default function DeliveryDetailCard({ delivery, isOpen, onClose, onUpdate
                       <MapPin size={20} /> Chi tiết giao hàng
                     </h3>
                     <div className="space-y-2">
-                      <p><span className="font-medium">Địa chỉ:</span> {ui.address}</p>
-                      <p><span className="font-medium">Thời gian:</span> {ui.time}</p>
-                      <p><span className="font-medium">Ghi chú:</span> Giao hàng trong giờ hành chính</p>
+                      <p>
+                        <span className="font-medium">Địa chỉ:</span> {ui.address}
+                      </p>
+                      <p>
+                        <span className="font-medium">Thời gian:</span> {ui.time}
+                      </p>
+                      <p>
+                        <span className="font-medium">Ghi chú:</span> {ui.note}
+                      </p>
                     </div>
                     {error && <div className="text-sm text-red-600 mt-2">{error}</div>}
+                    {saveInfoError && <div className="text-sm text-red-600 mt-2">{saveInfoError}</div>}
                   </div>
-
-                 
                 </>
               )}
             </div>
 
             {/* Sidebar */}
             <div className="space-y-6">
-              {/* Status */}
+              {/* Order status API */}
               <div className="bg-white border rounded-lg p-4">
-                <h3 className="text-lg font-semibold text-gray-700 mb-3">Trạng thái hiện tại</h3>
-                {loading ? (
-                  <Skeleton className="h-8 w-32" />
-                ) : (
-                  <div className="flex items-center gap-2 mb-4">
-                    <span className={`px-3 py-1 rounded-full text-white text-sm ${statusColors[ui.status] || "bg-gray-500"}`}>
-                      {ui.status}
-                    </span>
-                  </div>
-                )}
-
-                {editMode ? (
-                  <div className="space-y-3">
-                    <select
-                      value={newStatus}
-                      onChange={(e) => setNewStatus(e.target.value)}
-                      className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    >
-                      {statusOptions.map((status) => (
-                        <option key={status} value={status}>{status}</option>
-                      ))}
-                    </select>
-                    <div className="flex gap-2">
-                      <button
-                        onClick={handleStatusUpdate}
-                        disabled={saving}
-                        className="flex-1 bg-green-600 disabled:opacity-60 disabled:cursor-not-allowed text-white px-3 py-2 rounded-lg hover:bg-green-700 transition-colors"
-                      >
-                        <CheckCircle size={16} className="inline mr-1" /> {saving ? "Đang lưu…" : "Lưu"}
-                      </button>
-                      <button
-                        onClick={() => setEditMode(false)}
-                        className="flex-1 bg-gray-600 text-white px-3 py-2 rounded-lg hover:bg-gray-700 transition-colors"
-                      >
-                        <XCircle size={16} className="inline mr-1" /> Hủy
-                      </button>
-                    </div>
-                    {saveError && <div className="text-sm text-red-600 mt-2">{saveError}</div>}
-                  </div>
-                ) : (
-                  <button
-                    onClick={() => {
-                      setEditMode(true);
-                      setNewStatus(ui.status);
-                    }}
-                    className="w-full bg-blue-600 text-white px-3 py-2 rounded-lg hover:bg-blue-700 transition-colors"
+                <h3 className="text-lg font-semibold text-gray-700 mb-3">Trạng thái đơn hàng (API)</h3>
+                <div className="space-y-3">
+                  <select
+                    value={orderStatus}
+                    onChange={(e) => setOrderStatus(e.target.value)}
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
                   >
-                    <Edit size={16} className="inline mr-2" /> Cập nhật trạng thái
+                    {ORDER_STATUS_LIST.map((s) => (
+                      <option key={s.value} value={s.value}>
+                        {s.label} ({s.value})
+                      </option>
+                    ))}
+                  </select>
+                  <button
+                    onClick={handleOrderStatusPatch}
+                    disabled={updatingOrderStatus}
+                    className="w-full bg-emerald-600 disabled:opacity-60 disabled:cursor-not-allowed text-white px-3 py-2 rounded-lg hover:bg-emerald-700 transition-colors"
+                  >
+                    {updatingOrderStatus ? "Đang cập nhật…" : "Cập nhật trạng thái đơn hàng"}
                   </button>
-                )}
-              </div>
+                </div>
+                <p className="text-xs text-gray-500 mt-2">
+                  Giá trị hợp lệ: draft, confirmed, expired, cancelled.
+                </p>
 
-              {/* Actions */}
-              <div className="bg-white border rounded-lg p-4">
-                <h3 className="text-lg font-semibold text-gray-700 mb-3">Hành động</h3>
-                {loading ? (
-                  <Skeleton className="h-24 w-full" />
-                ) : (
-                  <div className="space-y-2">
-                    <button className="w-full bg-green-600 text-white px-3 py-2 rounded-lg text-sm"><Phone size={16} className="inline mr-2" />Gọi khách hàng</button>
-                    <button className="w-full bg-purple-600 text-white px-3 py-2 rounded-lg text-sm"><MapPin size={16} className="inline mr-2" />Xem bản đồ</button>
-                    <button className="w-full bg-orange-600 text-white px-3 py-2 rounded-lg text-sm"><Truck size={16} className="inline mr-2" />Theo dõi GPS</button>
-                    <button className="w-full border border-gray-300 text-gray-700 px-3 py-2 rounded-lg text-sm"><Edit size={16} className="inline mr-2" />Chỉnh sửa thông tin</button>
-                  </div>
-                )}
+                <div className="mt-4">
+                  <button
+                    onClick={handleSaveInfo}
+                    disabled={savingInfo}
+                    className="w-full bg-blue-600 disabled:opacity-60 disabled:cursor-not-allowed text-white px-3 py-2 rounded-lg hover:bg-blue-700 transition-colors"
+                  >
+                    {savingInfo ? "Đang lưu…" : "Lưu thông tin giao hàng"}
+                  </button>
+                </div>
               </div>
             </div>
           </div>
@@ -304,7 +341,9 @@ export default function DeliveryDetailCard({ delivery, isOpen, onClose, onUpdate
 
         {/* Footer */}
         <div className="flex justify-end gap-3 p-6 border-t bg-gray-50">
-          <button onClick={onClose} className="px-6 py-2 border border-gray-300 text-gray-700 rounded-lg">Đóng</button>
+          <button onClick={onClose} className="px-6 py-2 border border-gray-300 text-gray-700 rounded-lg">
+            Đóng
+          </button>
           <button className="px-6 py-2 bg-blue-600 text-white rounded-lg">In báo cáo</button>
         </div>
       </div>
