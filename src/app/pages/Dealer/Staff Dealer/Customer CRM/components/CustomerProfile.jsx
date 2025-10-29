@@ -3,7 +3,7 @@ import api from "../../../../../context/api";
 import { toast, ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import { Package, Clock } from "lucide-react";
-import { Button, Skeleton } from "antd";
+import { Button, Skeleton, Tag, Divider } from "antd";
 import ContractModalAnt from "./ContractCardAnt";
 
 export default function CustomerProfile({ customer }) {
@@ -118,6 +118,26 @@ export default function CustomerProfile({ customer }) {
     });
     setOpenContract(true);
   };
+
+  const fmtCurrency = (n) =>
+    typeof n === "number"
+      ? n.toLocaleString("vi-VN", { style: "currency", currency: "VND" })
+      : n;
+
+  const StatusTag = ({ status }) => (
+    <Tag
+      color={
+        (status || "").toLowerCase() === "draft"
+          ? "default"
+          : (status || "").toLowerCase() === "signed"
+          ? "green"
+          : "blue"
+      }
+      style={{ textTransform: "capitalize" }}
+    >
+      {status}
+    </Tag>
+  );
 
   return (
     <div className="p-4 border rounded-lg shadow-sm bg-white w-full max-w-6xl">
@@ -276,25 +296,61 @@ export default function CustomerProfile({ customer }) {
               {contracts.map((c) => (
                 <div
                   key={c.contractId}
-                  className="border rounded-lg p-4 shadow-sm hover:shadow-md transition bg-white cursor-pointer"
-                  onClick={() => openContractDetail(c)}
+                  className="border rounded-lg p-4 shadow-sm hover:shadow-md transition bg-white"
                 >
-                  <h3 className="font-semibold text-gray-800 mb-2">
-                    Mã hợp đồng: {c.contractId || ""}
-                  </h3>
-                  <p className="text-sm">Trạng thái: {c.status || ""}</p>
-                  <p className="text-sm">
-                    Tạo:{" "}
-                    {c.createdAt
-                      ? new Date(c.createdAt).toLocaleDateString()
-                      : ""}
-                  </p>
-                  <p className="text-sm">
-                    Cập nhật:{" "}
-                    {c.updatedAt
-                      ? new Date(c.updatedAt).toLocaleDateString()
-                      : ""}
-                  </p>
+                  <div className="flex items-start justify-between gap-3">
+                    <h3 className="font-semibold text-gray-800">
+                      Mã hợp đồng
+                      <div className="text-xs text-gray-500 break-all">{c.contractId}</div>
+                    </h3>
+                    <StatusTag status={c.status} />
+                  </div>
+
+                  <Divider className="my-3" />
+
+                  <div className="text-sm space-y-1">
+                    <div>
+                      <span className="text-gray-500">Nhân viên phụ trách: </span>
+                      <span className="font-medium">{c.staffContract || "-"}</span>
+                    </div>
+                    <div>
+                      <span className="text-gray-500">Hãng xe: </span>
+                      <span className="font-medium">{c.brand || "-"}</span>
+                    </div>
+                    <div>
+                      <span className="text-gray-500">Dòng xe: </span>
+                      <span className="font-medium">{c.vehicleName || "-"}</span>
+                    </div>
+                    <div>
+                      <span className="text-gray-500">Phiên bản: </span>
+                      <span className="font-medium">{c.versionName || "-"}</span>
+                    </div>
+                    <div>
+                      <span className="text-gray-500">Giá trị HĐ: </span>
+                      <span className="font-semibold">{fmtCurrency(c.totalValue)}</span>
+                    </div>
+                    <div>
+                      <span className="text-gray-500">Ngày ký: </span>
+                      <span className="font-medium">{c.signedDate || "-"}</span>
+                    </div>
+                  </div>
+
+                  {/* Tạo/Cập nhật nếu API có */}
+                  {(c.createdAt || c.updatedAt) && (
+                    <div className="mt-3 text-xs text-gray-500">
+                      {c.createdAt && (
+                        <div>
+                          Tạo: {new Date(c.createdAt).toLocaleDateString()}
+                        </div>
+                      )}
+                      {c.updatedAt && (
+                        <div>
+                          Cập nhật: {new Date(c.updatedAt).toLocaleDateString()}
+                        </div>
+                      )}
+                    </div>
+                  )}
+
                   <div className="mt-3">
                     <Button
                       type="link"
