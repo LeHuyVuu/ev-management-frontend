@@ -158,27 +158,29 @@ const EVModelManagement = () => {
     <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
       {/* Header */}
       <div className="flex justify-between items-center mb-6">
-        <h2 className="text-xl font-bold text-gray-900">EV Model Management</h2>
+        {/* Left: Title */}
+        <h2 className="text-xl font-bold text-gray-900 whitespace-nowrap">
+          EV Model Management
+        </h2>
 
-        <div className="flex justify-between items-center mb-6">
-          {/* Search input */}
+        {/* Right: Search + Add */}
+        <div className="flex items-center gap-2">
           <Input
             placeholder="Tìm kiếm model hoặc phiên bản..."
             prefix={<SearchOutlined />}
             allowClear
             value={searchValue}
             onChange={(e) => setSearchValue(e.target.value)}
-            className="w-72"
-            style={{ marginRight: "12px" }} // tạo khoảng cách với nút Add
+            className="w-72 !h-[38px] !rounded-md !border-gray-300 !text-sm !font-medium !text-gray-800"
+            style={{ fontFamily: "inherit" }}
           />
 
-          {/* Add new button */}
           <button
             onClick={() => {
               setEditData(null);
               setModalOpen(true);
             }}
-            className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 flex items-center space-x-2"
+            className="h-[38px] px-4 bg-blue-600 text-white rounded-md hover:bg-blue-700 flex items-center space-x-2"
           >
             <span>＋</span>
             <span>Add New Model</span>
