@@ -19,7 +19,7 @@ const EVMStaffDashboard = () => {
           {
             title: "Total EV Models",
             value: data.totalVersions,
-            description: "Increased 5% compared to last month",
+            description: "Current total active models",
             icon: "🚗",
           },
           {
@@ -31,7 +31,7 @@ const EVMStaffDashboard = () => {
           {
             title: "Total Dealers",
             value: data.totalDealers,
-            description: "Added 2 new dealers",
+            description: "Active dealers in system",
             icon: "🏬",
           },
           {
