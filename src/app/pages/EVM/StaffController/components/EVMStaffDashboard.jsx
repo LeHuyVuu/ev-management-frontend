@@ -25,7 +25,7 @@ const EVMStaffDashboard = () => {
           {
             title: "Total Inventory",
             value: data.totalInventory,
-            description: "Updated today",
+            description: "Includes brand & dealer stock",
             icon: "📦",
           },
           {
