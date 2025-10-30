@@ -36,11 +36,11 @@ const InventoryAndSpeed = () => {
   return (
     <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 transition-all hover:shadow-md">
       <h2 className="text-2xl font-bold text-gray-900 mb-6 flex items-center gap-2">
-        ⚡ Inventory & Sales Speed
+       Inventory & Sales Speed
       </h2>
 
       <h3 className="text-lg font-semibold text-gray-800 mb-4 flex items-center gap-2">
-        📦 Current Inventory Stock
+         Current Inventory Stock
       </h3>
 
       <div className="overflow-x-auto rounded-lg border border-gray-100">
