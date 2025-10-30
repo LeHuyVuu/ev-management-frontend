@@ -21,6 +21,23 @@ export default function CustomerProfile({ customer }) {
   const [loadingOrders, setLoadingOrders] = useState(false);
   const [loadingProfile, setLoadingProfile] = useState(true); // <-- NEW
 
+  // 🔹 Fetch contracts (reusable function)
+  const fetchContracts = () => {
+    if (!customer?.customerId) return;
+    setLoadingContracts(true);
+    fetch(`${api.customer}/customers/${customer.customerId}/contracts`)
+      .then((res) => res.json())
+      .then((res) => {
+        if (res.status === 200) setContracts(res.data || []);
+        else setContracts([]);
+      })
+      .catch((err) => {
+        console.error("Error loading contracts:", err);
+        setContracts([]);
+      })
+      .finally(() => setLoadingContracts(false));
+  };
+
   useEffect(() => {
     let profileTimer;
     if (customer?.customerId) {
@@ -30,18 +47,7 @@ export default function CustomerProfile({ customer }) {
       profileTimer = setTimeout(() => setLoadingProfile(false), 300);
 
       // 🔹 Lấy hợp đồng
-      setLoadingContracts(true);
-      fetch(`${api.customer}/customers/${customer.customerId}/contracts`)
-        .then((res) => res.json())
-        .then((res) => {
-          if (res.status === 200) setContracts(res.data || []);
-          else setContracts([]);
-        })
-        .catch((err) => {
-          console.error("Error loading contracts:", err);
-          setContracts([]);
-        })
-        .finally(() => setLoadingContracts(false));
+      fetchContracts();
 
       // 🔹 Lấy đơn hàng
       setLoadingOrders(true);
@@ -423,6 +429,11 @@ export default function CustomerProfile({ customer }) {
         open={openContract}
         contract={selectedContract}
         onClose={() => setOpenContract(false)}
+        onUpdated={() => {
+          // Fetch lại danh sách contracts sau khi update thành công
+          fetchContracts();
+          toast.success("Đã cập nhật thành công");
+        }}
       />
     </div>
   );
