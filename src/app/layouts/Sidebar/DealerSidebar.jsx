@@ -43,7 +43,7 @@ const Sidebar = () => {
         {
           key: "/dealer/contract",
           icon: <SafetyCertificateOutlined />,
-          label: <Link to="/dealer/contract">Quản lý hợp đồng</Link>,
+          label: <Link to="/dealer/contract">Quản lý điều phối xe</Link>,
         },
         {
           key: "/dealer/driver-schedule",
