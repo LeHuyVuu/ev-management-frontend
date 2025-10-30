@@ -40,70 +40,39 @@ export default function RecentQuotes() {
     (async function load() {
       try {
         const token = getTokenFromLocalStorage();
-        if (!token) {
-          setErr("Không tìm thấy token trong localStorage.");
-          // Fallback to mock data
-          const mockQuotes = getMockQuotes();
-          const rows = mockQuotes.map((q, idx) => ({
-            key: q.id || idx,
-            quoteId: q.id,
-            customerName: q.customerName,
-            brand: q.vehicleName?.split(" ")[0] || "N/A",
-            vehicleName: q.vehicleName,
-            versionName: "",
-            totalPrice: Number(q.amount) || 0,
-            status: q.status,
-            createdAt: q.createdDate || null,
-          }));
-          setData(rows);
-          setLoading(false);
-          return;
+        let apiRows = [];
+
+        // Lấy từ API
+        if (token) {
+          try {
+            const res = await fetch(API_URL, {
+              method: "GET",
+              headers: { accept: "*/*", Authorization: `Bearer ${token}` },
+            });
+            if (res.ok) {
+              const json = await res.json();
+              apiRows = Array.isArray(json?.data)
+                ? json.data.map((q, idx) => ({
+                    key: q.quoteId || idx,
+                    quoteId: q.quoteId,
+                    customerName: q.customerName,
+                    brand: q.brand,
+                    vehicleName: q.vehicleName,
+                    versionName: q.versionName,
+                    totalPrice: Number(q.totalPrice) || 0,
+                    status: q.status,
+                    createdAt: q.createdAt || q.timestamp || null,
+                  }))
+                : [];
+            }
+          } catch (apiErr) {
+            console.warn("API error:", apiErr.message);
+          }
         }
-        const res = await fetch(API_URL, {
-          method: "GET",
-          headers: { accept: "*/*", Authorization: `Bearer ${token}` },
-        });
-        if (!res.ok) {
-          const text = await res.text();
-          throw new Error(`API lỗi (${res.status}): ${text || res.statusText}`);
-        }
-        const json = await res.json();
-        const rows = Array.isArray(json?.data)
-          ? json.data.map((q, idx) => ({
-              key: q.quoteId || idx,
-              quoteId: q.quoteId,
-              customerName: q.customerName,
-              brand: q.brand,
-              vehicleName: q.vehicleName,
-              versionName: q.versionName,
-              totalPrice: Number(q.totalPrice) || 0,
-              status: q.status,
-              createdAt: q.createdAt || q.timestamp || null,
-            }))
-          : [];
-        // If no data from API, use mock data
-        if (rows.length === 0) {
-          const mockQuotes = getMockQuotes();
-          const mockRows = mockQuotes.map((q, idx) => ({
-            key: q.id || idx,
-            quoteId: q.id,
-            customerName: q.customerName,
-            brand: q.vehicleName?.split(" ")[0] || "N/A",
-            vehicleName: q.vehicleName,
-            versionName: "",
-            totalPrice: Number(q.amount) || 0,
-            status: q.status,
-            createdAt: q.createdDate || null,
-          }));
-          setData(mockRows);
-        } else {
-          setData(rows);
-        }
-      } catch (e) {
-        // On error, use mock data as fallback
-        console.warn("API failed, using mock data:", e.message);
+
+        // 🎯 Lấy mock data
         const mockQuotes = getMockQuotes();
-        const rows = mockQuotes.map((q, idx) => ({
+        const mockRows = mockQuotes.map((q, idx) => ({
           key: q.id || idx,
           quoteId: q.id,
           customerName: q.customerName,
@@ -114,8 +83,12 @@ export default function RecentQuotes() {
           status: q.status,
           createdAt: q.createdDate || null,
         }));
-        setData(rows);
-        setErr(e.message || "Đã xảy ra lỗi khi tải dữ liệu. Sử dụng dữ liệu mẫu.");
+
+        // Gộp cả 2 vào (không loại bỏ trùng)
+        const allRows = [...apiRows, ...mockRows];
+        setData(allRows);
+      } catch (e) {
+        setErr(e.message || "Đã xảy ra lỗi khi tải dữ liệu.");
       } finally {
         setLoading(false);
       }
