@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from "react";
+import { getMockVehicles } from "../../../../../context/mock/vehicles.mock";
 
 const BASE_URL =
   "https://prn232.freeddns.org/brand-service/api/vehicle-versions/dealer-stock";
@@ -65,12 +66,34 @@ export default function CarList({ filters }) {
         setTotalItems(data.data.totalItems || 0);
         setTotalPages(data.data.totalPages || 1);
       } else {
+        throw new Error("Không có dữ liệu từ API");
+      }
+    } catch (err) {
+      console.warn("API failed, using mock data:", err.message);
+      // Fallback to mock data
+      try {
+        const mockVehicles = getMockVehicles();
+        const mockItems = mockVehicles.map(v => ({
+          vehicleVersionId: v.id,
+          brand: v.brand,
+          modelName: v.model,
+          versionName: v.name.replace(`${v.brand} ${v.model}`, "").trim() || "Standard",
+          basePrice: Number(v.price),
+          color: "Trắng",
+          evType: "EV",
+          horsePower: 250,
+          stockQuantity: 10,
+          imageUrl: v.image,
+        }));
+        setCars(mockItems);
+        setTotalItems(mockItems.length);
+        setTotalPages(Math.ceil(mockItems.length / pageSize));
+      } catch (mockErr) {
         setCars([]);
         setTotalItems(0);
         setTotalPages(1);
+        setError("Không thể tải dữ liệu. Vui lòng thử lại sau.");
       }
-    } catch (err) {
-      setError(err.message || "Không thể tải dữ liệu từ máy chủ.");
     } finally {
       setLoading(false);
     }

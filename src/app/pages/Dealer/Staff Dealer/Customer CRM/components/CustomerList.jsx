@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import AddCustomerModal from "./AddCustomerModal";
 import UpdateCustomerModal from "./UpdateCustomerModal";
 import api from "../../../../../context/api";
+import { getMockCustomers } from "../../../../../context/mock/customers.mock";
 import { toast, ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import { Pencil } from "lucide-react"; // ✏️ icon Lucide
@@ -30,15 +31,37 @@ export default function CustomerList({ onSelectCustomer }) {
         },
       });
       const json = await res.json();
-      if (json.status === 200) {
+      if (json.status === 200 && json.data && json.data.length > 0) {
         setCustomers(json.data);
         if (json.data.length > 0) {
           setSelectedId(json.data[0].customerId);
           onSelectCustomer(json.data[0]);
         }
+      } else {
+        throw new Error("Không có dữ liệu từ API");
       }
     } catch (err) {
-      console.error("Error loading customers:", err);
+      console.warn("API failed, using mock data:", err.message);
+      // Fallback to mock data
+      try {
+        const mockCustomers = getMockCustomers();
+        const mappedCustomers = mockCustomers.map(c => ({
+          customerId: c.id,
+          name: c.name,
+          phone: c.phone,
+          address: c.address,
+          email: c.email,
+          status: "active",
+          staffContact: "Staff",
+        }));
+        setCustomers(mappedCustomers);
+        if (mappedCustomers.length > 0) {
+          setSelectedId(mappedCustomers[0].customerId);
+          onSelectCustomer(mappedCustomers[0]);
+        }
+      } catch (mockErr) {
+        console.error("Error loading mock customers:", mockErr);
+      }
     }
   };
 
