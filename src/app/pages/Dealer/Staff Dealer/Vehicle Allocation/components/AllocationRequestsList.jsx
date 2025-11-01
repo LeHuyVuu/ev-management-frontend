@@ -24,13 +24,13 @@ import {
 const SHORT_ID_LEN = 8;
 /** ===== Config (DEALER) ===== */
 const STATUS_OPTIONS = [
-  "requested",     // Dealer đã gửi yêu cầu
-  "approved",      // Brand duyệt
-  "rejected",      // Brand từ chối
-  "assigned",      // Brand đã phân xe
-  "in_transit",    // Đang vận chuyển
-  "at_dealer",     // Đã đến đại lý
-  "delivered",     // Hoàn tất giao
+  // "requested",     // Dealer đã gửi yêu cầu
+  // "approved",      // Brand duyệt
+  // "rejected",      // Brand từ chối
+  // "assigned",      // Brand đã phân xe
+  // "in_transit",    // Đang vận chuyển
+  // "at_dealer",     // Đã đến đại lý
+  // "delivered",     // Hoàn tất giao
   "cancelled",     // Hủy
 ];
 
@@ -222,11 +222,7 @@ export default function AllocationRequestsList() {
       width: 170,
       render: (_, record) => (
         <Space>
-          <Button
-            size="small"
-            icon={<EyeOutlined />}
-            onClick={() => message.info(`Xem ${record.id}`)}
-          />
+         
           <Button
             size="small"
             type="default"
@@ -242,7 +238,6 @@ export default function AllocationRequestsList() {
             cancelText="Hủy"
             onConfirm={() => message.success(`${record.id} đã xóa (mock)`)}
           >
-            <Button danger size="small" icon={<DeleteOutlined />} />
           </Popconfirm>
         </Space>
       ),
