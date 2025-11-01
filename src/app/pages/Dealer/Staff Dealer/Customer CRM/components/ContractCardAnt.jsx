@@ -458,9 +458,6 @@ const ContractModalAnt = ({ open, contract, onClose, onUpdated }) => {
               </Space>
 
               <Divider />
-
-              <Title level={5}>Ghi chú nội bộ</Title>
-              <Input.TextArea placeholder="Thêm ghi chú về hợp đồng này..." rows={3} allowClear />
             </>
           )}
         </Col>
