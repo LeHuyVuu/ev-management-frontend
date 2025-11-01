@@ -2,7 +2,7 @@ import React, { useEffect, useState } from "react";
 import { Loader2 } from "lucide-react";
 
 const TARGETS_API = "https://prn232.freeddns.org/dealer-service/api/DealerTargets?pageNumber=1&pageSize=10";
-const DEALERS_API = "https://prn232.freeddns.org/dealer-service/api/Dealers?pageNumber=1&pageSize=100";
+const DEALERS_API = "https://prn232.freeddns.org/dealer-service/api/Dealers/active-dealers";
 
 const SalesTargets = () => {
   const [targets, setTargets] = useState([]);
@@ -23,7 +23,7 @@ const SalesTargets = () => {
         const res = await fetch(DEALERS_API);
         const json = await res.json();
         if (res.ok && json.status === 200 && json.data?.items) {
-          setDealers(json.data.items);
+          setDealers(json.data);
         } else {
           console.warn("Dealers API returned error or unexpected format", json);
         }

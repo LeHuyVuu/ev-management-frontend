@@ -65,7 +65,7 @@ const isDark = (hex) => {
   return lum < 0.6;
 };
 
-const EVModelManagement = () => {
+const EVModelManagement = ({ onModelAdded }) => {
   const [models, setModels] = useState([]);
   const [pageNumber, setPageNumber] = useState(1);
   const [pageSize] = useState(5);
@@ -363,7 +363,10 @@ const EVModelManagement = () => {
         mode={editData ? "edit" : "create"}
         initialData={editData ?? undefined}
         onClose={() => setModalOpen(false)}
-        onSaved={() => fetchModels(pageNumber)} // hàm có sẵn của bạn để reload
+        onSaved={() => {
+          fetchModels(pageNumber);
+          onModelAdded?.(); // 👈 gọi callback báo dashboard refresh
+        }} // hàm có sẵn của bạn để reload
       />
     </div>
   );
