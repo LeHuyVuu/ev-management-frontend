@@ -12,6 +12,7 @@ import {
   Button,
   Space,
   Divider,
+  Input,
   Skeleton,
   Select,
 } from "antd";
@@ -19,17 +20,27 @@ import {
 const { Title, Text } = Typography;
 const { Dragger } = Upload;
 
-// ===== Config =====
-const API_SERVICE = "https://localhost:1223/customer-service";
-const API_CONTRACT = `${API_SERVICE}/contracts`;
-const API_CONTRACT_API = `${API_SERVICE}/api/contracts`;
-const API_UPLOAD = "https://prn232.freeddns.org/utility-service/api/Upload";
+// ===== Config (GIỮ LOGIC CŨ) =====
+const API_SERVICE = "https://prn232.freeddns.org/customer-service"; // base
+const API_CONTRACT = `${API_SERVICE}/contracts`; // GET detail (đang chạy ổn không có /api)
+const API_CONTRACT_API = `${API_SERVICE}/api/contracts`; // PATCH status (cần /api)
 const getToken = () => localStorage.getItem("token") ?? "";
 
-export const viPayment = { cash: "Tiền mặt", installment: "Trả góp" };
-export const viStatus = { draft: "draft", confirmed: "confirmed", approved: "approved" };
-const STATUS_OPTIONS = Object.keys(viStatus);
+// ===== Maps =====
+export const viPayment = {
+  cash: "Tiền mặt",
+  installment: "Trả góp",
+};
 
+export const viStatus = {
+  draft: "draft",
+  confirmed: "confirmed",
+  approved: "approved",
+};
+
+const STATUS_OPTIONS = Object.keys(viStatus); // only: draft, confirmed, approved
+
+// ===== Helpers =====
 function formatVND(amount) {
   if (amount == null || isNaN(Number(amount))) return "-";
   try {
@@ -63,12 +74,14 @@ function statusTagColor(raw) {
 }
 
 const ContractModalAnt = ({ open, contract, onClose }) => {
+  const [fileContent, setFileContent] = useState("");
   const [detail, setDetail] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+
+  // PATCH status
   const [statusValue, setStatusValue] = useState();
   const [updating, setUpdating] = useState(false);
-  const [uploading, setUploading] = useState(false);
 
   useEffect(() => {
     let ignore = false;
@@ -88,28 +101,42 @@ const ContractModalAnt = ({ open, contract, onClose }) => {
           setDetail(d);
           setStatusValue(d?.status);
         }
+
+        const fileUrl = d?.fileUrl;
+        if (fileUrl && typeof fileUrl === "string" && fileUrl.toLowerCase().endsWith(".pdf")) {
+          if (!ignore) setFileContent(fileUrl);
+        }
       } catch (e) {
-        if (!ignore) setError(e?.message || "Không tải được chi tiết hợp đồng");
+        const msg = e instanceof Error ? e.message : "Không tải được chi tiết hợp đồng";
+        if (!ignore) setError(msg);
       } finally {
         if (!ignore) setLoading(false);
       }
     }
+
     if (open) fetchDetail();
-    return () => (ignore = true);
+    return () => {
+      ignore = true;
+    };
   }, [open, contract?.id]);
 
   useEffect(() => {
-    if (!open) {
+    if (contract?.content) {
+      setFileContent(contract.content);
+    } else if (!open) {
+      setFileContent("");
       setDetail(null);
       setError("");
       setLoading(false);
       setStatusValue(undefined);
+      setUpdating(false);
     }
-  }, [open]);
+  }, [open, contract?.content]);
 
   const ui = useMemo(() => {
     const d = detail ?? {};
     const car = [d.brand, d.vehicleName, d.versionName].filter(Boolean).join(" ") || contract?.car || "-";
+
     return {
       id: contract?.id ?? "-",
       customer: d.customerName || contract?.customer || "-",
@@ -127,46 +154,23 @@ const ContractModalAnt = ({ open, contract, onClose }) => {
     };
   }, [detail, contract]);
 
+  const isPDFData = typeof fileContent === "string" && (fileContent.startsWith("data:application/pdf") || fileContent.toLowerCase().endsWith(".pdf"));
+
   const uploadProps = {
     multiple: false,
     showUploadList: false,
     beforeUpload: (file) => {
-      const upload = async () => {
-        try {
-          setUploading(true);
-          const formData = new FormData();
-          formData.append("file", file);
-          const uploadRes = await fetch(API_UPLOAD, {
-            method: "POST",
-            headers: { Accept: "*/*", Authorization: `Bearer ${getToken()}` },
-            body: formData,
-          });
-          if (!uploadRes.ok) throw new Error(`Upload failed: ${uploadRes.status}`);
-          const uploadJson = await uploadRes.json();
-          const fileUrl = uploadJson.data;
-          const id = contract?.id;
-          if (!id) throw new Error("No contract id");
-          const updateRes = await fetch(`${API_CONTRACT_API}/${id}/file`, {
-            method: "PATCH",
-            headers: { "Content-Type": "application/json", Accept: "*/*", Authorization: `Bearer ${getToken()}` },
-            body: JSON.stringify({ fileUrl }),
-          });
-          if (!updateRes.ok) throw new Error(`Update failed: ${updateRes.status}`);
-          // reload detail
-          const detailRes = await fetch(`${API_CONTRACT}/${id}`, { headers: { accept: "*/*", Authorization: `Bearer ${getToken()}` } });
-          if (detailRes.ok) {
-            const js = await detailRes.json();
-            setDetail(js?.data ?? null);
-          }
-          message.success("Đã lưu file hợp đồng thành công.");
-        } catch (e) {
-          console.error(e);
-          message.error(e?.message || "Upload thất bại");
-        } finally {
-          setUploading(false);
+      const reader = new FileReader();
+      reader.onload = (ev) => {
+        const result = ev?.target?.result;
+        if (typeof result === "string") {
+          setFileContent(result);
+          message.success("Đã tải nội dung file lên vùng xem.");
         }
       };
-      upload();
+      if (file.type === "application/pdf") reader.readAsDataURL(file);
+      else if (file.type.startsWith("text/")) reader.readAsText(file);
+      else message.warning("Chỉ hỗ trợ PDF hoặc text.");
       return false;
     },
   };
@@ -178,48 +182,74 @@ const ContractModalAnt = ({ open, contract, onClose }) => {
       setUpdating(true);
       const res = await fetch(`${API_CONTRACT_API}/${id}/status`, {
         method: "PATCH",
-        headers: { "Content-Type": "application/json", Accept: "*/*", Authorization: `Bearer ${getToken()}` },
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "*/*",
+          Authorization: `Bearer ${getToken()}`,
+        },
         body: JSON.stringify({ status: statusValue }),
       });
-      if (!res.ok) throw new Error(`Status update failed: ${res.status}`);
-      setDetail((prev) => ({ ...(prev || {}), status: statusValue }));
+      if (!res.ok) {
+        let serverMsg = "";
+        try { const j = await res.json(); serverMsg = j?.message || ""; } catch {}
+        if (serverMsg) throw new Error(serverMsg);
+        const text = await res.text();
+        throw new Error(`${res.status} ${res.statusText}: ${text}`);
+      }
       message.success("Cập nhật trạng thái hợp đồng thành công.");
+      setDetail((prev) => ({ ...(prev || {}), status: statusValue }));
     } catch (e) {
       console.error(e);
-      message.error(e?.message || "Cập nhật thất bại");
+      message.error(e?.message || "Cập nhật trạng thái thất bại.");
     } finally {
       setUpdating(false);
     }
   };
 
   return (
-    <Modal open={open} onCancel={onClose} footer={null} width={1000} destroyOnClose title={<Space align="center"><Title level={4} style={{ margin: 0 }}>Chi tiết hợp đồng {ui.id}</Title>{!!ui.status && <Tag color={statusTagColor(ui.statusRaw)}>{ui.status}</Tag>}</Space>}>
+    <Modal
+      open={open}
+      onCancel={onClose}
+      footer={null}
+      width={1000}
+      destroyOnClose
+      title={
+        <Space align="center">
+          <Title level={4} style={{ margin: 0 }}>
+            Chi tiết hợp đồng {ui.id}
+          </Title>
+          {!!ui.status && <Tag color={statusTagColor(ui.statusRaw)}>{ui.status}</Tag>}
+        </Space>
+      }
+    >
       <Row gutter={[16, 16]}>
         <Col xs={24} md={15}>
-          <Title level={5} style={{ marginTop: 0 }}>Nội dung hợp đồng</Title>
+          <Title level={5} style={{ marginTop: 0 }}>
+            Nội dung hợp đồng
+          </Title>
 
           {loading ? (
             <Skeleton active paragraph={{ rows: 6 }} />
           ) : error ? (
             <Alert type="error" message={error} showIcon />
-          ) : ui.fileUrl && ui.fileUrl !== "Contract don't have file" ? (
-            <Space direction="vertical" style={{ width: "100%" }} size="large">
-              <Alert message="✅ File hợp đồng đã được lưu" type="success" showIcon />
-              <a href={ui.fileUrl} target="_blank" rel="noreferrer" style={{ textDecoration: "none" }}>
-                <Button type="primary" size="large" block>
-                  Xem tài liệu
-                </Button>
-              </a>
-            </Space>
-          ) : (
-            <div style={{ border: "2px dashed #1890ff", borderRadius: 12, padding: 48, textAlign: "center", background: "rgba(24, 144, 255, 0.02)" }}>
-              <Dragger {...uploadProps} style={{ border: "none", background: "transparent", padding: 0 }}>
-                <p style={{ fontSize: 32, margin: "0 0 12px 0" }}>PDF</p>
-                <p style={{ fontSize: 16, fontWeight: 600, color: "#000", margin: "8px 0" }}>Tải lên file hợp đồng</p>
-                <p style={{ fontSize: 13, color: "#666", margin: "4px 0" }}>Kéo thả file vào đây hoặc click để chọn</p>
-                <p style={{ fontSize: 12, color: "#999", margin: "8px 0 0 0" }}>Hỗ trợ: PDF, Text, DOCX • Tối đa 50MB</p>
-              </Dragger>
+          ) : fileContent ? (
+            <div style={{ border: "1px solid #f0f0f0", borderRadius: 8, height: 420, overflow: "hidden" }}>
+              {isPDFData ? (
+                <iframe src={fileContent} title="PDF Preview" style={{ width: "100%", height: "100%", border: "none" }} />
+              ) : (
+                <pre style={{ margin: 0, padding: 12, height: "100%", overflow: "auto", background: "#fafafa" }}>{fileContent}</pre>
+              )}
             </div>
+          ) : ui.fileUrl && ui.fileUrl !== "Contract don't have file" ? (
+            <a href={ui.fileUrl} target="_blank" rel="noreferrer">
+              Mở tệp hợp đồng
+            </a>
+          ) : (
+            <Dragger {...uploadProps} style={{ padding: 16 }}>
+              <p className="ant-upload-drag-icon">📄</p>
+              <p className="ant-upload-text">Kéo thả file hợp đồng (PDF/Text) vào đây để xem nội dung</p>
+              <p className="ant-upload-hint">File sẽ không được tải lên server</p>
+            </Dragger>
           )}
         </Col>
 
@@ -234,7 +264,9 @@ const ContractModalAnt = ({ open, contract, onClose }) => {
                 <Descriptions.Item label="Khách hàng">{ui.customer}</Descriptions.Item>
                 <Descriptions.Item label="Mẫu xe">{ui.car}</Descriptions.Item>
                 <Descriptions.Item label="Ngày ký">{ui.date}</Descriptions.Item>
-                <Descriptions.Item label="Giá trị"><Text strong>{ui.value}</Text></Descriptions.Item>
+                <Descriptions.Item label="Giá trị">
+                  <Text strong>{ui.value}</Text>
+                </Descriptions.Item>
                 <Descriptions.Item label="Thanh toán">{ui.payment}</Descriptions.Item>
                 {ui.dealerName && <Descriptions.Item label="Đại lý">{ui.dealerName}</Descriptions.Item>}
                 {ui.dealerPhone && <Descriptions.Item label="SĐT Đại lý">{ui.dealerPhone}</Descriptions.Item>}
@@ -246,9 +278,21 @@ const ContractModalAnt = ({ open, contract, onClose }) => {
 
               <Title level={5}>Cập nhật trạng thái</Title>
               <Space wrap>
-                <Select value={statusValue} style={{ minWidth: 180 }} onChange={setStatusValue} options={STATUS_OPTIONS.map((s) => ({ value: s, label: viStatus[s] }))} />
-                <Button type="primary" loading={updating} onClick={patchStatus}>Cập nhật</Button>
+                <Select
+                  value={statusValue}
+                  style={{ minWidth: 180 }}
+                  onChange={setStatusValue}
+                  options={STATUS_OPTIONS.map((s) => ({ value: s, label: viStatus[s] }))}
+                />
+                <Button type="primary" loading={updating} onClick={patchStatus}>
+                  Cập nhật
+                </Button>
               </Space>
+
+              <Divider />
+
+              <Title level={5}>Ghi chú nội bộ</Title>
+              <Input.TextArea placeholder="Thêm ghi chú về hợp đồng này..." rows={3} allowClear />
             </>
           )}
         </Col>
@@ -258,4 +302,3 @@ const ContractModalAnt = ({ open, contract, onClose }) => {
 };
 
 export default ContractModalAnt;
-

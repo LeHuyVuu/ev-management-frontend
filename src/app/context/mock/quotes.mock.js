@@ -1,54 +1,55 @@
-// Helper: Generate GUID v4 format
-function generateGUID() {
-  return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, function (c) {
-    const r = (Math.random() * 16) | 0;
-    const v = c === "x" ? r : (r & 0x3) | 0x8;
-    return v.toString(16);
-  });
-}
-
-// Real Vietnamese customer names
-const customerNames = [
-  "Nguyễn Văn An", "Trần Thị Ánh", "Lê Minh Anh", "Phạm Văn Bảo", "Vũ Thị Bích",
-  "Đặng Minh Bình", "Bùi Thị Cẩm", "Hoàng Văn Chính", "Vương Thị Chương", "Tôn Văn Công",
-  "Quách Thị Dạ", "Nông Văn Đại", "Tạ Thị Đan", "Bảo Văn Đức", "Thủy Thị Dương",
-  "Hưng Văn Định", "Linh Thị Điệu", "Tiến Văn Diệp", "Hương Thị Duyên", "Toàn Văn Duyệt",
-  "Thục Thị Duyên", "Tùng Văn Gia", "Tuyết Thị Giáng", "Uy Văn Giang", "Uyên Thị Giáp",
-  "Văn Văn Giao", "Trang Thị Hà", "Thành Văn Hải", "Thanh Thị Hạnh", "Tâm Văn Hùng",
-  "Tuyền Thị Hương", "Tuấn Văn Hưởng", "Tú Thị Huyền", "Uy Văn Huy", "Uyển Thị Huyệt",
-  "Viên Văn Hùng", "Yến Thị Hương", "Ưu Văn Hỷ", "Tuệ Thị Hồ", "Trực Văn Hoài",
-  "Trúc Thị Hoàn", "Trương Văn Hoài", "Triệu Thị Hoàn", "Tùng Văn Hoàng", "Trang Thị Huyền",
-  "Tâm Văn Hải", "Thảo Thị Hà", "Tuấn Văn Hùng", "Tuyên Thị Hương", "Thắng Văn Hiến"
+export const mockQuotes = [
+  { id: "mock-q-1", customerId: "C001", customerName: "Nguyễn Văn A", vehicleId: "veh-1", vehicleName: "Tesla Model 3", dealerId: "D1", dealerName: "Tesla Hà Nội", status: "pending", amount: 800000000, createdDate: "2025-10-30" },
+  { id: "mock-q-2", customerId: "C002", customerName: "Trần Thị B", vehicleId: "veh-2", vehicleName: "BMW i4", dealerId: "D2", dealerName: "BMW Sài Gòn", status: "approved", amount: 750000000, createdDate: "2025-10-29" },
+  { id: "mock-q-3", customerId: "C003", customerName: "Lê Minh C", vehicleId: "veh-3", vehicleName: "Audi e-tron", dealerId: "D3", dealerName: "Audi Việt Nam", status: "rejected", amount: 850000000, createdDate: "2025-10-28" },
+  { id: "mock-q-4", customerId: "C004", customerName: "Phạm Văn D", vehicleId: "veh-4", vehicleName: "Mercedes EQC", dealerId: "D1", dealerName: "Tesla Hà Nội", status: "pending", amount: 900000000, createdDate: "2025-10-27" },
+  { id: "mock-q-5", customerId: "C005", customerName: "Vũ Thị E", vehicleId: "veh-5", vehicleName: "Porsche Taycan", dealerId: "D2", dealerName: "BMW Sài Gòn", status: "approved", amount: 1200000000, createdDate: "2025-10-26" },
+  { id: "mock-q-6", customerId: "C006", customerName: "Đặng Minh F", vehicleId: "veh-6", vehicleName: "Tesla Model Y", dealerId: "D3", dealerName: "Audi Việt Nam", status: "pending", amount: 950000000, createdDate: "2025-10-25" },
+  { id: "mock-q-7", customerId: "C007", customerName: "Bùi Thị G", vehicleId: "veh-7", vehicleName: "BMW i3", dealerId: "D1", dealerName: "Tesla Hà Nội", status: "approved", amount: 600000000, createdDate: "2025-10-24" },
+  { id: "mock-q-8", customerId: "C008", customerName: "Hoàng Văn H", vehicleId: "veh-8", vehicleName: "Jaguar I-PACE", dealerId: "D2", dealerName: "BMW Sài Gòn", status: "pending", amount: 850000000, createdDate: "2025-10-23" },
+  { id: "mock-q-9", customerId: "C009", customerName: "Vương Thị I", vehicleId: "veh-9", vehicleName: "Hyundai Kona Electric", dealerId: "D3", dealerName: "Audi Việt Nam", status: "rejected", amount: 650000000, createdDate: "2025-10-22" },
+  { id: "mock-q-10", customerId: "C010", customerName: "Tôn Văn J", vehicleId: "veh-10", vehicleName: "Kia EV6", dealerId: "D1", dealerName: "Tesla Hà Nội", status: "approved", amount: 720000000, createdDate: "2025-10-21" },
+  { id: "mock-q-11", customerId: "C011", customerName: "Quách Thị K", vehicleId: "veh-11", vehicleName: "Tesla Model S", dealerId: "D2", dealerName: "BMW Sài Gòn", status: "pending", amount: 1500000000, createdDate: "2025-10-20" },
+  { id: "mock-q-12", customerId: "C012", customerName: "Nông Văn L", vehicleId: "veh-12", vehicleName: "Volkswagen ID.4", dealerId: "D3", dealerName: "Audi Việt Nam", status: "approved", amount: 700000000, createdDate: "2025-10-19" },
+  { id: "mock-q-13", customerId: "C013", customerName: "Tạ Thị M", vehicleId: "veh-13", vehicleName: "MG5 EV", dealerId: "D1", dealerName: "Tesla Hà Nội", status: "pending", amount: 550000000, createdDate: "2025-10-18" },
+  { id: "mock-q-14", customerId: "C014", customerName: "Bảo Văn N", vehicleId: "veh-14", vehicleName: "Nissan Leaf", dealerId: "D2", dealerName: "BMW Sài Gòn", status: "rejected", amount: 600000000, createdDate: "2025-10-17" },
+  { id: "mock-q-15", customerId: "C015", customerName: "Thủy Thị O", vehicleId: "veh-15", vehicleName: "Renault Zoe", dealerId: "D3", dealerName: "Audi Việt Nam", status: "approved", amount: 520000000, createdDate: "2025-10-16" },
+  { id: "mock-q-16", customerId: "C016", customerName: "Hưng Văn P", vehicleId: "veh-16", vehicleName: "Tesla Model X", dealerId: "D1", dealerName: "Tesla Hà Nội", status: "pending", amount: 1400000000, createdDate: "2025-10-15" },
+  { id: "mock-q-17", customerId: "C017", customerName: "Linh Thị Q", vehicleId: "veh-17", vehicleName: "Aston Martin DBX", dealerId: "D2", dealerName: "BMW Sài Gòn", status: "approved", amount: 2500000000, createdDate: "2025-10-14" },
+  { id: "mock-q-18", customerId: "C018", customerName: "Tiến Văn R", vehicleId: "veh-18", vehicleName: "Bentley Bentayga", dealerId: "D3", dealerName: "Audi Việt Nam", status: "pending", amount: 3000000000, createdDate: "2025-10-13" },
+  { id: "mock-q-19", customerId: "C019", customerName: "Hương Thị S", vehicleId: "veh-19", vehicleName: "Polestar 1", dealerId: "D1", dealerName: "Tesla Hà Nội", status: "rejected", amount: 1100000000, createdDate: "2025-10-12" },
+  { id: "mock-q-20", customerId: "C020", customerName: "Toàn Văn T", vehicleId: "veh-20", vehicleName: "Lucid Air", dealerId: "D2", dealerName: "BMW Sài Gòn", status: "approved", amount: 2000000000, createdDate: "2025-10-11" },
+  { id: "mock-q-21", customerId: "C021", customerName: "Thục Thị U", vehicleId: "veh-21", vehicleName: "Rivian R1T", dealerId: "D3", dealerName: "Audi Việt Nam", status: "pending", amount: 1800000000, createdDate: "2025-10-10" },
+  { id: "mock-q-22", customerId: "C022", customerName: "Tùng Văn V", vehicleId: "veh-22", vehicleName: "Tesla Model 3", dealerId: "D1", dealerName: "Tesla Hà Nội", status: "approved", amount: 800000000, createdDate: "2025-10-09" },
+  { id: "mock-q-23", customerId: "C023", customerName: "Tuyết Thị W", vehicleId: "veh-23", vehicleName: "BMW i7", dealerId: "D2", dealerName: "BMW Sài Gòn", status: "pending", amount: 1300000000, createdDate: "2025-10-08" },
+  { id: "mock-q-24", customerId: "C024", customerName: "Uy Văn X", vehicleId: "veh-24", vehicleName: "Audi Q4 e-tron", dealerId: "D3", dealerName: "Audi Việt Nam", status: "approved", amount: 780000000, createdDate: "2025-10-07" },
+  { id: "mock-q-25", customerId: "C025", customerName: "Uyên Thị Y", vehicleId: "veh-25", vehicleName: "Mercedes EQE", dealerId: "D1", dealerName: "Tesla Hà Nội", status: "pending", amount: 950000000, createdDate: "2025-10-06" },
+  { id: "mock-q-26", customerId: "C026", customerName: "Văn Văn Z", vehicleId: "veh-26", vehicleName: "Porsche Taycan Cross Turismo", dealerId: "D2", dealerName: "BMW Sài Gòn", status: "rejected", amount: 1650000000, createdDate: "2025-10-05" },
+  { id: "mock-q-27", customerId: "C027", customerName: "Trang Thị AA", vehicleId: "veh-27", vehicleName: "Tesla Roadster", dealerId: "D3", dealerName: "Audi Việt Nam", status: "approved", amount: 2200000000, createdDate: "2025-10-04" },
+  { id: "mock-q-28", customerId: "C028", customerName: "Thành Văn BB", vehicleId: "veh-28", vehicleName: "Xpeng G9", dealerId: "D1", dealerName: "Tesla Hà Nội", status: "pending", amount: 850000000, createdDate: "2025-10-03" },
+  { id: "mock-q-29", customerId: "C029", customerName: "Thanh Thị CC", vehicleId: "veh-29", vehicleName: "Li Auto ONE", dealerId: "D2", dealerName: "BMW Sài Gòn", status: "approved", amount: 950000000, createdDate: "2025-10-02" },
+  { id: "mock-q-30", customerId: "C030", customerName: "Tâm Văn DD", vehicleId: "veh-30", vehicleName: "BYD Yuan Plus", dealerId: "D3", dealerName: "Audi Việt Nam", status: "pending", amount: 680000000, createdDate: "2025-10-01" },
+  { id: "mock-q-31", customerId: "C031", customerName: "Tuyền Thị EE", vehicleId: "veh-31", vehicleName: "Tesla Model 3", dealerId: "D1", dealerName: "Tesla Hà Nội", status: "approved", amount: 800000000, createdDate: "2025-09-30" },
+  { id: "mock-q-32", customerId: "C032", customerName: "Tuấn Văn FF", vehicleId: "veh-32", vehicleName: "BMW i4 eDrive40", dealerId: "D2", dealerName: "BMW Sài Gòn", status: "rejected", amount: 750000000, createdDate: "2025-09-29" },
+  { id: "mock-q-33", customerId: "C033", customerName: "Tú Thị GG", vehicleId: "veh-33", vehicleName: "Audi e-tron GT", dealerId: "D3", dealerName: "Audi Việt Nam", status: "pending", amount: 1200000000, createdDate: "2025-09-28" },
+  { id: "mock-q-34", customerId: "C034", customerName: "Uy Văn HH", vehicleId: "veh-34", vehicleName: "Hyundai Ioniq 5", dealerId: "D1", dealerName: "Tesla Hà Nội", status: "approved", amount: 720000000, createdDate: "2025-09-27" },
+  { id: "mock-q-35", customerId: "C035", customerName: "Uyển Thị II", vehicleId: "veh-35", vehicleName: "Kia Niro EV", dealerId: "D2", dealerName: "BMW Sài Gòn", status: "pending", amount: 650000000, createdDate: "2025-09-26" },
+  { id: "mock-q-36", customerId: "C036", customerName: "Viên Văn JJ", vehicleId: "veh-36", vehicleName: "Volkswagen ID.5", dealerId: "D3", dealerName: "Audi Việt Nam", status: "approved", amount: 750000000, createdDate: "2025-09-25" },
+  { id: "mock-q-37", customerId: "C037", customerName: "Yến Thị KK", vehicleId: "veh-37", vehicleName: "Tesla Model Y Long Range", dealerId: "D1", dealerName: "Tesla Hà Nội", status: "pending", amount: 1100000000, createdDate: "2025-09-24" },
+  { id: "mock-q-38", customerId: "C038", customerName: "Ưu Văn LL", vehicleId: "veh-38", vehicleName: "BMW X5 xDrive50e", dealerId: "D2", dealerName: "BMW Sài Gòn", status: "rejected", amount: 1050000000, createdDate: "2025-09-23" },
+  { id: "mock-q-39", customerId: "C039", customerName: "Tuệ Thị MM", vehicleId: "veh-39", vehicleName: "Audi Q7 TFSI e", dealerId: "D3", dealerName: "Audi Việt Nam", status: "approved", amount: 950000000, createdDate: "2025-09-22" },
+  { id: "mock-q-40", customerId: "C040", customerName: "Trực Văn NN", vehicleId: "veh-40", vehicleName: "Porsche 911 Turbo S E-Hybrid", dealerId: "D1", dealerName: "Tesla Hà Nội", status: "pending", amount: 2500000000, createdDate: "2025-09-21" },
+  { id: "mock-q-41", customerId: "C041", customerName: "Trúc Thị OO", vehicleId: "veh-41", vehicleName: "Mercedes-AMG EQS 53 4MATIC+", dealerId: "D2", dealerName: "BMW Sài Gòn", status: "approved", amount: 1600000000, createdDate: "2025-09-20" },
+  { id: "mock-q-42", customerId: "C042", customerName: "Trương Văn PP", vehicleId: "veh-42", vehicleName: "Tesla Model S Long Range", dealerId: "D3", dealerName: "Audi Việt Nam", status: "pending", amount: 1500000000, createdDate: "2025-09-19" },
+  { id: "mock-q-43", customerId: "C043", customerName: "Triệu Thị QQ", vehicleId: "veh-43", vehicleName: "Jaguar I-PACE EV400", dealerId: "D1", dealerName: "Tesla Hà Nội", status: "rejected", amount: 850000000, createdDate: "2025-09-18" },
+  { id: "mock-q-44", customerId: "C044", customerName: "Tùng Văn RR", vehicleId: "veh-44", vehicleName: "Hyundai Tucson Plug-in Hybrid", dealerId: "D2", dealerName: "BMW Sài Gòn", status: "approved", amount: 850000000, createdDate: "2025-09-17" },
+  { id: "mock-q-45", customerId: "C045", customerName: "Trang Thị SS", vehicleId: "veh-45", vehicleName: "Kia Sorento Plug-in Hybrid", dealerId: "D3", dealerName: "Audi Việt Nam", status: "pending", amount: 950000000, createdDate: "2025-09-16" },
+  { id: "mock-q-46", customerId: "C046", customerName: "Tâm Văn TT", vehicleId: "veh-46", vehicleName: "BMW i5", dealerId: "D1", dealerName: "Tesla Hà Nội", status: "approved", amount: 900000000, createdDate: "2025-09-15" },
+  { id: "mock-q-47", customerId: "C047", customerName: "Thảo Thị UU", vehicleId: "veh-47", vehicleName: "Audi Q5 TFSI e", dealerId: "D2", dealerName: "BMW Sài Gòn", status: "pending", amount: 850000000, createdDate: "2025-09-14" },
+  { id: "mock-q-48", customerId: "C048", customerName: "Tuấn Văn VV", vehicleId: "veh-48", vehicleName: "Tesla Model 3 Performance", dealerId: "D3", dealerName: "Audi Việt Nam", status: "approved", amount: 900000000, createdDate: "2025-09-13" },
+  { id: "mock-q-49", customerId: "C049", customerName: "Tuyên Thị WW", vehicleId: "veh-49", vehicleName: "BMW M440i xDrive", dealerId: "D1", dealerName: "Tesla Hà Nội", status: "rejected", amount: 820000000, createdDate: "2025-09-12" },
+  { id: "mock-q-50", customerId: "C050", customerName: "Thắng Văn XX", vehicleId: "veh-50", vehicleName: "Audi S4 Avant TFSI e", dealerId: "D2", dealerName: "BMW Sài Gòn", status: "pending", amount: 950000000, createdDate: "2025-09-11" },
 ];
-
-const vehicleNames = [
-  "Tesla Model 3", "BMW i4", "Audi e-tron", "Mercedes EQC", "Porsche Taycan",
-  "Tesla Model Y", "BMW i3", "Jaguar I-PACE", "Hyundai Kona Electric", "Kia EV6",
-  "Tesla Model S", "Volkswagen ID.4", "MG5 EV", "Nissan Leaf", "Renault Zoe",
-  "Tesla Model X", "Aston Martin DBX", "Bentley Bentayga", "Polestar 1", "Lucid Air",
-  "Rivian R1T", "Tesla Model 3", "BMW i7", "Audi Q4 e-tron", "Mercedes EQE",
-  "Porsche Taycan Cross Turismo", "Tesla Roadster", "Xpeng G9", "Li Auto ONE", "BYD Yuan Plus",
-  "Tesla Model 3", "BMW i4 eDrive40", "Audi e-tron GT", "Hyundai Ioniq 5", "Kia Niro EV",
-  "Volkswagen ID.5", "Tesla Model Y Long Range", "BMW X5 xDrive50e", "Audi Q7 TFSI e", "Porsche 911 Turbo S E-Hybrid",
-  "Mercedes-AMG EQS 53 4MATIC+", "Tesla Model S Long Range", "Jaguar I-PACE EV400", "Hyundai Tucson Plug-in Hybrid", "Kia Sorento Plug-in Hybrid",
-  "BMW i5", "Audi Q5 TFSI e", "Tesla Model 3 Performance", "BMW M440i xDrive", "Audi S4 Avant TFSI e"
-];
-
-const statuses = ["pending", "approved", "rejected"];
-const dealerNames = ["Tesla Hà Nội", "BMW Sài Gòn", "Audi Việt Nam"];
-
-export const mockQuotes = customerNames.map((name, index) => ({
-  id: generateGUID(),
-  customerId: generateGUID(),
-  customerName: name,
-  vehicleId: generateGUID(),
-  vehicleName: vehicleNames[index % vehicleNames.length],
-  dealerId: generateGUID(),
-  dealerName: dealerNames[index % dealerNames.length],
-  status: statuses[index % statuses.length],
-  amount: Math.floor(500000000 + Math.random() * 2500000000),
-  createdDate: new Date(2025, 8, 11 + Math.floor(index / 5)).toISOString().split('T')[0],
-}));
 
 export function getMockQuotes() {
   return JSON.parse(JSON.stringify(mockQuotes));

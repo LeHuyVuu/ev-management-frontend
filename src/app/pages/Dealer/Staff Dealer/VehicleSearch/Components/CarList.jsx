@@ -14,7 +14,7 @@ function formatPrice(price) {
 export default function CarList({ filters }) {
   const [cars, setCars] = useState([]);
   const [pageNumber, setPageNumber] = useState(1);
-  const [pageSize] = useState(12);
+  const [pageSize] = useState(6);
   const [totalPages, setTotalPages] = useState(1);
   const [totalItems, setTotalItems] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -61,40 +61,16 @@ export default function CarList({ filters }) {
       if (!res.ok) throw new Error("Không thể tải dữ liệu từ máy chủ.");
 
       const data = await res.json();
-      let apiItems = [];
       if (data.status === 200 && data.data?.items) {
-        apiItems = data.data.items;
+        setCars(data.data.items);
+        setTotalItems(data.data.totalItems || 0);
+        setTotalPages(data.data.totalPages || 1);
+      } else {
+        throw new Error("Không có dữ liệu từ API");
       }
-
-      // 🎯 Lấy mock data
-      const mockVehicles = getMockVehicles();
-      const mockItems = mockVehicles.map(v => ({
-        vehicleVersionId: v.id,
-        brand: v.brand,
-        modelName: v.model,
-        versionName: v.name.replace(`${v.brand} ${v.model}`, "").trim() || "Standard",
-        basePrice: Number(v.price),
-        color: "Trắng",
-        evType: "EV",
-        horsePower: 250,
-        stockQuantity: 10,
-        imageUrl: v.image,
-      }));
-
-      // Gộp cả 2 lại (không loại bỏ trùng)
-      const allItems = [...apiItems, ...mockItems];
-
-      // 🎯 Áp dụng pagination
-      const startIdx = (page - 1) * pageSize;
-      const endIdx = startIdx + pageSize;
-      const paginatedItems = allItems.slice(startIdx, endIdx);
-
-      setCars(paginatedItems);
-      setTotalItems(allItems.length);
-      setTotalPages(Math.ceil(allItems.length / pageSize));
     } catch (err) {
-      console.warn("API error, using mock data only:", err.message);
-      // Fallback: chỉ mock data
+      console.warn("API failed, using mock data:", err.message);
+      // Fallback to mock data
       try {
         const mockVehicles = getMockVehicles();
         const mockItems = mockVehicles.map(v => ({
@@ -109,13 +85,7 @@ export default function CarList({ filters }) {
           stockQuantity: 10,
           imageUrl: v.image,
         }));
-        
-        // 🎯 Áp dụng pagination cho fallback
-        const startIdx = (page - 1) * pageSize;
-        const endIdx = startIdx + pageSize;
-        const paginatedItems = mockItems.slice(startIdx, endIdx);
-        
-        setCars(paginatedItems);
+        setCars(mockItems);
         setTotalItems(mockItems.length);
         setTotalPages(Math.ceil(mockItems.length / pageSize));
       } catch (mockErr) {

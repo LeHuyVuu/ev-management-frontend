@@ -22,48 +22,46 @@ export default function CustomerList({ onSelectCustomer }) {
 
   const fetchCustomers = async () => {
     try {
-      let apiCustomers = [];
-
-      // Lấy từ API
-      try {
-        const token = localStorage.getItem("token");
-        const res = await fetch(`${api.customer}/api/customers`, {
-          headers: {
-            "Content-Type": "application/json",
-            Accept: "*/*",
-            Authorization: token ? `Bearer ${token}` : "",
-          },
-        });
-        const json = await res.json();
-        if (json.status === 200 && json.data && json.data.length > 0) {
-          apiCustomers = json.data;
+      const token = localStorage.getItem("token");
+      const res = await fetch(`${api.customer}/api/customers`, {
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "*/*",
+          Authorization: token ? `Bearer ${token}` : "",
+        },
+      });
+      const json = await res.json();
+      if (json.status === 200 && json.data && json.data.length > 0) {
+        setCustomers(json.data);
+        if (json.data.length > 0) {
+          setSelectedId(json.data[0].customerId);
+          onSelectCustomer(json.data[0]);
         }
-      } catch (apiErr) {
-        console.warn("API error:", apiErr.message);
-      }
-
-      // 🎯 Lấy mock data
-      const mockCustomers = getMockCustomers();
-      const mappedMockCustomers = mockCustomers.map(c => ({
-        customerId: c.id,
-        name: c.name,
-        phone: c.phone,
-        address: c.address,
-        email: c.email,
-        status: "active",
-        staffContact: "Staff",
-      }));
-
-      // Gộp cả 2 vào
-      const allCustomers = [...apiCustomers, ...mappedMockCustomers];
-      setCustomers(allCustomers);
-      
-      if (allCustomers.length > 0) {
-        setSelectedId(allCustomers[0].customerId);
-        onSelectCustomer(allCustomers[0]);
+      } else {
+        throw new Error("Không có dữ liệu từ API");
       }
     } catch (err) {
-      console.error("Error loading customers:", err);
+      console.warn("API failed, using mock data:", err.message);
+      // Fallback to mock data
+      try {
+        const mockCustomers = getMockCustomers();
+        const mappedCustomers = mockCustomers.map(c => ({
+          customerId: c.id,
+          name: c.name,
+          phone: c.phone,
+          address: c.address,
+          email: c.email,
+          status: "active",
+          staffContact: "Staff",
+        }));
+        setCustomers(mappedCustomers);
+        if (mappedCustomers.length > 0) {
+          setSelectedId(mappedCustomers[0].customerId);
+          onSelectCustomer(mappedCustomers[0]);
+        }
+      } catch (mockErr) {
+        console.error("Error loading mock customers:", mockErr);
+      }
     }
   };
 

@@ -17,7 +17,7 @@ export default function VehicleSearch() {
 
         <div className="flex gap-6 items-start">
           <CarList filters={filters} />
-          <div className="w-full max-w-xs sticky top-8 h-fit">
+          <div className="w-full max-w-xs">
             <FilterSearch onFilterChange={setFilters} />
           </div>
         </div>
