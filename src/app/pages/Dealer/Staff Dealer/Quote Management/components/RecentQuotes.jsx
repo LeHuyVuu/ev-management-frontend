@@ -178,8 +178,6 @@ export default function RecentQuotes() {
           <Button size="small" onClick={() => { setSelectedId(r.quoteId); setOpenDetail(true); }} icon={<EyeOutlined />}>
             Xem
           </Button>
-          <Button size="small" onClick={() => message.info(`Sửa báo giá #${r.quoteId}`)} icon={<EditOutlined />}>Sửa</Button>
-          <Button size="small" danger onClick={() => handleDelete(r.quoteId)} icon={<DeleteOutlined />}>Xoá</Button>
         </Space>
       ),
       width: 220,
