@@ -150,8 +150,8 @@ export default function CustomerList({ onSelectCustomer }) {
         <div>Trạng thái</div>
       </div>
 
-      {/* Customer rows */}
-      <div className="divide-y border-t">
+      {/* Customer rows - with scroll */}
+      <div className="divide-y border-t max-h-96 overflow-y-auto">
         {customers.map((c) => (
           <div
             key={c.customerId}
