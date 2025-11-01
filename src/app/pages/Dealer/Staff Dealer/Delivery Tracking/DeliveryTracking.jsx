@@ -2,7 +2,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 import NewDeliveryCard from "./components/NewDeliveryCard";
 import DeliveryDetailCard from "./components/DeliveryDetailCard";
-import { getMockDeliveries } from "../../../../context/mock/deliveries.mock";
 
 const API_URL = "https://prn232.freeddns.org/customer-service/api/orders";
 
@@ -94,7 +93,9 @@ export default function DeliveryTracking() {
       try {
         const token = getTokenFromLocalStorage();
         if (!token) {
-          throw new Error("Không tìm thấy token trong localStorage.");
+          setErr("Không tìm thấy token trong localStorage.");
+          setLoading(false);
+          return;
         }
         const res = await fetch(API_URL, {
           method: "GET",
@@ -108,14 +109,7 @@ export default function DeliveryTracking() {
           throw new Error(`API lỗi (${res.status}): ${text || res.statusText}`);
         }
         const json = await res.json();
-        let arr = Array.isArray(json?.data) ? json.data : [];
-
-        // If no data from API, use mock data
-        if (arr.length === 0) {
-          console.warn("No data from API, using mock deliveries");
-          const mockDeliveries = getMockDeliveries();
-          arr = mockDeliveries;
-        }
+        const arr = Array.isArray(json?.data) ? json.data : [];
 
         const mapped = arr.map((o) => {
           const st = mapStatus(o.status); // nhận enum -> style
@@ -133,27 +127,7 @@ export default function DeliveryTracking() {
 
         if (mounted) setDeliveriesList(mapped);
       } catch (e) {
-        console.warn("API failed, using mock data:", e.message);
-        // Fallback to mock data
-        try {
-          const mockDeliveries = getMockDeliveries();
-          const mapped = mockDeliveries.map((o) => {
-            const st = mapStatus(o.status);
-            return {
-              id: o.orderId,
-              customer: o.name,
-              car: formatCar(o.brand, o.modelName, o.color),
-              address: o.deliveryAddress || "",
-              time: formatDate(o.deliveryDate),
-              status: st.label,
-              _raw: o,
-              _style: st,
-            };
-          });
-          if (mounted) setDeliveriesList(mapped);
-        } catch (mockErr) {
-          if (mounted) setErr(mockErr.message || "Không thể tải dữ liệu giao hàng.");
-        }
+        if (mounted) setErr(e.message || "Đã xảy ra lỗi khi tải đơn giao hàng.");
       } finally {
         if (mounted) setLoading(false);
       }

@@ -3,7 +3,6 @@ import React, { useEffect, useState } from "react";
 import { Table, Typography, Tag, Space, Button, Alert, message } from "antd";
 import { EyeOutlined, EditOutlined, DeleteOutlined, FolderOpenOutlined } from "@ant-design/icons";
 import QuoteDetailModal from "./QuoteDetailModal";
-import { getMockQuotes } from "../../../../../context/mock/quotes.mock";
 
 const { Text, Title } = Typography;
 
@@ -42,20 +41,6 @@ export default function RecentQuotes() {
         const token = getTokenFromLocalStorage();
         if (!token) {
           setErr("Không tìm thấy token trong localStorage.");
-          // Fallback to mock data
-          const mockQuotes = getMockQuotes();
-          const rows = mockQuotes.map((q, idx) => ({
-            key: q.id || idx,
-            quoteId: q.id,
-            customerName: q.customerName,
-            brand: q.vehicleName?.split(" ")[0] || "N/A",
-            vehicleName: q.vehicleName,
-            versionName: "",
-            totalPrice: Number(q.amount) || 0,
-            status: q.status,
-            createdAt: q.createdDate || null,
-          }));
-          setData(rows);
           setLoading(false);
           return;
         }
@@ -81,41 +66,9 @@ export default function RecentQuotes() {
               createdAt: q.createdAt || q.timestamp || null,
             }))
           : [];
-        // If no data from API, use mock data
-        if (rows.length === 0) {
-          const mockQuotes = getMockQuotes();
-          const mockRows = mockQuotes.map((q, idx) => ({
-            key: q.id || idx,
-            quoteId: q.id,
-            customerName: q.customerName,
-            brand: q.vehicleName?.split(" ")[0] || "N/A",
-            vehicleName: q.vehicleName,
-            versionName: "",
-            totalPrice: Number(q.amount) || 0,
-            status: q.status,
-            createdAt: q.createdDate || null,
-          }));
-          setData(mockRows);
-        } else {
-          setData(rows);
-        }
-      } catch (e) {
-        // On error, use mock data as fallback
-        console.warn("API failed, using mock data:", e.message);
-        const mockQuotes = getMockQuotes();
-        const rows = mockQuotes.map((q, idx) => ({
-          key: q.id || idx,
-          quoteId: q.id,
-          customerName: q.customerName,
-          brand: q.vehicleName?.split(" ")[0] || "N/A",
-          vehicleName: q.vehicleName,
-          versionName: "",
-          totalPrice: Number(q.amount) || 0,
-          status: q.status,
-          createdAt: q.createdDate || null,
-        }));
         setData(rows);
-        setErr(e.message || "Đã xảy ra lỗi khi tải dữ liệu. Sử dụng dữ liệu mẫu.");
+      } catch (e) {
+        setErr(e.message || "Đã xảy ra lỗi khi tải dữ liệu.");
       } finally {
         setLoading(false);
       }
@@ -189,8 +142,6 @@ export default function RecentQuotes() {
         { text: "pending", value: "pending" },
         { text: "confirmed", value: "confirmed" },
         { text: "canceled", value: "canceled" },
-        { text: "approved", value: "approved" },
-        { text: "rejected", value: "rejected" },
       ],
       onFilter: (value, record) => (record.status || "").toLowerCase() === String(value),
       render: (s) => <Tag>{s || "—"}</Tag>,
@@ -221,7 +172,7 @@ export default function RecentQuotes() {
     <div style={{ width: "100%", padding: 16 }}>
       <Title level={3} style={{ marginBottom: 16 }}>Báo giá Gần đây</Title>
 
-      {err && <Alert type="warning" showIcon message="Lưu ý" description={err} style={{ marginBottom: 12 }} />}
+      {err && <Alert type="error" showIcon message="Lỗi" description={err} style={{ marginBottom: 12 }} />}
 
       <Table
         loading={loading}
