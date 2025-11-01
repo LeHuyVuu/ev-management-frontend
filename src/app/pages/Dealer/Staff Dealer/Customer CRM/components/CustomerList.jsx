@@ -175,8 +175,8 @@ export default function CustomerList({ onSelectCustomer }) {
         <div>Trạng thái</div>
       </div>
 
-      {/* Customer rows with scroll */}
-      <div className="divide-y border-t max-h-[600px] overflow-y-auto pr-1" style={{ scrollbarWidth: 'thin' }}>
+      {/* Customer rows */}
+      <div className="divide-y border-t">
         {customers.map((c) => (
           <div
             key={c.customerId}
