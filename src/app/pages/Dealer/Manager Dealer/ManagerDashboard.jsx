@@ -21,7 +21,7 @@ function ManagerDashboard() {
         <DashboardStats />
 
         {/* Biểu đồ & Bảng */}
-        <div>
+        <div className="mt-6">
           <MonthlyRevenueChart />
         </div>
       </main>

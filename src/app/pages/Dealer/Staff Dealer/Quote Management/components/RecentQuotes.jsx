@@ -3,7 +3,6 @@ import React, { useEffect, useState } from "react";
 import { Table, Typography, Tag, Space, Button, Alert, message } from "antd";
 import { EyeOutlined, EditOutlined, DeleteOutlined, FolderOpenOutlined } from "@ant-design/icons";
 import QuoteDetailModal from "./QuoteDetailModal";
-import { getMockQuotes } from "../../../../../context/mock/quotes.mock";
 
 const { Text, Title } = Typography;
 
@@ -40,53 +39,34 @@ export default function RecentQuotes() {
     (async function load() {
       try {
         const token = getTokenFromLocalStorage();
-        let apiRows = [];
-
-        // Lấy từ API
-        if (token) {
-          try {
-            const res = await fetch(API_URL, {
-              method: "GET",
-              headers: { accept: "*/*", Authorization: `Bearer ${token}` },
-            });
-            if (res.ok) {
-              const json = await res.json();
-              apiRows = Array.isArray(json?.data)
-                ? json.data.map((q, idx) => ({
-                    key: q.quoteId || idx,
-                    quoteId: q.quoteId,
-                    customerName: q.customerName,
-                    brand: q.brand,
-                    vehicleName: q.vehicleName,
-                    versionName: q.versionName,
-                    totalPrice: Number(q.totalPrice) || 0,
-                    status: q.status,
-                    createdAt: q.createdAt || q.timestamp || null,
-                  }))
-                : [];
-            }
-          } catch (apiErr) {
-            console.warn("API error:", apiErr.message);
-          }
+        if (!token) {
+          setErr("Không tìm thấy token trong localStorage.");
+          setLoading(false);
+          return;
         }
-
-        // 🎯 Lấy mock data
-        const mockQuotes = getMockQuotes();
-        const mockRows = mockQuotes.map((q, idx) => ({
-          key: q.id || idx,
-          quoteId: q.id,
-          customerName: q.customerName,
-          brand: q.vehicleName?.split(" ")[0] || "N/A",
-          vehicleName: q.vehicleName,
-          versionName: "",
-          totalPrice: Number(q.amount) || 0,
-          status: q.status,
-          createdAt: q.createdDate || null,
-        }));
-
-        // Gộp cả 2 vào (không loại bỏ trùng)
-        const allRows = [...apiRows, ...mockRows];
-        setData(allRows);
+        const res = await fetch(API_URL, {
+          method: "GET",
+          headers: { accept: "*/*", Authorization: `Bearer ${token}` },
+        });
+        if (!res.ok) {
+          const text = await res.text();
+          throw new Error(`API lỗi (${res.status}): ${text || res.statusText}`);
+        }
+        const json = await res.json();
+        const rows = Array.isArray(json?.data)
+          ? json.data.map((q, idx) => ({
+              key: q.quoteId || idx,
+              quoteId: q.quoteId,
+              customerName: q.customerName,
+              brand: q.brand,
+              vehicleName: q.vehicleName,
+              versionName: q.versionName,
+              totalPrice: Number(q.totalPrice) || 0,
+              status: q.status,
+              createdAt: q.createdAt || q.timestamp || null,
+            }))
+          : [];
+        setData(rows);
       } catch (e) {
         setErr(e.message || "Đã xảy ra lỗi khi tải dữ liệu.");
       } finally {
@@ -162,8 +142,6 @@ export default function RecentQuotes() {
         { text: "pending", value: "pending" },
         { text: "confirmed", value: "confirmed" },
         { text: "canceled", value: "canceled" },
-        { text: "approved", value: "approved" },
-        { text: "rejected", value: "rejected" },
       ],
       onFilter: (value, record) => (record.status || "").toLowerCase() === String(value),
       render: (s) => <Tag>{s || "—"}</Tag>,
@@ -192,7 +170,7 @@ export default function RecentQuotes() {
     <div style={{ width: "100%", padding: 16 }}>
       <Title level={3} style={{ marginBottom: 16 }}>Báo giá Gần đây</Title>
 
-      {err && <Alert type="warning" showIcon message="Lưu ý" description={err} style={{ marginBottom: 12 }} />}
+      {err && <Alert type="error" showIcon message="Lỗi" description={err} style={{ marginBottom: 12 }} />}
 
       <Table
         loading={loading}

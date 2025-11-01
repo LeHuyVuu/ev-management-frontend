@@ -30,18 +30,12 @@ export default function CustomerList({ onSelectCustomer }) {
         },
       });
       const json = await res.json();
-      
-      if (json.status === 200 && json.data) {
-        const apiCustomers = json.data;
-        setCustomers(apiCustomers);
-        
-        if (apiCustomers.length > 0) {
-          setSelectedId(apiCustomers[0].customerId);
-          onSelectCustomer(apiCustomers[0]);
+      if (json.status === 200) {
+        setCustomers(json.data);
+        if (json.data.length > 0) {
+          setSelectedId(json.data[0].customerId);
+          onSelectCustomer(json.data[0]);
         }
-      } else {
-        setCustomers([]);
-        toast.warning("Không có dữ liệu khách hàng");
       }
     } catch (err) {
       console.error("Error loading customers:", err);
@@ -158,8 +152,8 @@ export default function CustomerList({ onSelectCustomer }) {
         <div>Trạng thái</div>
       </div>
 
-      {/* Customer rows with scroll */}
-      <div className="divide-y border-t max-h-[600px] overflow-y-auto pr-1" style={{ scrollbarWidth: 'thin' }}>
+      {/* Customer rows */}
+      <div className="divide-y border-t">
         {customers.map((c) => (
           <div
             key={c.customerId}

@@ -2,7 +2,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 import NewDeliveryCard from "./components/NewDeliveryCard";
 import DeliveryDetailCard from "./components/DeliveryDetailCard";
-import { getMockDeliveries } from "../../../../context/mock/deliveries.mock";
 
 const API_URL = "https://prn232.freeddns.org/customer-service/api/orders";
 
@@ -84,12 +83,6 @@ export default function DeliveryTracking() {
 
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState("");
-  
-  // 🎯 Phân trang
-  const [pageNumber, setPageNumber] = useState(1);
-  const [pageSize] = useState(12);
-  const [totalItems, setTotalItems] = useState(0);
-  const [totalPages, setTotalPages] = useState(0);
 
   // Load danh sách orders
   useEffect(() => {
@@ -98,36 +91,28 @@ export default function DeliveryTracking() {
       setLoading(true);
       setErr("");
       try {
-        let apiArr = [];
-
-        // Lấy từ API
-        try {
-          const token = getTokenFromLocalStorage();
-          if (token) {
-            const res = await fetch(API_URL, {
-              method: "GET",
-              headers: {
-                accept: "*/*",
-                Authorization: `Bearer ${token}`,
-              },
-            });
-            if (res.ok) {
-              const json = await res.json();
-              apiArr = Array.isArray(json?.data) ? json.data : [];
-            }
-          }
-        } catch (apiErr) {
-          console.warn("API error:", apiErr.message);
+        const token = getTokenFromLocalStorage();
+        if (!token) {
+          setErr("Không tìm thấy token trong localStorage.");
+          setLoading(false);
+          return;
         }
+        const res = await fetch(API_URL, {
+          method: "GET",
+          headers: {
+            accept: "*/*",
+            Authorization: `Bearer ${token}`,
+          },
+        });
+        if (!res.ok) {
+          const text = await res.text();
+          throw new Error(`API lỗi (${res.status}): ${text || res.statusText}`);
+        }
+        const json = await res.json();
+        const arr = Array.isArray(json?.data) ? json.data : [];
 
-        // 🎯 Lấy mock data
-        const mockDeliveries = getMockDeliveries();
-
-        // Gộp cả 2 vào
-        const allArr = [...apiArr, ...mockDeliveries];
-
-        const mapped = allArr.map((o) => {
-          const st = mapStatus(o.status);
+        const mapped = arr.map((o) => {
+          const st = mapStatus(o.status); // nhận enum -> style
           return {
             id: o.orderId,
             customer: o.name,
@@ -142,7 +127,7 @@ export default function DeliveryTracking() {
 
         if (mounted) setDeliveriesList(mapped);
       } catch (e) {
-        if (mounted) setErr(e.message || "Không thể tải dữ liệu giao hàng.");
+        if (mounted) setErr(e.message || "Đã xảy ra lỗi khi tải đơn giao hàng.");
       } finally {
         if (mounted) setLoading(false);
       }
@@ -186,25 +171,14 @@ export default function DeliveryTracking() {
 
   const filteredDeliveries = useMemo(() => {
     const q = searchTerm.trim().toLowerCase();
-    let filtered = !q
-      ? deliveriesList
-      : deliveriesList.filter(
-          (delivery) =>
-            delivery.id.toLowerCase().includes(q) ||
-            (delivery.customer || "").toLowerCase().includes(q) ||
-            (delivery.car || "").toLowerCase().includes(q)
-        );
-
-    // 🎯 Áp dụng phân trang
-    const startIdx = (pageNumber - 1) * pageSize;
-    const endIdx = startIdx + pageSize;
-    const paginatedItems = filtered.slice(startIdx, endIdx);
-
-    setTotalItems(filtered.length);
-    setTotalPages(Math.ceil(filtered.length / pageSize));
-
-    return paginatedItems;
-  }, [searchTerm, deliveriesList, pageNumber, pageSize]);
+    if (!q) return deliveriesList;
+    return deliveriesList.filter(
+      (delivery) =>
+        delivery.id.toLowerCase().includes(q) ||
+        (delivery.customer || "").toLowerCase().includes(q) ||
+        (delivery.car || "").toLowerCase().includes(q)
+    );
+  }, [searchTerm, deliveriesList]);
 
   return (
     <div className="p-6">
@@ -279,29 +253,6 @@ export default function DeliveryTracking() {
               </div>
             );
           })}
-        </div>
-      )}
-
-      {/* 🎯 Pagination Controls */}
-      {!loading && !err && totalPages > 1 && (
-        <div className="flex justify-center items-center mt-6 gap-2">
-          <button
-            onClick={() => setPageNumber(Math.max(1, pageNumber - 1))}
-            disabled={pageNumber === 1}
-            className="px-3 py-2 border rounded-lg disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-100"
-          >
-            ← Trước
-          </button>
-          <span className="text-sm text-gray-600">
-            Trang {pageNumber} / {totalPages} (Tổng: {totalItems})
-          </span>
-          <button
-            onClick={() => setPageNumber(Math.min(totalPages, pageNumber + 1))}
-            disabled={pageNumber === totalPages}
-            className="px-3 py-2 border rounded-lg disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-100"
-          >
-            Sau →
-          </button>
         </div>
       )}
 
