@@ -15,7 +15,10 @@ import {
   Input,
   Skeleton,
   Select,
+  Progress,
+  notification,
 } from "antd";
+import { UploadOutlined, FileTextOutlined } from "@ant-design/icons";
 
 const { Title, Text } = Typography;
 const { Dragger } = Upload;
@@ -24,6 +27,7 @@ const { Dragger } = Upload;
 const API_SERVICE = "https://prn232.freeddns.org/customer-service"; // base
 const API_CONTRACT = `${API_SERVICE}/contracts`; // GET detail (đang chạy ổn không có /api)
 const API_CONTRACT_API = `${API_SERVICE}/api/contracts`; // PATCH status (cần /api)
+const API_UPLOAD = "https://prn232.freeddns.org/utility-service/api/Upload"; // Upload file
 const getToken = () => localStorage.getItem("token") ?? "";
 
 // ===== Maps =====
@@ -73,65 +77,63 @@ function statusTagColor(raw) {
   }
 }
 
-const ContractModalAnt = ({ open, contract, onClose }) => {
+const ContractModalAnt = ({ open, contract, onClose, onUpdated }) => {
   const [fileContent, setFileContent] = useState("");
   const [detail, setDetail] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
+  // Upload states
+  const [uploading, setUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const [uploadError, setUploadError] = useState("");
+
   // PATCH status
   const [statusValue, setStatusValue] = useState();
   const [updating, setUpdating] = useState(false);
 
-  useEffect(() => {
-    let ignore = false;
-    async function fetchDetail() {
-      const id = contract?.id;
-      if (!id) return;
-      setLoading(true);
-      setError("");
-      try {
-        const res = await fetch(`${API_CONTRACT}/${id}`, {
-          headers: { accept: "*/*", Authorization: `Bearer ${getToken()}` },
-        });
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const json = await res.json();
-        const d = json?.data ?? null;
-        if (!ignore) {
-          setDetail(d);
-          setStatusValue(d?.status);
-        }
-
-        const fileUrl = d?.fileUrl;
-        if (fileUrl && typeof fileUrl === "string" && fileUrl.toLowerCase().endsWith(".pdf")) {
-          if (!ignore) setFileContent(fileUrl);
-        }
-      } catch (e) {
-        const msg = e instanceof Error ? e.message : "Không tải được chi tiết hợp đồng";
-        if (!ignore) setError(msg);
-      } finally {
-        if (!ignore) setLoading(false);
-      }
+  // Reusable fetch detail function
+  const refetchDetail = async () => {
+    const id = contract?.id;
+    if (!id) return;
+    setLoading(true);
+    setError("");
+    try {
+      const res = await fetch(`${API_CONTRACT}/${id}`, {
+        headers: { accept: "*/*", Authorization: `Bearer ${getToken()}` },
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const json = await res.json();
+      const d = json?.data ?? null;
+      setDetail(d);
+      setStatusValue(d?.status);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "Không tải được chi tiết hợp đồng";
+      setError(msg);
+    } finally {
+      setLoading(false);
     }
+  };
 
-    if (open) fetchDetail();
-    return () => {
-      ignore = true;
-    };
+  useEffect(() => {
+    if (open) {
+      refetchDetail();
+    }
   }, [open, contract?.id]);
 
   useEffect(() => {
-    if (contract?.content) {
-      setFileContent(contract.content);
-    } else if (!open) {
+    if (!open) {
       setFileContent("");
       setDetail(null);
       setError("");
       setLoading(false);
       setStatusValue(undefined);
       setUpdating(false);
+      setUploading(false);
+      setUploadProgress(0);
+      setUploadError("");
     }
-  }, [open, contract?.content]);
+  }, [open]);
 
   const ui = useMemo(() => {
     const d = detail ?? {};
@@ -159,19 +161,134 @@ const ContractModalAnt = ({ open, contract, onClose }) => {
   const uploadProps = {
     multiple: false,
     showUploadList: false,
-    beforeUpload: (file) => {
-      const reader = new FileReader();
-      reader.onload = (ev) => {
-        const result = ev?.target?.result;
-        if (typeof result === "string") {
-          setFileContent(result);
-          message.success("Đã tải nội dung file lên vùng xem.");
+    accept: ".pdf,.doc,.docx,.jpg,.jpeg,.png",
+    customRequest: async ({ file, onSuccess, onError }) => {
+      setUploadError("");
+      setUploadProgress(0);
+
+      // Validate file type
+      const allowedTypes = [
+        "application/pdf",
+        "application/msword",
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        "image/jpeg",
+        "image/png",
+      ];
+      if (!allowedTypes.includes(file.type)) {
+        const errorMsg = "Chỉ hỗ trợ file: PDF, Word, JPG, PNG";
+        setUploadError(errorMsg);
+        message.error(errorMsg);
+        onError?.(new Error(errorMsg));
+        return;
+      }
+
+      // Validate file size (10MB)
+      const maxSize = 10 * 1024 * 1024;
+      if (file.size > maxSize) {
+        const errorMsg = "File không được vượt quá 10MB";
+        setUploadError(errorMsg);
+        message.error(errorMsg);
+        onError?.(new Error(errorMsg));
+        return;
+      }
+
+      try {
+        setUploading(true);
+
+        // Step 1: Upload to utility-service
+        const formData = new FormData();
+        formData.append("file", file);
+
+        const xhr = new XMLHttpRequest();
+        xhr.upload.addEventListener("progress", (e) => {
+          if (e.lengthComputable) {
+            const percent = Math.round((e.loaded / e.total) * 100);
+            setUploadProgress(percent);
+          }
+        });
+
+        const uploadPromise = new Promise((resolve, reject) => {
+          xhr.addEventListener("load", () => {
+            if (xhr.status >= 200 && xhr.status < 300) {
+              try {
+                const response = JSON.parse(xhr.responseText);
+                resolve(response);
+              } catch {
+                reject(new Error("Invalid JSON response"));
+              }
+            } else {
+              reject(new Error(`Upload failed: ${xhr.status}`));
+            }
+          });
+          xhr.addEventListener("error", () => reject(new Error("Network error")));
+          xhr.addEventListener("abort", () => reject(new Error("Upload cancelled")));
+
+          xhr.open("POST", API_UPLOAD);
+          xhr.setRequestHeader("Authorization", `Bearer ${getToken()}`);
+          xhr.send(formData);
+        });
+
+        const uploadResult = await uploadPromise;
+        const fileUrl = uploadResult?.data;
+
+        if (!fileUrl) {
+          throw new Error("Không nhận được URL file từ server");
         }
-      };
-      if (file.type === "application/pdf") reader.readAsDataURL(file);
-      else if (file.type.startsWith("text/")) reader.readAsText(file);
-      else message.warning("Chỉ hỗ trợ PDF hoặc text.");
-      return false;
+
+        // Step 2: Update contract with fileUrl
+        const contractId = contract?.id;
+        if (!contractId) {
+          throw new Error("Không tìm thấy ID hợp đồng");
+        }
+
+        const patchRes = await fetch(`${API_CONTRACT_API}/${contractId}/file`, {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json",
+            Accept: "*/*",
+            Authorization: `Bearer ${getToken()}`,
+          },
+          body: JSON.stringify({ fileUrl }),
+        });
+
+        if (!patchRes.ok) {
+          let serverMsg = "";
+          try {
+            const j = await patchRes.json();
+            serverMsg = j?.message || "";
+          } catch {}
+          throw new Error(serverMsg || `HTTP ${patchRes.status}`);
+        }
+
+        // Success
+        message.success("Tải file lên thành công");
+        notification.success({
+          message: "Cập nhật hợp đồng",
+          description: "File hợp đồng đã được cập nhật thành công",
+        });
+
+        // Refetch detail
+        await refetchDetail();
+
+        // Call parent callback
+        if (onUpdated) {
+          onUpdated();
+        }
+
+        onSuccess?.(uploadResult);
+      } catch (err) {
+        const errorMsg = err instanceof Error ? err.message : "Upload thất bại";
+        setUploadError(errorMsg);
+        message.error(errorMsg);
+        notification.error({
+          message: "Lỗi upload",
+          description: errorMsg,
+        });
+        onError?.(err);
+      } finally {
+        setUploading(false);
+        setUploadProgress(0);
+      }
     },
   };
 
@@ -225,31 +342,82 @@ const ContractModalAnt = ({ open, contract, onClose }) => {
       <Row gutter={[16, 16]}>
         <Col xs={24} md={15}>
           <Title level={5} style={{ marginTop: 0 }}>
-            Nội dung hợp đồng
+            Quản lý file hợp đồng
           </Title>
 
           {loading ? (
             <Skeleton active paragraph={{ rows: 6 }} />
           ) : error ? (
             <Alert type="error" message={error} showIcon />
-          ) : fileContent ? (
-            <div style={{ border: "1px solid #f0f0f0", borderRadius: 8, height: 420, overflow: "hidden" }}>
-              {isPDFData ? (
-                <iframe src={fileContent} title="PDF Preview" style={{ width: "100%", height: "100%", border: "none" }} />
-              ) : (
-                <pre style={{ margin: 0, padding: 12, height: "100%", overflow: "auto", background: "#fafafa" }}>{fileContent}</pre>
-              )}
-            </div>
-          ) : ui.fileUrl && ui.fileUrl !== "Contract don't have file" ? (
-            <a href={ui.fileUrl} target="_blank" rel="noreferrer">
-              Mở tệp hợp đồng
-            </a>
           ) : (
-            <Dragger {...uploadProps} style={{ padding: 16 }}>
-              <p className="ant-upload-drag-icon">📄</p>
-              <p className="ant-upload-text">Kéo thả file hợp đồng (PDF/Text) vào đây để xem nội dung</p>
-              <p className="ant-upload-hint">File sẽ không được tải lên server</p>
-            </Dragger>
+            <Space direction="vertical" style={{ width: "100%" }} size={16}>
+              {/* Khu vực xem file (nếu có) */}
+              {ui.fileUrl && ui.fileUrl !== "Contract don't have file" && (
+                <div style={{ padding: "12px", background: "#e6f7ff", border: "1px solid #91d5ff", borderRadius: 6 }}>
+                  <div style={{ marginBottom: 10 }}>
+                    <Text>📄 <strong>File hiện tại:</strong> {ui.fileUrl.split("/").pop()}</Text>
+                  </div>
+                  <Space size="small">
+                    <Button 
+                      type="primary" 
+                      size="small"
+                      onClick={() => {
+                        const url = ui.fileUrl;
+                        const ext = url.split(".").pop()?.toLowerCase();
+                        if (["docx", "doc", "xlsx", "xls", "pptx", "ppt"].includes(ext || "")) {
+                          window.open(`https://view.officeapps.live.com/op/view.aspx?src=${encodeURIComponent(url)}`, "_blank");
+                        } else {
+                          window.open(url, "_blank");
+                        }
+                      }}
+                    >
+                      Xem file
+                    </Button>
+                  </Space>
+                </div>
+              )}
+
+              {/* Tiêu đề khu upload */}
+              <div>
+                <Text strong style={{ fontSize: 13 }}>📤 Cập nhật file hợp đồng</Text>
+              </div>
+
+              {/* Error Alert */}
+              {uploadError && (
+                <Alert
+                  type="error"
+                  message="Lỗi upload"
+                  description={uploadError}
+                  showIcon
+                  closable
+                  onClose={() => setUploadError("")}
+                />
+              )}
+
+              {/* Progress */}
+              {uploading && (
+                <div>
+                  <Progress percent={uploadProgress} status="active" />
+                  <Text type="secondary" style={{ fontSize: 12 }}>Đang tải: {uploadProgress}%</Text>
+                </div>
+              )}
+
+              {/* Upload Dragger */}
+              <Dragger {...uploadProps} disabled={uploading} style={{ padding: 20, backgroundColor: uploading ? "#f5f5f5" : "#fafafa" }}>
+                <p style={{ marginBottom: 8, fontSize: 40, color: uploading ? "#bfbfbf" : "#1890ff" }}>
+                  ⬆️
+                </p>
+                <p style={{ marginBottom: 4, fontSize: 14, fontWeight: "500" }}>
+                  Kéo thả file vào đây
+                </p>
+                <p style={{ marginBottom: 0, fontSize: 12, color: "#8c8c8c" }}>
+                  hoặc <span style={{ color: "#1890ff", cursor: "pointer" }}>click để chọn file</span>
+                </p>
+                <p style={{ marginTop: 10, fontSize: 11, color: "#8c8c8c" }}>
+                  Hỗ trợ: PDF, Word, JPG, PNG (Tối đa 10MB)
+                </p>
+              </Dragger>
+            </Space>
           )}
         </Col>
 
