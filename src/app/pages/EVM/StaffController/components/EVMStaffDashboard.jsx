@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 
-const EVMStaffDashboard = () => {
+const EVMStaffDashboard = ({ refreshKey }) => {
   const [stats, setStats] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -55,7 +55,7 @@ const EVMStaffDashboard = () => {
 
   useEffect(() => {
     fetchDashboardData();
-  }, []);
+  }, [refreshKey]);
 
   // Skeleton placeholder card
   const SkeletonCard = () => (

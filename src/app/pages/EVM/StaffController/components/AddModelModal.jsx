@@ -11,6 +11,10 @@ const evTypes = [
   { value: "Plug-in Hybrid", label: "Plug-in Hybrid" },
   { value: "Hybrid", label: "Hybrid" },
   { value: "Fuel Cell", label: "Fuel Cell" },
+  { value: "Crossover", label: "Crossover" },
+  { value: "SUV", label: "SUV" },
+  { value: "Sedan", label: "Sedan" },
+  { value: "Hatchback", label: "Hatchback" },
 ];
 
 const numberOnly = (v) => (v === "" || isNaN(Number(v)) ? "" : Number(v));
@@ -91,57 +95,52 @@ export default function AddModelModal({
   }
 
   async function handleCreateVehicle(e) {
-    e.preventDefault();
-    if (!newVehicle.brand || !newVehicle.modelName) {
-      toast.error("Vui lòng nhập Brand và Model name");
-      return;
-    }
-    const promise = (async () => {
-      const res = await fetch(VEHICLE_API, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(newVehicle),
-      });
-      const json = await res.json();
-      if (json.status !== 200)
-        throw new Error(json.message || "Tạo model thất bại");
-      await fetchVehicles();
-      const created = json.data || null; // some backends return newly created entity
-      // Try select created vehicle by matching brand+model
-      const found =
-        created && created.vehicleId
-          ? created
-          : ((v) =>
-              vehicles.find(
-                (x) =>
-                  x.brand === newVehicle.brand &&
-                  x.modelName === newVehicle.modelName
-              ))();
-      if (found) setForm((f) => ({ ...f, vehicleId: found.vehicleId }));
-      setShowCreateVehicle(false);
-      setNewVehicle({ brand: "", modelName: "", description: "" });
-      return "Vehicle created";
-    })();
-    toast
-      .promise(promise, {
-        loading: mode === "edit" ? "Đang cập nhật..." : "Đang tạo phiên bản...",
-        success: () =>
-          mode === "edit"
-            ? "Đã cập nhật phiên bản thành công"
-            : "Đã tạo phiên bản thành công",
-        error: (e) => e.message || "Lưu thất bại",
-      })
-      .then(() => {
-        toast.success(
-          mode === "edit"
-            ? "Cập nhật version thành công!"
-            : "Tạo version mới thành công!"
-        );
-        onSaved?.();
-        closeAndReset();
-      })
-      .finally(() => setLoading(false));
+  e.preventDefault();
+  if (!newVehicle.brand || !newVehicle.modelName) {
+    toast.error("Vui lòng nhập Brand và Model name");
+    return;
   }
+
+  const promise = (async () => {
+    const res = await fetch(VEHICLE_API, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(newVehicle),
+    });
+    const json = await res.json();
+    if (json.status !== 200)
+      throw new Error(json.message || "Tạo model thất bại");
+
+    await fetchVehicles();
+
+    const created = json.data || null;
+    const found =
+      created && created.vehicleId
+        ? created
+        : vehicles.find(
+            (x) =>
+              x.brand === newVehicle.brand &&
+              x.modelName === newVehicle.modelName
+          );
+
+    if (found) {
+      setForm((f) => ({ ...f, vehicleId: found.vehicleId }));
+    }
+
+    // chỉ đóng phần "Create Vehicle", KHÔNG đóng modal chính
+    setShowCreateVehicle(false);
+    setNewVehicle({ brand: "", modelName: "", description: "" });
+
+    return "Vehicle created";
+  })();
+
+  toast.promise(promise, {
+    loading: "Đang tạo model...",
+    success: "Đã tạo model mới!",
+    error: (e) => e.message || "Tạo model thất bại",
+  });
+}
+
 
   function closeAndReset() {
     if (loading) return;
@@ -184,7 +183,8 @@ export default function AddModelModal({
         body: JSON.stringify(payload),
       });
       const json = await res.json();
-      if (json.status !== 200) throw new Error(json.message || "Lưu thất bại");
+      if (json.status !== 200) throw new Error(json.Message || "Lưu thất bại");
+      console.log("error response:", res.data);
       return json;
     })();
 
