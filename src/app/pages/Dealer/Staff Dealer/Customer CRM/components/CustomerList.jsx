@@ -2,7 +2,6 @@ import React, { useState, useEffect } from "react";
 import AddCustomerModal from "./AddCustomerModal";
 import UpdateCustomerModal from "./UpdateCustomerModal";
 import api from "../../../../../context/api";
-import { getMockCustomers } from "../../../../../context/mock/customers.mock";
 import { toast, ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import { Pencil } from "lucide-react"; // ✏️ icon Lucide
@@ -22,48 +21,32 @@ export default function CustomerList({ onSelectCustomer }) {
 
   const fetchCustomers = async () => {
     try {
-      let apiCustomers = [];
-
-      // Lấy từ API
-      try {
-        const token = localStorage.getItem("token");
-        const res = await fetch(`${api.customer}/api/customers`, {
-          headers: {
-            "Content-Type": "application/json",
-            Accept: "*/*",
-            Authorization: token ? `Bearer ${token}` : "",
-          },
-        });
-        const json = await res.json();
-        if (json.status === 200 && json.data && json.data.length > 0) {
-          apiCustomers = json.data;
-        }
-      } catch (apiErr) {
-        console.warn("API error:", apiErr.message);
-      }
-
-      // 🎯 Lấy mock data
-      const mockCustomers = getMockCustomers();
-      const mappedMockCustomers = mockCustomers.map(c => ({
-        customerId: c.id,
-        name: c.name,
-        phone: c.phone,
-        address: c.address,
-        email: c.email,
-        status: "active",
-        staffContact: "Staff",
-      }));
-
-      // Gộp cả 2 vào
-      const allCustomers = [...apiCustomers, ...mappedMockCustomers];
-      setCustomers(allCustomers);
+      const token = localStorage.getItem("token");
+      const res = await fetch(`${api.customer}/api/customers`, {
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "*/*",
+          Authorization: token ? `Bearer ${token}` : "",
+        },
+      });
+      const json = await res.json();
       
-      if (allCustomers.length > 0) {
-        setSelectedId(allCustomers[0].customerId);
-        onSelectCustomer(allCustomers[0]);
+      if (json.status === 200 && json.data) {
+        const apiCustomers = json.data;
+        setCustomers(apiCustomers);
+        
+        if (apiCustomers.length > 0) {
+          setSelectedId(apiCustomers[0].customerId);
+          onSelectCustomer(apiCustomers[0]);
+        }
+      } else {
+        setCustomers([]);
+        toast.warning("Không có dữ liệu khách hàng");
       }
     } catch (err) {
       console.error("Error loading customers:", err);
+      toast.error("Không thể tải danh sách khách hàng");
+      setCustomers([]);
     }
   };
 
