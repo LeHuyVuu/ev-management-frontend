@@ -1,17 +1,154 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { X, Calendar, MapPin, User, Car } from "lucide-react";
+import api from "../../../../../context/api";
+
+const API_CUSTOMERS = `${api.customer}/api/customers`;
+const API_CONTRACTS = `${api.customer}/customers`;
+const API_ORDERS = `${api.customer}/api/customers/orders`;
+
+function getTokenFromLocalStorage() {
+  const keys = ["access_token", "token", "authToken", "jwt"];
+  for (const k of keys) {
+    const v = window.localStorage.getItem(k);
+    if (v) return v;
+  }
+  return null;
+}
 
 export default function NewDeliveryCard({ isOpen, onClose, onSubmit }) {
+  const [customers, setCustomers] = useState([]);
+  const [contracts, setContracts] = useState([]);
+  const [loadingCustomers, setLoadingCustomers] = useState(false);
+  const [loadingContracts, setLoadingContracts] = useState(false);
+  const [errorCustomers, setErrorCustomers] = useState("");
+  const [errorContracts, setErrorContracts] = useState("");
+  const [successMessage, setSuccessMessage] = useState("");
   const [formData, setFormData] = useState({
-    customer: "",
-    car: "",
-    licensePlate: "",
+    customerId: "",
+    contractId: "",
     address: "",
-    deliveryTime: "",
     deliveryDate: "",
-    notes: "",
-    priority: "Bình thường"
+    signedDate: ""
   });
+
+  // Load danh sách khách hàng khi modal mở
+  useEffect(() => {
+    if (isOpen) {
+      fetchCustomers();
+    }
+  }, [isOpen]);
+
+  const fetchCustomers = async () => {
+    try {
+      setLoadingCustomers(true);
+      setErrorCustomers("");
+      const token = getTokenFromLocalStorage();
+      
+      const res = await fetch(API_CUSTOMERS, {
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: token ? `Bearer ${token}` : "",
+        },
+      });
+
+      if (!res.ok) {
+        throw new Error(`HTTP ${res.status}`);
+      }
+
+      const json = await res.json();
+      if (json.status === 200 && json.data) {
+        setCustomers(json.data);
+      } else {
+        setErrorCustomers("Không thể tải danh sách khách hàng");
+      }
+    } catch (err) {
+      console.error("Error loading customers:", err);
+      setErrorCustomers(err.message || "Lỗi khi tải khách hàng");
+    } finally {
+      setLoadingCustomers(false);
+    }
+  };
+
+  const fetchContracts = async (customerId) => {
+    if (!customerId) {
+      setContracts([]);
+      return;
+    }
+    
+    try {
+      setLoadingContracts(true);
+      setErrorContracts("");
+      const token = getTokenFromLocalStorage();
+      
+      const res = await fetch(`${API_CONTRACTS}/${customerId}/contracts`, {
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: token ? `Bearer ${token}` : "",
+        },
+      });
+
+      if (!res.ok) {
+        throw new Error(`HTTP ${res.status}`);
+      }
+
+      const json = await res.json();
+      if (json.status === 200 && json.data) {
+        setContracts(json.data);
+      } else {
+        setErrorContracts("Không có hợp đồng nào");
+        setContracts([]);
+      }
+    } catch (err) {
+      console.error("Error loading contracts:", err);
+      setErrorContracts(err.message || "Lỗi khi tải hợp đồng");
+      setContracts([]);
+    } finally {
+      setLoadingContracts(false);
+    }
+  };
+
+  const handleCustomerChange = (e) => {
+    const customerId = e.target.value;
+    const selected = customers.find(c => c.customerId === customerId);
+    
+    if (selected) {
+      setFormData(prev => ({
+        ...prev,
+        customerId: selected.customerId,
+        address: selected.address || "",
+        contractId: "",
+      }));
+      // Fetch contracts cho khách hàng này
+      fetchContracts(customerId);
+    } else {
+      setFormData(prev => ({
+        ...prev,
+        customerId: "",
+        address: "",
+        contractId: "",
+      }));
+      setContracts([]);
+    }
+  };
+
+  const handleContractChange = (e) => {
+    const contractId = e.target.value;
+    const selected = contracts.find(c => c.contractId === contractId);
+    
+    if (selected) {
+      setFormData(prev => ({
+        ...prev,
+        contractId: selected.contractId,
+        signedDate: selected.signedDate || "",
+      }));
+    } else {
+      setFormData(prev => ({
+        ...prev,
+        contractId: "",
+        signedDate: "",
+      }));
+    }
+  };
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
@@ -21,36 +158,89 @@ export default function NewDeliveryCard({ isOpen, onClose, onSubmit }) {
     }));
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     
-    // Generate new delivery ID
-    const newDelivery = {
-      id: `DH${String(Date.now()).slice(-3)}`,
-      customer: formData.customer,
-      car: `${formData.car} (${formData.licensePlate})`,
-      address: formData.address,
-      time: `${formData.deliveryDate} ${formData.deliveryTime}`,
-      status: "Đang chuẩn bị",
-      priority: formData.priority,
-      notes: formData.notes
-    };
+    // Validation
+    if (!formData.customerId || !formData.customerId.trim()) {
+      setSuccessMessage("❌ Lỗi: Vui lòng chọn khách hàng");
+      setTimeout(() => setSuccessMessage(""), 3000);
+      return;
+    }
 
-    onSubmit(newDelivery);
+    if (!formData.contractId || !formData.contractId.trim()) {
+      setSuccessMessage("❌ Lỗi: Vui lòng chọn hợp đồng");
+      setTimeout(() => setSuccessMessage(""), 3000);
+      return;
+    }
+
+    if (!formData.address || !formData.address.trim()) {
+      setSuccessMessage("❌ Lỗi: Vui lòng nhập địa chỉ giao hàng");
+      setTimeout(() => setSuccessMessage(""), 3000);
+      return;
+    }
+
+    if (!formData.deliveryDate || !formData.deliveryDate.trim()) {
+      setSuccessMessage("❌ Lỗi: Vui lòng chọn ngày giao hàng");
+      setTimeout(() => setSuccessMessage(""), 3000);
+      return;
+    }
     
-    // Reset form
-    setFormData({
-      customer: "",
-      car: "",
-      licensePlate: "",
-      address: "",
-      deliveryTime: "",
-      deliveryDate: "",
-      notes: "",
-      priority: "Bình thường"
-    });
-    
-    onClose();
+    try {
+      const token = getTokenFromLocalStorage();
+      
+      const payload = {
+        customerId: formData.customerId.trim(),
+        contractId: formData.contractId.trim(),
+        deliveryAddress: formData.address.trim(),
+        deliveryDate: formData.deliveryDate.trim()
+      };
+
+      console.log("📤 Sending order payload:", JSON.stringify(payload, null, 2));
+      console.log("📍 API URL:", API_ORDERS);
+      console.log("🔑 Token exists:", !!token);
+
+      const res = await fetch(API_ORDERS, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: token ? `Bearer ${token}` : "",
+        },
+        body: JSON.stringify(payload),
+      });
+
+      const json = await res.json();
+      console.log("📥 Server response status:", res.status);
+      console.log("📥 Server response:", JSON.stringify(json, null, 2));
+
+      if (!res.ok) {
+        const errorMsg = json.message || json.errors?.join(", ") || `HTTP ${res.status}`;
+        throw new Error(errorMsg);
+      }
+
+      // Show success message
+      setSuccessMessage("✅ Tạo đơn giao hàng thành công!");
+      setTimeout(() => setSuccessMessage(""), 3000);
+
+      // Reset form
+      setFormData({
+        customerId: "",
+        contractId: "",
+        address: "",
+        deliveryDate: "",
+        signedDate: ""
+      });
+
+      if (onSubmit) {
+        onSubmit(json.data || payload);
+      }
+      
+      setTimeout(() => onClose(), 1500);
+    } catch (err) {
+      console.error("❌ Error creating order:", err.message);
+      setSuccessMessage(`❌ Lỗi: ${err.message || "Không thể tạo đơn giao hàng"}`);
+      setTimeout(() => setSuccessMessage(""), 4000);
+    }
   };
 
   if (!isOpen) return null;
@@ -69,6 +259,13 @@ export default function NewDeliveryCard({ isOpen, onClose, onSubmit }) {
           </button>
         </div>
 
+        {/* Success/Error Message */}
+        {successMessage && (
+          <div className={`px-6 py-3 ${successMessage.includes("✅") ? "bg-green-50 text-green-800 border-b border-green-200" : "bg-red-50 text-red-800 border-b border-red-200"}`}>
+            {successMessage}
+          </div>
+        )}
+
         {/* Form */}
         <form onSubmit={handleSubmit} className="p-6">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -83,15 +280,26 @@ export default function NewDeliveryCard({ isOpen, onClose, onSubmit }) {
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Tên khách hàng *
                 </label>
-                <input
-                  type="text"
-                  name="customer"
-                  value={formData.customer}
-                  onChange={handleInputChange}
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  placeholder="Nhập tên khách hàng"
+                {errorCustomers && (
+                  <div className="text-red-600 text-sm mb-2">⚠️ {errorCustomers}</div>
+                )}
+                <select
+                  value={formData.customerId}
+                  onChange={handleCustomerChange}
+                  disabled={loadingCustomers}
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100"
+                  style={{ maxHeight: "300px", overflowY: "auto" }}
                   required
-                />
+                >
+                  <option value="">
+                    {loadingCustomers ? "Đang tải..." : "Chọn khách hàng"}
+                  </option>
+                  {customers.map((c) => (
+                    <option key={c.customerId} value={c.customerId}>
+                      {c.name} ({c.phone})
+                    </option>
+                  ))}
+                </select>
               </div>
 
               <div>
@@ -114,42 +322,44 @@ export default function NewDeliveryCard({ isOpen, onClose, onSubmit }) {
             <div className="space-y-4">
               <h3 className="text-lg font-semibold text-gray-700 flex items-center gap-2">
                 <Car size={20} />
-                Thông tin xe
+                Thông tin hợp đồng
               </h3>
               
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Mẫu xe *
+                  Chọn hợp đồng *
                 </label>
+                {errorContracts && (
+                  <div className="text-red-600 text-sm mb-2">⚠️ {errorContracts}</div>
+                )}
                 <select
-                  name="car"
-                  value={formData.car}
-                  onChange={handleInputChange}
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  value={formData.contractId}
+                  onChange={handleContractChange}
+                  disabled={loadingContracts || !formData.customerId}
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100"
                   required
                 >
-                  <option value="">Chọn mẫu xe</option>
-                  <option value="Toyota Camry 2.5Q">Toyota Camry 2.5Q</option>
-                  <option value="Honda CRV L">Honda CRV L</option>
-                  <option value="Mazda CX-5 Premium">Mazda CX-5 Premium</option>
-                  <option value="VinFast Lux A2.0">VinFast Lux A2.0</option>
-                  <option value="Kia Seltos Premium">Kia Seltos Premium</option>
-                  <option value="Hyundai Santa Fe">Hyundai Santa Fe</option>
+                  <option value="">
+                    {!formData.customerId ? "Chọn khách hàng trước" : loadingContracts ? "Đang tải..." : "Chọn hợp đồng"}
+                  </option>
+                  {contracts.map((c) => (
+                    <option key={c.contractId} value={c.contractId}>
+                      {c.brand} {c.vehicleName} {c.versionName}
+                    </option>
+                  ))}
                 </select>
               </div>
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Biển số xe *
+                  Ngày ký hợp đồng
                 </label>
                 <input
                   type="text"
-                  name="licensePlate"
-                  value={formData.licensePlate}
-                  onChange={handleInputChange}
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  placeholder="VD: 51G-123.45"
-                  required
+                  value={formData.signedDate}
+                  readOnly
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 bg-gray-50 text-gray-600"
+                  placeholder="Sẽ tự động điền khi chọn hợp đồng"
                 />
               </div>
             </div>
@@ -159,69 +369,20 @@ export default function NewDeliveryCard({ isOpen, onClose, onSubmit }) {
           <div className="mt-6">
             <h3 className="text-lg font-semibold text-gray-700 flex items-center gap-2 mb-4">
               <Calendar size={20} />
-              Lịch giao hàng
+              Ngày giao hàng
             </h3>
             
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Ngày giao hàng *
-                </label>
-                <input
-                  type="date"
-                  name="deliveryDate"
-                  value={formData.deliveryDate}
-                  onChange={handleInputChange}
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  required
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Giờ giao hàng *
-                </label>
-                <input
-                  type="time"
-                  name="deliveryTime"
-                  value={formData.deliveryTime}
-                  onChange={handleInputChange}
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  required
-                />
-              </div>
-            </div>
-          </div>
-
-          {/* Priority and Notes */}
-          <div className="mt-6 grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                Mức độ ưu tiên
+                Ngày giao hàng *
               </label>
-              <select
-                name="priority"
-                value={formData.priority}
+              <input
+                type="date"
+                name="deliveryDate"
+                value={formData.deliveryDate}
                 onChange={handleInputChange}
                 className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-              >
-                <option value="Cao">Cao</option>
-                <option value="Bình thường">Bình thường</option>
-                <option value="Thấp">Thấp</option>
-              </select>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Ghi chú
-              </label>
-              <textarea
-                name="notes"
-                value={formData.notes}
-                onChange={handleInputChange}
-                rows="2"
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                placeholder="Ghi chú thêm (tùy chọn)"
+                required
               />
             </div>
           </div>
