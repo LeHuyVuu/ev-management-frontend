@@ -54,7 +54,7 @@ const InventoryAndSpeed = () => {
                 Version
               </th>
               <th className="px-6 py-3 text-center text-sm font-semibold text-indigo-700 uppercase tracking-wider">
-                Dealers Stock
+                All Dealers Stock
               </th>
               <th className="px-6 py-3 text-right text-sm font-semibold text-indigo-700 uppercase tracking-wider">
                 Last Updated
