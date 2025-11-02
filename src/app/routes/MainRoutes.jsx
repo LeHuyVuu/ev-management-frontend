@@ -30,6 +30,7 @@ import Authentication from "../pages/Authentication/Authentication";
 import ProtectedRoute from "../routes/ProtectedRoute";
 import ForecastPage from "../pages/AI/ForecastPage";
 import ManageVehicleAllocationTransfer from "../pages/EVM/ManageVehicleAllocationTransfer/ManageVehicleAllocationTransfer";
+import Feedbacks from "../pages/Feedbacks/page";
 
 const MainRoutes = () => {
   return (
@@ -38,7 +39,7 @@ const MainRoutes = () => {
         {/* Login KHÔNG bảo vệ */}
         <Route path="/" element={<Navigate to="/login" replace />} />
         <Route path="/login" element={<Authentication />} />
-
+        <Route path="/feedbacks" element={<Feedbacks />} />
         {/* Toàn bộ routes khác phải login */}
         <Route
           path="/*"
