@@ -38,7 +38,6 @@ export const viPayment = {
 
 export const viStatus = {
   draft: "draft",
-  confirmed: "confirmed",
   approved: "approved",
 };
 

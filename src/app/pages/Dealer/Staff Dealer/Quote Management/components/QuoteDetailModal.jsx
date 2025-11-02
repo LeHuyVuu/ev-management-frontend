@@ -383,9 +383,8 @@ export default function QuoteDetailModal({ open, quoteId, onClose, onUpdated }) 
 
   const statusOptions = [
     { label: <Tag>draft</Tag>, value: "draft" },
-    { label: <Tag color="gold">pending</Tag>, value: "pending" },
     { label: <Tag color="green">confirmed</Tag>, value: "confirmed" },
-    { label: <Tag color="red">canceled</Tag>, value: "canceled" },
+    { label: <Tag color="red">canceled</Tag>, value: "cancelled" },
   ];
 
   return (

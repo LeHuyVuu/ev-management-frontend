@@ -1,13 +1,13 @@
-import React, { useEffect, useMemo, useState } from "react";
+// src/pages/DebugAllPage.jsx
+import React, { useEffect, useState } from "react";
 import dayjs from "dayjs";
 import {
+  Alert,
   Button,
   Card,
   Col,
   DatePicker,
-  Divider,
   Form,
-  Grid,
   Input,
   Pagination,
   Row,
@@ -18,42 +18,58 @@ import {
   Table,
   Tag,
   Typography,
-  Alert,
-  Tooltip,
-  FloatButton,
 } from "antd";
 import {
-  SearchOutlined,
-  ReloadOutlined,
   ArrowLeftOutlined,
   ArrowRightOutlined,
-  RobotOutlined,
-  MinusOutlined,
-  PlusOutlined,
+  ReloadOutlined,
+  SearchOutlined,
 } from "@ant-design/icons";
-import { searchForecast, askForecast } from "../../context/forecast.api";
-import ChatBox from "./Chatbot";
 
-const { Text, Title, Paragraph } = Typography;
-const { TextArea } = Input;
+const { Text, Title } = Typography;
 
-function formatDateInput(d) {
+/** =========================
+ *  Helpers + API calls (INLINE)
+ *  ========================= */
+// Nếu frontend reverse-proxy chung domain với backend => để rỗng "" và dùng đường dẫn tương đối.
+// Nếu backend khác origin (VD: https://localhost:7050) => set BASE = "https://localhost:7050"
+const BASE = "https://localhost:7050"; // dùng tương đối: /utility-service/api/forecast/debug-all
+
+function formatDateISO(d) {
   if (!d) return "";
   const dt = new Date(d);
   if (isNaN(dt)) return "";
   return dt.toISOString().slice(0, 10);
 }
 
-// 🔁 CHANGED: helper chung để lấy tất cả trang
-async function fetchAllPages(baseUrl, pageSize = 100) {
+/** Gọi API debug-all (không tạo file api riêng). */
+async function getDebugAllInline(params = {}) {
+  const qs = new URLSearchParams();
+  qs.set("page", String(params.page ?? 1));
+  qs.set("pageSize", String(params.pageSize ?? 20));
+  qs.set("horizon", String(params.horizon ?? 8));
+  if (params.dealerId) qs.set("dealerId", String(params.dealerId));
+  if (params.vehicleVersionId) qs.set("vehicleVersionId", String(params.vehicleVersionId));
+  if (params.search && String(params.search).trim().length > 0) {
+    qs.set("search", String(params.search).trim());
+  }
+  const url = `${BASE}/utility-service/api/forecast/debug-all?${qs.toString()}`;
+  const res = await fetch(url, { headers: { accept: "application/json" } });
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(text || `HTTP ${res.status}`);
+  }
+  return res.json();
+}
+
+/** Lặp qua toàn bộ trang của API pageNumber/pageSize (để lấy danh sách Dealers / Versions). */
+async function fetchAllPagesInline(baseUrl, pageSize = 100) {
   const items = [];
   let pageNumber = 1;
   while (true) {
     const url = `${baseUrl}?pageNumber=${pageNumber}&pageSize=${pageSize}`;
-    const res = await fetch(url, { headers: { accept: "text/plain" } });
-    if (!res.ok) {
-      throw new Error(`HTTP ${res.status} khi gọi ${url}`);
-    }
+    const res = await fetch(url, { headers: { accept: "application/json" } });
+    if (!res.ok) throw new Error(`HTTP ${res.status} khi gọi ${url}`);
     const json = await res.json();
     const data = json?.data;
     if (!data?.items) break;
@@ -65,117 +81,110 @@ async function fetchAllPages(baseUrl, pageSize = 100) {
   return items;
 }
 
-export default function ForecastPage() {
-  // filters (LOGIC PRESERVED)
+/** =========================
+ *  UI COMPONENT (SINGLE FILE)
+ *  ========================= */
+export default function DebugAllPage() {
+  // ===== Filters =====
   const [dealerId, setDealerId] = useState("");
   const [vehicleVersionId, setVehicleVersionId] = useState("");
+  const [searchText, setSearchText] = useState("");
+  // Dự phòng (nếu backend sau này hỗ trợ)
   const [fromWeek, setFromWeek] = useState("");
   const [toWeek, setToWeek] = useState("");
 
-  // paging (LOGIC PRESERVED)
+  // ===== Paging =====
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(20);
 
-  // data (LOGIC PRESERVED)
+  // ===== Data =====
   const [rows, setRows] = useState([]);
-  const [total, setTotal] = useState(0);
+  const [totalPairs, setTotalPairs] = useState(0);
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState("");
 
-  // ask AI (LOGIC PRESERVED)
-  const [q, setQ] = useState("");
-  const [answer, setAnswer] = useState("");
-  const [asking, setAsking] = useState(false);
-  const [aiBarOpen, setAiBarOpen] = useState(false);
-  const [aiBarCollapsed, setAiBarCollapsed] = useState(false);
-
-  // 🔁 CHANGED: state & loading cho options
+  // ===== Options =====
   const [dealerOptions, setDealerOptions] = useState([]);
   const [versionOptions, setVersionOptions] = useState([]);
   const [loadingDealerOpt, setLoadingDealerOpt] = useState(false);
   const [loadingVersionOpt, setLoadingVersionOpt] = useState(false);
   const [optError, setOptError] = useState("");
 
-  // 🔁 CHANGED: gọi API lấy dealers & versions (giữ tách biệt, không ảnh hưởng table)
+  // ===== Load dealers & versions =====
   useEffect(() => {
     let mounted = true;
 
-    async function loadDealerOptions() {
+    (async () => {
       try {
         setLoadingDealerOpt(true);
-        // dealers
-        const dealers = await fetchAllPages(
+        const dealers = await fetchAllPagesInline(
           "https://prn232.freeddns.org/dealer-service/api/Dealers",
           100
         );
         if (!mounted) return;
-        const opts = dealers.map((d) => ({
-          value: d.dealerId, // dùng dealerId làm value để gửi filter
-          label: `${d.name} (${d.dealerCode}) ${d.dealerId}`,
-          raw: d,
-        }));
-        setDealerOptions(opts);
+        setDealerOptions(
+          dealers.map((d) => ({
+            value: d.dealerId,
+            label: `${d.name} (${d.dealerCode}) ${d.dealerId}`,
+            raw: d,
+          }))
+        );
       } catch (e) {
-        console.error(e);
-        if (mounted) setOptError((prev) => prev || e.message || "Lỗi tải dealer options");
+        if (mounted) setOptError((prev) => prev || e.message || "Lỗi tải danh sách Dealer");
       } finally {
         if (mounted) setLoadingDealerOpt(false);
       }
-    }
+    })();
 
-    async function loadVersionOptions() {
+    (async () => {
       try {
         setLoadingVersionOpt(true);
-        // versions (có phân trang 2 trang trong ví dụ → dùng fetchAllPages)
-        const versions = await fetchAllPages(
+        const versions = await fetchAllPagesInline(
           "https://prn232.freeddns.org/brand-service/api/vehicle-versions",
           100
         );
         if (!mounted) return;
-        const opts = versions.map((v) => ({
-          value: v.vehicleVersionId, // dùng vehicleVersionId làm value để gửi filter
-
-          label: `${v.brand} ${v.modelName} - ${v.versionName}${v.color ? ` · ${v.color}` : ""} - ${v.vehicleVersionId}`,
-          raw: v,
-        }));
-        setVersionOptions(opts);
+        setVersionOptions(
+          versions.map((v) => ({
+            value: v.vehicleVersionId,
+            label: `${v.brand} ${v.modelName} - ${v.versionName}${
+              v.color ? ` · ${v.color}` : ""
+            } - ${v.vehicleVersionId}`,
+            raw: v,
+          }))
+        );
       } catch (e) {
-        console.error(e);
-        if (mounted) setOptError((prev) => prev || e.message || "Lỗi tải version options");
+        if (mounted) setOptError((prev) => prev || e.message || "Lỗi tải danh sách Version");
       } finally {
         if (mounted) setLoadingVersionOpt(false);
       }
-    }
-
-    loadDealerOptions();
-    loadVersionOptions();
+    })();
 
     return () => {
       mounted = false;
     };
   }, []);
 
+  // ===== Load debug-all data =====
   async function loadData(p = 1) {
     try {
       setLoading(true);
       setErr("");
-      const payload = {
+
+      const resp = await getDebugAllInline({
         page: p,
         pageSize,
-      };
-      // LOGIC PRESERVED: truyền dealerId & vehicleVersionId nếu có
-      if (dealerId) payload.dealerId = dealerId;
-      if (vehicleVersionId) payload.vehicleVersionId = vehicleVersionId;
-      if (fromWeek) payload.fromWeek = fromWeek;
-      if (toWeek) payload.toWeek = toWeek;
+        horizon: 8, // có thể cho user chỉnh nếu muốn
+        dealerId: dealerId || undefined,
+        vehicleVersionId: vehicleVersionId || undefined,
+        search: searchText || undefined,
+      });
 
-      const res = await searchForecast(payload);
-      setRows(res.rows || []);
-      setTotal(res.total || 0);
-      setPage(res.page || p);
-      setPageSize(res.pageSize || pageSize);
+      setRows(Array.isArray(resp?.data) ? resp.data : []);
+      setTotalPairs(resp?.totalPairs ?? 0);
+      setPage(resp?.page ?? p);
+      setPageSize(resp?.pageSize ?? pageSize);
     } catch (e) {
-      console.error(e);
       setErr(e.message || "Lỗi tải dữ liệu");
     } finally {
       setLoading(false);
@@ -187,109 +196,134 @@ export default function ForecastPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  const maxPage = Math.max(1, Math.ceil(totalPairs / pageSize));
+
   function onApplyFilter() {
     loadData(1);
   }
-
   function onClearFilter() {
     setDealerId("");
     setVehicleVersionId("");
+    setSearchText("");
     setFromWeek("");
     setToWeek("");
     setTimeout(() => loadData(1), 0);
   }
-
   function goPrev() {
     if (page > 1) loadData(page - 1);
   }
   function goNext() {
-    const maxPage = Math.max(1, Math.ceil(total / pageSize));
     if (page < maxPage) loadData(page + 1);
   }
 
-  async function onAsk() {
-    if (!q.trim()) {
-      setAnswer("Bạn hãy nhập câu hỏi.");
-      return;
-    }
-    try {
-      setAsking(true);
-      setAnswer("");
-      const partialRows = rows.slice(0, 100);
-      const res = await askForecast(q, partialRows);
-      setAnswer(res.answer || "");
-    } catch (e) {
-      console.error(e);
-      setAnswer(e.message || "Lỗi gọi AI");
-    } finally {
-      setAsking(false);
-    }
-  }
-
-  const maxPage = Math.max(1, Math.ceil(total / pageSize));
-
-  // Columns for Ant Table (presentation only; data/logic unchanged)
+  // ===== Columns =====
   const columns = [
     {
       title: "Dealer",
-      dataIndex: "dealer_name",
-      key: "dealer_name",
-      render: (text, r) => (
+      key: "dealer",
+      render: (_, r) => (
         <div>
-          <div>{r.dealer_name}</div>
+          <div>{r.dealerName || <Text type="secondary">—</Text>}</div>
           <Text type="secondary" style={{ fontSize: 12 }}>
-            {r.dealer_id}
+            {r.dealerId}
           </Text>
         </div>
       ),
     },
     {
-      title: "Version",
-      dataIndex: "version_name",
-      key: "version_name",
-      render: (text, r) => (
+      title: "Vehicle Version",
+      key: "vehicle",
+      render: (_, r) => (
         <div>
-          <div>{r.version_name}</div>
+          <div>{r.vehicleLabel || <Text type="secondary">—</Text>}</div>
           <Text type="secondary" style={{ fontSize: 12 }}>
-            {r.vehicle_version_id}
+            {r.vehicleVersionId}
           </Text>
         </div>
       ),
     },
     {
-      title: "Week Start",
-      dataIndex: "week_start",
-      key: "week_start",
-      render: (v) => formatDateInput(v),
-    },
-    {
-      title: "EMA",
-      dataIndex: "baseline_ema",
-      key: "baseline_ema",
+      title: "Series (weeks)",
+      dataIndex: "seriesLength",
+      key: "seriesLength",
       align: "right",
-      render: (v) => Number(v).toLocaleString("vi-VN"),
+      width: 120,
+      render: (v) => <Text strong>{Number(v || 0).toLocaleString("vi-VN")}</Text>,
     },
     {
-      title: "Discount",
-      dataIndex: "discount_rate_active",
-      key: "discount_rate_active",
+      title: "Last History Week",
+      dataIndex: "lastHistoryWeek",
+      key: "lastHistoryWeek",
+      width: 140,
+      render: (v) => formatDateISO(v),
+    },
+    {
+      title: "Horizon",
+      dataIndex: "horizon",
+      key: "horizon",
       align: "right",
-      render: (v) =>
-        `${Number(v).toLocaleString("vi-VN", { maximumFractionDigits: 2 })}%`,
+      width: 90,
     },
     {
-      title: "Has Promo",
-      dataIndex: "has_promo",
-      key: "has_promo",
-      align: "center",
-      render: (v) => (v ? <Tag color="green">✅</Tag> : <Tag>—</Tag>),
+      title: "ML Params",
+      key: "mlparams",
+      width: 240,
+      render: (_, r) => (
+        <div style={{ lineHeight: 1.3 }}>
+          <div>
+            windowSize: <Text code>{r.windowSize}</Text>
+          </div>
+          <div>
+            trainSize: <Text code>{r.trainSize}</Text>
+          </div>
+          <div>
+            requiredWeeks: <Text code>{r.requiredWeeks}</Text>
+          </div>
+        </div>
+      ),
     },
     {
-      title: "Forecast",
-      dataIndex: "forecast_units",
-      key: "forecast_units",
-      align: "right",
-      render: (v) => <Text strong>{Number(v).toLocaleString("vi-VN")}</Text>,
+      title: "Preview InputSeries",
+      key: "preview",
+      render: (_, r) => {
+        const xs = Array.isArray(r.inputSeries) ? r.inputSeries.slice(0, 6) : [];
+        if (!xs.length) return <Text type="secondary">—</Text>;
+        return (
+          <div style={{ lineHeight: 1.3 }}>
+            {xs.map((it, i) => (
+              <div key={i}>
+                <Text code>{formatDateISO(it.weekStart)}</Text>{" "}
+                <Text>x</Text>{" "}
+                <Text strong>{it.orders}</Text>
+              </div>
+            ))}
+            {r.inputSeries.length > 6 && (
+              <Text type="secondary">… và {r.inputSeries.length - 6} tuần nữa</Text>
+            )}
+          </div>
+        );
+      },
+    },
+    {
+      title: "Future Weeks",
+      dataIndex: "futureWeeks",
+      key: "futureWeeks",
+      render: (v) => {
+        const xs = Array.isArray(v) ? v.slice(0, 4) : [];
+        if (!xs.length) return <Text type="secondary">—</Text>;
+        return (
+          <div style={{ lineHeight: 1.3 }}>
+            {xs.map((d, i) => (
+              <div key={i}>
+                <Text code>{formatDateISO(d)}</Text>
+              </div>
+            ))}
+            {Array.isArray(v) && v.length > 4 && (
+              <Text type="secondary">… và {v.length - 4} tuần nữa</Text>
+            )}
+          </div>
+        );
+      },
     },
   ];
 
@@ -299,9 +333,11 @@ export default function ForecastPage() {
         <Space direction="vertical" size={16} style={{ width: "100%" }}>
           <div>
             <Title level={3} style={{ margin: 0 }}>
-              Dự báo nhu cầu (Forecast)
+              ML Debug – Tất cả dữ liệu học (debug-all)
             </Title>
-            <Text type="secondary">Giao diện dùng Ant Design · Logic giữ nguyên</Text>
+            <Text type="secondary">
+              Hiển thị chuỗi tuần đã fill 0 và tham số mô hình cho mọi cặp Dealer × Vehicle Version.
+            </Text>
           </div>
 
           {/* FILTERS */}
@@ -314,10 +350,8 @@ export default function ForecastPage() {
                       allowClear
                       showSearch
                       placeholder="-- tất cả --"
-                      // 🔁 CHANGED: dùng options từ API
                       options={dealerOptions}
                       optionFilterProp="label"
-                      // giữ nguyên state + value
                       value={dealerId || undefined}
                       onChange={(v) => setDealerId(v || "")}
                       loading={loadingDealerOpt}
@@ -326,15 +360,13 @@ export default function ForecastPage() {
                 </Col>
 
                 <Col xs={24} md={12} lg={6}>
-                  <Form.Item label="Version">
+                  <Form.Item label="Vehicle Version">
                     <Select
                       allowClear
                       showSearch
                       placeholder="-- tất cả --"
-                      // 🔁 CHANGED: dùng options từ API
                       options={versionOptions}
                       optionFilterProp="label"
-                      // giữ nguyên state + value
                       value={vehicleVersionId || undefined}
                       onChange={(v) => setVehicleVersionId(v || "")}
                       loading={loadingVersionOpt}
@@ -343,7 +375,32 @@ export default function ForecastPage() {
                 </Col>
 
                 <Col xs={24} md={12} lg={6}>
-                  <Form.Item label="Từ ngày (week_start)">
+                  <Form.Item label="Search (dealer/brand/model/version)">
+                    <Input
+                      allowClear
+                      placeholder="VD: VF9, Saigon..."
+                      value={searchText}
+                      onChange={(e) => setSearchText(e.target.value)}
+                    />
+                  </Form.Item>
+                </Col>
+
+                <Col xs={24} md={12} lg={6}>
+                  <Form.Item label=" " colon={false}>
+                    <Space>
+                      <Button type="primary" htmlType="submit" icon={<SearchOutlined />}>
+                        Áp dụng lọc
+                      </Button>
+                      <Button onClick={onClearFilter} icon={<ReloadOutlined />}>
+                        Xóa lọc
+                      </Button>
+                    </Space>
+                  </Form.Item>
+                </Col>
+
+                {/* Dự phòng (hiện backend chưa dùng 2 param này) */}
+                <Col xs={24} md={12} lg={6}>
+                  <Form.Item label="Từ ngày (dự phòng)">
                     <DatePicker
                       style={{ width: "100%" }}
                       value={fromWeek ? dayjs(fromWeek) : null}
@@ -351,9 +408,8 @@ export default function ForecastPage() {
                     />
                   </Form.Item>
                 </Col>
-
                 <Col xs={24} md={12} lg={6}>
-                  <Form.Item label="Đến ngày (week_start)">
+                  <Form.Item label="Đến ngày (dự phòng)">
                     <DatePicker
                       style={{ width: "100%" }}
                       value={toWeek ? dayjs(toWeek) : null}
@@ -361,21 +417,9 @@ export default function ForecastPage() {
                     />
                   </Form.Item>
                 </Col>
-
-                <Col span={24}>
-                  <Space>
-                    <Button type="primary" htmlType="submit" icon={<SearchOutlined />}>
-                      Áp dụng lọc
-                    </Button>
-                    <Button onClick={onClearFilter} icon={<ReloadOutlined />}>
-                      Xóa lọc
-                    </Button>
-                  </Space>
-                </Col>
               </Row>
             </Form>
 
-            {/* 🔁 CHANGED: báo lỗi options (không chặn UI chính) */}
             {optError && (
               <Alert
                 style={{ marginTop: 8 }}
@@ -387,16 +431,16 @@ export default function ForecastPage() {
             )}
           </Card>
 
-          {/* SUMMARY / STATUS */}
+          {/* SUMMARY */}
           <Row gutter={[12, 12]}>
             <Col xs={24} md={12} lg={8}>
               <Card size="small">
-                <Statistic title="Tổng bản ghi" value={total} />
+                <Statistic title="Tổng cặp Dealer × Version" value={totalPairs} />
               </Card>
             </Col>
             <Col xs={24} md={12} lg={8}>
               <Card size="small">
-                <Statistic title="Trang hiện tại" value={`${page}/${maxPage}`} />
+                <Statistic title="Trang hiện tại" value={`${page}/${Math.max(1, Math.ceil(totalPairs / pageSize))}`} />
               </Card>
             </Col>
             <Col xs={24} md={12} lg={8}>
@@ -411,14 +455,43 @@ export default function ForecastPage() {
           {/* TABLE */}
           <Card size="small" bodyStyle={{ padding: 0 }}>
             <Table
-              dataSource={rows.map((r, idx) => ({ ...r, key: idx }))}
+              dataSource={(rows || []).map((r, idx) => ({
+                ...r,
+                key: `${r.dealerId}-${r.vehicleVersionId}-${idx}`,
+              }))}
               columns={columns}
               pagination={false}
               size="middle"
               sticky
+              expandable={{
+                expandedRowRender: (r) => (
+                  <div style={{ paddingLeft: 8 }}>
+                    <div style={{ marginBottom: 4 }}>
+                      <Text strong>InputSeries (tất cả tuần):</Text>
+                    </div>
+                    {Array.isArray(r.inputSeries) && r.inputSeries.length > 0 ? (
+                      <div
+                        style={{
+                          display: "grid",
+                          gridTemplateColumns: "repeat(auto-fill,minmax(180px,1fr))",
+                          gap: 6,
+                        }}
+                      >
+                        {r.inputSeries.map((it, i) => (
+                          <Tag key={i} style={{ marginInlineEnd: 0 }}>
+                            {formatDateISO(it.weekStart)} — {it.orders}
+                          </Tag>
+                        ))}
+                      </div>
+                    ) : (
+                      <Text type="secondary">Không có chuỗi lịch sử</Text>
+                    )}
+                  </div>
+                ),
+              }}
             />
 
-            {/* PAGINATION (LOGIC PRESERVED) */}
+            {/* PAGINATION */}
             <div
               style={{
                 padding: 12,
@@ -432,12 +505,7 @@ export default function ForecastPage() {
                 <Button onClick={goPrev} disabled={page <= 1} icon={<ArrowLeftOutlined />}>
                   Trước
                 </Button>
-                <Button
-                  onClick={goNext}
-                  disabled={page >= maxPage}
-                  icon={<ArrowRightOutlined />}
-                  iconPosition="end"
-                >
+                <Button onClick={goNext} disabled={page >= maxPage} icon={<ArrowRightOutlined />} iconPosition="end">
                   Sau
                 </Button>
               </Space>
@@ -453,22 +521,10 @@ export default function ForecastPage() {
                   options={[10, 20, 50, 100, 200].map((n) => ({ value: n, label: n }))}
                   style={{ width: 120 }}
                 />
-                <Pagination simple current={page} pageSize={pageSize} total={total} onChange={(p) => loadData(p)} />
+                <Pagination simple current={page} pageSize={pageSize} total={totalPairs} onChange={(p) => loadData(p)} />
               </Space>
             </div>
           </Card>
-
-          <ChatBox
-            q={q}
-            setQ={setQ}
-            asking={asking}
-            onAsk={onAsk}
-            answer={answer}
-            setAnswer={setAnswer}
-            aiBarCollapsed={aiBarCollapsed}
-            setAiBarCollapsed={setAiBarCollapsed}
-          />
-
         </Space>
       </div>
     </Spin>

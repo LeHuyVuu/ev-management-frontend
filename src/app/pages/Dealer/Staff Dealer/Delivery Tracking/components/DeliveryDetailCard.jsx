@@ -1,26 +1,33 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { X, MapPin, User, Car } from "lucide-react";
+import { ToastContainer, toast } from "react-toastify";
+import "react-toastify/dist/ReactToastify.css";
 
 // ===== Config =====
 const API_ROOT = "https://prn232.freeddns.org/customer-service/api/orders";
 
 // ===== Helpers =====
 const viStatus = {
-  preparing: "Đang chuẩn bị",
-  shipped_from_warehouse: "Đã xuất kho",
-  in_transit: "Đang vận chuyển",
-  arrived_hub: "Đã đến",
-  out_for_delivery: "Đang giao hàng",
-  delivered: "Đã hoàn thành",
-  failed: "Giao hàng thất bại",
-  pending: "Đang chờ",
+  "preparing": "Đang chuẩn bị",
+  "shipped from warehouse": "Đã xuất kho",
+  "in transit": "Đang vận chuyển",
+  "arrived": "Đã đến điểm trung chuyển",
+  "out for delivery": "Đang giao hàng",
+  "completed": "Đã hoàn thành",
+  "delivery failed": "Giao hàng thất bại",
+  "waiting": "Đang chờ",
 };
 
-const ORDER_STATUS_LIST = [
-  { value: "draft", label: "Nháp" },
-  { value: "confirmed", label: "Đã xác nhận" },
-  { value: "expired", label: "Hết hạn" },
-  { value: "cancelled", label: "Đã hủy" },
+// Danh sách status theo backend
+const DELIVERY_STATUS_LIST = [
+  { value: "preparing", label: "Đang chuẩn bị" },
+  { value: "shipped from warehouse", label: "Đã xuất kho" },
+  { value: "in transit", label: "Đang vận chuyển" },
+  { value: "arrived", label: "Đã đến điểm trung chuyển" },
+  { value: "out for delivery", label: "Đang giao hàng" },
+  { value: "completed", label: "Đã hoàn thành" },
+  { value: "delivery failed", label: "Giao hàng thất bại" },
+  { value: "waiting", label: "Đang chờ" },
 ];
 
 function formatDateISOToVN(iso) {
@@ -45,19 +52,15 @@ export default function DeliveryDetailCard({ delivery, isOpen, onClose }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
-  // Order status editor
-  const [orderStatus, setOrderStatus] = useState("draft");
+  const [orderStatus, setOrderStatus] = useState("waiting");
   const [updatingOrderStatus, setUpdatingOrderStatus] = useState(false);
 
-  // PATCH delivery info (no extra form)
   const [savingInfo, setSavingInfo] = useState(false);
   const [saveInfoError, setSaveInfoError] = useState("");
 
-  // Token từ localStorage
   const token =
     typeof window !== "undefined" ? window.localStorage.getItem("token") : "";
 
-  // Fetch chi tiết đơn hàng khi mở
   useEffect(() => {
     let ignore = false;
     async function load() {
@@ -76,8 +79,7 @@ export default function DeliveryDetailCard({ delivery, isOpen, onClose }) {
         const d = json?.data || null;
         if (!ignore) {
           setDetail(d);
-          // ưu tiên statusOrder, fallback status, cuối cùng draft
-          const initial = (d?.statusOrder || d?.status || "draft").toLowerCase();
+          const initial = d?.statusOrder || d?.status || "waiting";
           setOrderStatus(initial);
         }
       } catch (e) {
@@ -92,11 +94,13 @@ export default function DeliveryDetailCard({ delivery, isOpen, onClose }) {
     };
   }, [isOpen, delivery?.id, token]);
 
-  // Chuẩn hoá dữ liệu hiển thị
   const ui = useMemo(() => {
     const d = detail || {};
     const displayStatus =
-      viStatus[d.status] || viStatus[d.statusOrder] || delivery?.status || "Đang chờ";
+      viStatus[d?.status] ||
+      viStatus[d?.statusOrder] ||
+      viStatus[delivery?.status] ||
+      "Đang chờ";
     return {
       id: d?.id || d?.orderId || delivery?.id,
       customer: d.name || delivery?.customer,
@@ -113,26 +117,24 @@ export default function DeliveryDetailCard({ delivery, isOpen, onClose }) {
 
   if (!isOpen || !delivery) return null;
 
-  // ===== PATCH: Order status (with validation & correct field name) =====
+  // PATCH status (có toast)
   async function handleOrderStatusPatch() {
-    const ALLOWED = new Set(["draft", "confirmed", "expired", "cancelled"]);
-    const status = String(orderStatus || "").trim().toLowerCase();
+    const ALLOWED = new Set(DELIVERY_STATUS_LIST.map((s) => s.value));
+    const status = String(orderStatus || "").trim();
 
     if (!ALLOWED.has(status)) {
-      alert(
-        "Invalid status value. Only accepted: draft, confirmed, expired, cancelled."
+      toast.error(
+        "Giá trị trạng thái không hợp lệ! Hợp lệ: preparing, shipped from warehouse, in transit, arrived, out for delivery, completed, delivery failed, waiting."
       );
       return;
     }
 
-    // id thật sự (khớp với route GET)
     const id = (detail && (detail.id || detail.orderId)) || delivery?.id || "";
     if (!id) {
-      alert("Thiếu order id.");
+      toast.error("Thiếu order id.");
       return;
     }
 
-    // khớp tên trường với payload server trả về
     const statusKey =
       detail && Object.prototype.hasOwnProperty.call(detail, "statusOrder")
         ? "statusOrder"
@@ -160,21 +162,21 @@ export default function DeliveryDetailCard({ delivery, isOpen, onClose }) {
         throw new Error(msg);
       }
 
-      // đồng bộ UI ngay
       setDetail((prev) => ({ ...(prev || {}), [statusKey]: status }));
-      alert("Đã cập nhật trạng thái đơn hàng.");
+      toast.success("✅ Cập nhật trạng thái đơn hàng thành công!");
     } catch (e) {
-      alert(e?.message || "Cập nhật trạng thái đơn hàng thất bại");
+      toast.error("❌ " + (e?.message || "Cập nhật trạng thái thất bại"));
     } finally {
       setUpdatingOrderStatus(false);
     }
   }
 
-  // ===== PATCH: Delivery info (không tạo form – lấy từ dữ liệu hiển thị) =====
+  // PATCH delivery info (có toast)
   async function handleSaveInfo() {
     const id = (detail && (detail.id || detail.orderId)) || delivery?.id || "";
     if (!id) {
       setSaveInfoError("Thiếu order id.");
+      toast.error("Thiếu order id.");
       return;
     }
     try {
@@ -203,9 +205,10 @@ export default function DeliveryDetailCard({ delivery, isOpen, onClose }) {
         throw new Error(msg);
       }
       setDetail((prev) => ({ ...(prev || {}), ...payload }));
-      alert("Đã cập nhật thông tin giao hàng.");
+      toast.success("💾 Lưu thông tin giao hàng thành công!");
     } catch (e) {
       setSaveInfoError(e?.message || "Cập nhật thông tin giao hàng thất bại");
+      toast.error("❌ " + (e?.message || "Cập nhật thông tin giao hàng thất bại"));
     } finally {
       setSavingInfo(false);
     }
@@ -214,6 +217,7 @@ export default function DeliveryDetailCard({ delivery, isOpen, onClose }) {
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-xl shadow-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+        <ToastContainer position="top-right" autoClose={2500} theme="colored" />
         {/* Header */}
         <div className="flex justify-between items-center p-6 border-b">
           <div>
@@ -237,7 +241,6 @@ export default function DeliveryDetailCard({ delivery, isOpen, onClose }) {
                 </>
               ) : (
                 <>
-                  {/* Customer & Vehicle Info */}
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div className="bg-gray-50 rounded-lg p-4">
                       <h3 className="text-lg font-semibold text-gray-700 flex items-center gap-2 mb-3">
@@ -298,7 +301,6 @@ export default function DeliveryDetailCard({ delivery, isOpen, onClose }) {
 
             {/* Sidebar */}
             <div className="space-y-6">
-              {/* Order status API */}
               <div className="bg-white border rounded-lg p-4">
                 <h3 className="text-lg font-semibold text-gray-700 mb-3">Trạng thái đơn hàng (API)</h3>
                 <div className="space-y-3">
@@ -307,7 +309,7 @@ export default function DeliveryDetailCard({ delivery, isOpen, onClose }) {
                     onChange={(e) => setOrderStatus(e.target.value)}
                     className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
                   >
-                    {ORDER_STATUS_LIST.map((s) => (
+                    {DELIVERY_STATUS_LIST.map((s) => (
                       <option key={s.value} value={s.value}>
                         {s.label} ({s.value})
                       </option>
@@ -322,7 +324,7 @@ export default function DeliveryDetailCard({ delivery, isOpen, onClose }) {
                   </button>
                 </div>
                 <p className="text-xs text-gray-500 mt-2">
-                  Giá trị hợp lệ: draft, confirmed, expired, cancelled.
+                  Giá trị hợp lệ: preparing, shipped from warehouse, in transit, arrived, out for delivery, completed, delivery failed, waiting.
                 </p>
 
                 <div className="mt-4">
@@ -339,7 +341,6 @@ export default function DeliveryDetailCard({ delivery, isOpen, onClose }) {
           </div>
         </div>
 
-        {/* Footer */}
         <div className="flex justify-end gap-3 p-6 border-t bg-gray-50">
           <button onClick={onClose} className="px-6 py-2 border border-gray-300 text-gray-700 rounded-lg">
             Đóng

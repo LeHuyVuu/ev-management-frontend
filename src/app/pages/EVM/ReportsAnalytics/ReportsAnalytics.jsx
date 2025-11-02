@@ -1,12 +1,15 @@
 import React, { useState } from "react";
-import { TrendingUp, Package2, Brain } from "lucide-react";
+import { TrendingUp, Brain } from "lucide-react";
 
+// Nếu hai component này tồn tại, giữ lại import.
+// Nếu không có, có thể tạm ẩn tab hoặc xoá import.
 import SalesReport from "./components/SalesReport";
 import InventoryAndSpeed from "./components/InventoryAndSpeed";
-import AIForecast from "./components/AIForecast";
-import ForecastPage from "../../AI/ForecastPage";
 
-function ReportsManagement() {
+// Tách AIForecast ra file riêng và import vào đây
+import AIForecast from "./components/AIForecast";
+
+function ReportsAnalytics() {
   const [activeTab, setActiveTab] = useState("sales-inventory");
 
   const tabs = [
@@ -25,7 +28,7 @@ function ReportsManagement() {
       id: "forecast",
       label: "AI Forecast",
       icon: Brain,
-      component: <ForecastPage />,
+      component: <AIForecast />,
     },
   ];
 
@@ -35,29 +38,30 @@ function ReportsManagement() {
         {/* Header Tabs */}
         <div className="flex gap-4 border-b mb-6">
           {tabs.map((tab) => {
-            const Icon = tab.icon;
+            const Icon = tab.icon; // ✅ JSX: bỏ "as any"
+            const active = activeTab === tab.id;
             return (
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
                 className={`flex items-center gap-2 px-4 py-2 rounded-t-lg border-b-2 transition-colors ${
-                  activeTab === tab.id
+                  active
                     ? "border-blue-600 text-blue-600 font-semibold"
                     : "border-transparent text-gray-600 hover:text-blue-500"
                 }`}
               >
-                <Icon className="w-4 h-4" />
+                <Icon className={`w-4 h-4 ${active ? "text-blue-600" : "text-gray-500"}`} />
                 {tab.label}
               </button>
             );
           })}
         </div>
 
-        {/* Nội dung tab */}
+        {/* Tab content */}
         <div>{tabs.find((tab) => tab.id === activeTab)?.component}</div>
       </main>
     </div>
   );
 }
 
-export default ReportsManagement;
+export default ReportsAnalytics;
