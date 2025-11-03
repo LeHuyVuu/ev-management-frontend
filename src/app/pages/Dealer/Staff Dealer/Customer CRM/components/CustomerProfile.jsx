@@ -178,14 +178,18 @@ export default function CustomerProfile({ customer }) {
     setOrderDetail(null);
 
     try {
-      const res = await fetch(`${api.order}/api/orders/${orderId}`, {
-        headers: { Accept: "*/*" },
+      const token = localStorage.getItem("token");
+      const res = await fetch(`${api.customer}/api/orders/${orderId}`, {
+        headers: {
+          Accept: "*/*",
+          Authorization: token ? `Bearer ${token}` : "",
+        },
       });
       const data = await res.json().catch(() => ({}));
       if (res.ok || data?.status === 200) {
         setOrderDetail(data?.data ?? data); // ⬅️ dùng data.data theo res bạn gửi
       } else {
-        toast.error("Không lấy được chi tiết đơn hàng");
+        toast.error(data?.message || "Không lấy được chi tiết đơn hàng");
       }
     } catch (e) {
       console.error("Fetch order detail failed:", e);
