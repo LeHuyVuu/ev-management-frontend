@@ -5,6 +5,8 @@ import "react-toastify/dist/ReactToastify.css";
 
 // ===== Config =====
 const API_ROOT = "https://prn232.freeddns.org/customer-service/api/orders";
+// NEW: email endpoint theo Swagger
+const EMAIL_API = "https://prn232.freeddns.org/utility-service/api/Email/send";
 
 // ===== Helpers =====
 const viStatus = {
@@ -117,6 +119,62 @@ export default function DeliveryDetailCard({ delivery, isOpen, onClose }) {
 
   if (!isOpen || !delivery) return null;
 
+  // NEW: helper gửi email sau khi đổi trạng thái
+  async function sendStatusEmail(newStatus) {
+    try {
+      const email = (detail?.email || ui.email || "").trim();
+      // tránh gửi nhầm nếu email trống hoặc là placeholder
+      const isEmailOk =
+        email &&
+        email.includes("@") &&
+        email.includes(".") &&
+        email !== "customer@email.com";
+
+      if (!isEmailOk) {
+        console.warn("Skip sending email: invalid or placeholder email", email);
+        return;
+      }
+
+      const subject = `Cập nhật trạng thái đơn hàng #${ui.id}: ${viStatus[newStatus] || newStatus}`;
+      const content =
+        `Xin chào ${ui.customer || "Quý khách"},<br/><br/>` +
+        `Trạng thái đơn hàng <b>#${ui.id}</b> đã được cập nhật: <b>${viStatus[newStatus] || newStatus}</b>.<br/>` +
+        (ui.time ? `Thời gian giao dự kiến: <b>${ui.time}</b><br/>` : "") +
+        (ui.address ? `Địa chỉ giao: <b>${ui.address}</b><br/>` : "") +
+        `<br/>Cảm ơn bạn đã mua hàng!`;
+
+      const res = await fetch(EMAIL_API, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          accept: "application/json",
+          // Nếu Email API có bật auth thì thêm:
+          // Authorization: token ? `Bearer ${token}` : undefined,
+        },
+        body: JSON.stringify({
+          toEmail: email,
+          subject,
+          content,
+        }),
+      });
+
+      if (!res.ok) {
+        let msg = `HTTP ${res.status}`;
+        try {
+          const j = await res.json();
+          if (j?.message) msg = j.message;
+        } catch {}
+        throw new Error(msg);
+      }
+
+      toast.success("📧 Đã gửi email thông báo cho khách hàng.");
+    } catch (err) {
+      console.error("Send email failed:", err);
+      // Không fail toàn bộ luồng cập nhật trạng thái chỉ vì email lỗi
+      toast.warn("⚠️ Cập nhật trạng thái xong nhưng gửi email thất bại.");
+    }
+  }
+
   // PATCH status (có toast)
   async function handleOrderStatusPatch() {
     const ALLOWED = new Set(DELIVERY_STATUS_LIST.map((s) => s.value));
@@ -164,6 +222,9 @@ export default function DeliveryDetailCard({ delivery, isOpen, onClose }) {
 
       setDetail((prev) => ({ ...(prev || {}), [statusKey]: status }));
       toast.success("✅ Cập nhật trạng thái đơn hàng thành công!");
+
+      // NEW: gọi gửi email thông báo (không chặn luồng nếu lỗi)
+      await sendStatusEmail(status);
     } catch (e) {
       toast.error("❌ " + (e?.message || "Cập nhật trạng thái thất bại"));
     } finally {

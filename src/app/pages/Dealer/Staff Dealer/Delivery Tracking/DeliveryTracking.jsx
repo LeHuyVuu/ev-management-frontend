@@ -4,6 +4,12 @@ import { Pagination, ConfigProvider } from "antd";
 import NewDeliveryCard from "./components/NewDeliveryCard";
 import DeliveryDetailCard from "./components/DeliveryDetailCard";
 
+// --- Ant Design ---
+import { Table, Input, Button, Tag, Space, Alert } from "antd";
+import { PlusOutlined } from "@ant-design/icons";
+
+const { Search } = Input;
+
 const API_URL = "https://prn232.freeddns.org/customer-service/api/orders";
 
 function getTokenFromLocalStorage() {
@@ -15,7 +21,7 @@ function getTokenFromLocalStorage() {
   return null;
 }
 
-// Map status API -> UI (label + màu + progress)
+// Map status API -> UI (label + màu + progress) (GIỮ NGUYÊN)
 const statusMap = {
   preparing: { label: "Đang chuẩn bị", color: "bg-yellow-500", progress: "w-1/6" },
   shipped_from_warehouse: { label: "Đã xuất kho", color: "bg-orange-500", progress: "w-2/6" },
@@ -27,40 +33,40 @@ const statusMap = {
   pending: { label: "Đang chờ", color: "bg-gray-500", progress: "w-0" },
 };
 
-// Tạo reverse map: VN label -> enum API
+// Tạo reverse map: VN label -> enum API (GIỮ NGUYÊN)
 const vnToApi = Object.entries(statusMap).reduce((acc, [apiKey, v]) => {
   acc[v.label] = apiKey;
   return acc;
 }, {});
 
+// (GIỮ NGUYÊN)
 function mapStatus(status) {
   if (!status) return { label: "Đang chờ", color: "bg-gray-500", progress: "w-0" };
 
-  // 1) Nếu là enum API
   const asKey = String(status).toLowerCase();
   if (statusMap[asKey]) return statusMap[asKey];
 
-  // 2) Nếu là nhãn VN
   const apiFromVN = vnToApi[status];
   if (apiFromVN && statusMap[apiFromVN]) return statusMap[apiFromVN];
 
-  // 3) Fallback
   return { label: status || "Đang chờ", color: "bg-gray-500", progress: "w-1/4" };
 }
 
+// (GIỮ NGUYÊN)
 function toApiStatus(status) {
-  // nhận enum hoặc nhãn VN, trả về enum API (fallback pending)
   if (!status) return "pending";
   const asKey = String(status).toLowerCase();
-  if (statusMap[asKey]) return asKey;          // đã là enum API
-  return vnToApi[status] || "pending";         // là nhãn VN
+  if (statusMap[asKey]) return asKey;
+  return vnToApi[status] || "pending";
 }
 
+// (GIỮ NGUYÊN)
 function formatCar(brand, modelName, color) {
   const parts = [brand, modelName].filter(Boolean).join(" ");
   return [parts, color ? `(${color})` : ""].filter(Boolean).join(" ");
 }
 
+// (GIỮ NGUYÊN)
 function formatDate(d) {
   if (!d) return "";
   try {
@@ -75,6 +81,16 @@ function formatDate(d) {
   }
 }
 
+// Helper: hiển thị dot màu theo tailwind class sẵn có (tận dụng tailwind đang dùng)
+function StatusTag({ text, colorClass }) {
+  return (
+    <Tag>
+      <span className={`inline-block w-2 h-2 rounded-full mr-2 align-middle ${colorClass}`} />
+      <span className="align-middle">{text}</span>
+    </Tag>
+  );
+}
+
 export default function DeliveryTracking() {
   const [deliveriesList, setDeliveriesList] = useState([]);
   const [showNewDeliveryCard, setShowNewDeliveryCard] = useState(false);
@@ -87,7 +103,15 @@ export default function DeliveryTracking() {
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState("");
 
-  // Load danh sách orders
+  // Phân trang
+  const [pagination, setPagination] = useState({
+    current: 1,
+    pageSize: 12,
+    showSizeChanger: true,
+    pageSizeOptions: ["8", "12", "16", "24", "32", "48"],
+  });
+
+  // Load danh sách orders (GIỮ NGUYÊN LOGIC)
   useEffect(() => {
     let mounted = true;
     async function load() {
@@ -115,7 +139,7 @@ export default function DeliveryTracking() {
         const arr = Array.isArray(json?.data) ? json.data : [];
 
         const mapped = arr.map((o) => {
-          const st = mapStatus(o.status); // nhận enum -> style
+          const st = mapStatus(o.status);
           return {
             id: o.orderId,
             customer: o.name,
@@ -125,6 +149,7 @@ export default function DeliveryTracking() {
             status: st.label,
             _raw: o,
             _style: st,
+            key: o.orderId, // cho Ant Table
           };
         });
 
@@ -142,7 +167,8 @@ export default function DeliveryTracking() {
   }, []);
 
   const handleAddNewDelivery = (newDelivery) => {
-    setDeliveriesList((prev) => [newDelivery, ...prev]);
+    // newDelivery nên có các field giống mapped ở trên (giữ nguyên hành vi cũ)
+    setDeliveriesList((prev) => [{ ...newDelivery, key: newDelivery.id }, ...prev]);
   };
 
   const handleViewDetail = (delivery) => {
@@ -150,10 +176,10 @@ export default function DeliveryTracking() {
     setShowDeliveryDetail(true);
   };
 
-  // Nhận từ modal: newStatus có thể là enum API *hoặc* nhãn VN
+  // Nhận từ modal: newStatus có thể là enum API *hoặc* nhãn VN (GIỮ NGUYÊN LOGIC)
   const handleUpdateStatus = (deliveryId, newStatus) => {
     const apiKey = toApiStatus(newStatus);
-    const mapped = mapStatus(apiKey); // trả label + màu + progress
+    const mapped = mapStatus(apiKey);
 
     setDeliveriesList((prev) =>
       prev.map((delivery) =>
@@ -172,48 +198,138 @@ export default function DeliveryTracking() {
     }
   };
 
+  // Filter (GIỮ NGUYÊN LOGIC) + search
   const filteredDeliveries = useMemo(() => {
     const q = searchTerm.trim().toLowerCase();
     if (!q) return deliveriesList;
     return deliveriesList.filter(
       (delivery) =>
-        delivery.id.toLowerCase().includes(q) ||
+        (delivery.id || "").toLowerCase().includes(q) ||
         (delivery.customer || "").toLowerCase().includes(q) ||
         (delivery.car || "").toLowerCase().includes(q)
     );
   }, [searchTerm, deliveriesList]);
 
-  // Tính pagination
-  const paginatedDeliveries = useMemo(() => {
-    const startIndex = (currentPage - 1) * pageSize;
-    const endIndex = startIndex + pageSize;
-    return filteredDeliveries.slice(startIndex, endIndex);
-  }, [filteredDeliveries, currentPage, pageSize]);
+  // Tạo danh sách filters cho cột Trạng thái
+  const statusFilters = Object.values(statusMap).map((s) => ({
+    text: s.label,
+    value: s.label,
+  }));
 
-  const handlePageChange = (page, size) => {
-    setCurrentPage(page);
-    setPageSize(size);
+  // Columns cho Ant Table (bỏ Progress %; thêm filter theo trạng thái)
+  const columns = [
+    {
+      title: "Mã đơn hàng",
+      dataIndex: "id",
+      key: "id",
+      width: 180,
+      ellipsis: true,
+    },
+    {
+      title: "Khách hàng",
+      dataIndex: "customer",
+      key: "customer",
+      ellipsis: true,
+    },
+    {
+      title: "Xe",
+      dataIndex: "car",
+      key: "car",
+      ellipsis: true,
+      responsive: ["md"],
+    },
+    {
+      title: "Địa chỉ",
+      dataIndex: "address",
+      key: "address",
+      ellipsis: true,
+      responsive: ["lg"],
+    },
+    {
+      title: "Thời gian",
+      dataIndex: "time",
+      key: "time",
+      width: 160,
+      ellipsis: true,
+      responsive: ["md"],
+    },
+    {
+      title: "Trạng thái",
+      dataIndex: "status",
+      key: "status",
+      width: 220,
+      filters: statusFilters,
+      onFilter: (value, record) => record.status === value,
+      render: (_, record) => {
+        const color = record._style?.color || "bg-gray-500";
+        return (
+          <Space direction="horizontal" size={4} className="w-full">
+            <StatusTag text={record.status} colorClass={color} />
+          </Space>
+        );
+      },
+    },
+    {
+      title: "Thao tác",
+      key: "action",
+      fixed: "right",
+      width: 120,
+      render: (_, record) => (
+        <Button type="link" onClick={() => handleViewDetail(record)}>
+          Chi tiết
+        </Button>
+      ),
+    },
+  ];
+
+  // Pagination handlers
+  const onTableChange = (pag /*, filters, sorter*/) => {
+    setPagination((prev) => ({
+      ...prev,
+      current: pag.current,
+      pageSize: pag.pageSize,
+    }));
   };
 
   return (
-    <ConfigProvider>
-      <div className="p-6">
-      <div className="flex justify-between items-center mb-4">
+    <div className="p-6">
+      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-4">
         <h1 className="text-xl font-semibold">Theo dõi Giao hàng</h1>
-        <button
-          onClick={() => setShowNewDeliveryCard(true)}
-          className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
-        >
-          Thêm Giao hàng Mới
-        </button>
+        <div className="flex gap-3">
+          <Search
+            allowClear
+            placeholder="Tìm theo mã đơn hàng, khách hàng, xe..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            onSearch={(v) => setSearchTerm(v)}
+            style={{ width: 320 }}
+          />
+          <Button
+            type="primary"
+            icon={<PlusOutlined />}
+            onClick={() => setShowNewDeliveryCard(true)}
+          >
+            Thêm Giao hàng Mới
+          </Button>
+        </div>
       </div>
 
-      <input
-        type="text"
-        placeholder="Tìm kiếm theo mã đơn hàng, khách hàng..."
-        className="w-full border rounded-lg px-4 py-2 mb-6"
-        value={searchTerm}
-        onChange={(e) => setSearchTerm(e.target.value)}
+      {err ? (
+        <Alert type="error" message="Lỗi" description={err} className="mb-4" showIcon />
+      ) : null}
+
+      <Table
+        columns={columns}
+        dataSource={filteredDeliveries}
+        loading={loading}
+        pagination={{
+          ...pagination,
+          total: filteredDeliveries.length,
+          showTotal: (total, range) => `${range[0]}–${range[1]} / ${total}`,
+        }}
+        scroll={{ x: 1000 }}
+        onChange={onTableChange}
+        rowKey="id"
       />
 
       {loading && (
@@ -294,7 +410,7 @@ export default function DeliveryTracking() {
         onSubmit={handleAddNewDelivery}
       />
 
-      {/* Delivery Detail Modal */}
+      {/* Delivery Detail Modal (GIỮ NGUYÊN) */}
       <DeliveryDetailCard
         delivery={selectedDelivery}
         isOpen={showDeliveryDetail}
@@ -304,8 +420,6 @@ export default function DeliveryTracking() {
         }}
         onUpdateStatus={handleUpdateStatus}
       />
-      </div>
-    </ConfigProvider>
+    </div>
   );
 }
-  
