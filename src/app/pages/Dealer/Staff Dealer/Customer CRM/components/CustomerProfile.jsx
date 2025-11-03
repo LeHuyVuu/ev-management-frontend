@@ -20,6 +20,7 @@ import {
   Modal,
   Descriptions,
   List,
+  Pagination,
 } from "antd";
 import ContractModalAnt from "./ContractCardAnt";
 
@@ -41,6 +42,12 @@ export default function CustomerProfile({ customer }) {
   const [loadingOrders, setLoadingOrders] = useState(false);
   const [loadingProfile, setLoadingProfile] = useState(true); // <-- NEW
 
+  // ✅ Pagination states
+  const [contractsPage, setContractsPage] = useState(1);
+  const [contractsPageSize, setContractsPageSize] = useState(9);
+  const [ordersPage, setOrdersPage] = useState(1);
+  const [ordersPageSize, setOrdersPageSize] = useState(9);
+
   // ✅ NEW: Order detail modal states
   const [openOrderDetail, setOpenOrderDetail] = useState(false);
   const [orderDetail, setOrderDetail] = useState(null);
@@ -54,9 +61,17 @@ export default function CustomerProfile({ customer }) {
       setForm(customer);
       profileTimer = setTimeout(() => setLoadingProfile(false), 300);
 
+      // Lấy token
+      const token = localStorage.getItem("token");
+
       // 🔹 Lấy hợp đồng
       setLoadingContracts(true);
-      fetch(`${api.customer}/customers/${customer.customerId}/contracts`)
+      fetch(`${api.customer}/customers/${customer.customerId}/contracts`, {
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: token ? `Bearer ${token}` : "",
+        },
+      })
         .then((res) => res.json())
         .then((res) => {
           if (res.status === 200) setContracts(res.data || []);
@@ -68,11 +83,16 @@ export default function CustomerProfile({ customer }) {
         })
         .finally(() => setLoadingContracts(false));
 
-      // 🔹 Lấy đơn hàng (giữ nguyên)
+      // 🔹 Lấy đơn hàng
       setLoadingOrders(true);
       fetch(
-        `https://prn232.freeddns.org/customer-service/customers/${customer.customerId}/orders`,
-        { headers: { Accept: "*/*" } }
+        `${api.customer}/customers/${customer.customerId}/orders`,
+        {
+          headers: {
+            Accept: "*/*",
+            Authorization: token ? `Bearer ${token}` : "",
+          },
+        }
       )
         .then((res) => res.json())
         .then((res) => {
@@ -336,9 +356,15 @@ export default function CustomerProfile({ customer }) {
             ) : contracts.length === 0 ? (
               <Empty description="Không có hợp đồng nào" />
             ) : (
-              <Row gutter={[16, 16]}>
-                {contracts.map((c) => (
-                  <Col xs={24} md={12} lg={8} key={c.contractId}>
+              <>
+                <Row gutter={[16, 16]}>
+                  {contracts
+                    .slice(
+                      (contractsPage - 1) * contractsPageSize,
+                      contractsPage * contractsPageSize
+                    )
+                    .map((c) => (
+                      <Col xs={24} md={12} lg={8} key={c.contractId}>
                     <Card
                       hoverable
                       title={
@@ -401,9 +427,24 @@ export default function CustomerProfile({ customer }) {
                         )}
                       </Space>
                     </Card>
-                  </Col>
-                ))}
-              </Row>
+                      </Col>
+                    ))}
+                </Row>
+                <Divider />
+                <Pagination
+                  current={contractsPage}
+                  pageSize={contractsPageSize}
+                  total={contracts.length}
+                  onChange={(page) => setContractsPage(page)}
+                  onShowSizeChange={(current, size) => {
+                    setContractsPageSize(size);
+                    setContractsPage(1);
+                  }}
+                  showSizeChanger
+                  pageSizeOptions={["6", "9", "12", "18"]}
+                  style={{ textAlign: "center" }}
+                />
+              </>
             )}
           </Card>
         )}
@@ -434,33 +475,54 @@ export default function CustomerProfile({ customer }) {
             ) : orders.length === 0 ? (
               <Empty description="Khách hàng chưa có đơn hàng nào" />
             ) : (
-              <Row gutter={[16, 16]}>
-                {orders.map((o) => (
-                  <Col xs={24} md={12} lg={8} key={o.orderId}>
-                    <Card
-                      hoverable
-                      actions={[
-                        <Button type="link" key="detail" onClick={() => openOrderDetailModal(o.orderId)}>
-                          Xem chi tiết
-                        </Button>,
-                      ]}
-                    >
-                      <Space direction="vertical" size="small" style={{ width: "100%" }}>
-                        <Space style={{ justifyContent: "space-between", width: "100%" }}>
-                          <Text strong>
-                            Mã đơn: {o.orderId ? `${o.orderId.slice(0, 8)}...` : "-"}
-                          </Text>
-                          <OrdersBadge status={o.status} />
-                        </Space>
-                        <Space size="small" style={{ color: "#6b7280" }}>
-                          <Clock size={14} />
-                          <Text type="secondary">Ngày giao: {o.deliveryDate || "-"}</Text>
-                        </Space>
-                      </Space>
-                    </Card>
-                  </Col>
-                ))}
-              </Row>
+              <>
+                <Row gutter={[16, 16]}>
+                  {orders
+                    .slice(
+                      (ordersPage - 1) * ordersPageSize,
+                      ordersPage * ordersPageSize
+                    )
+                    .map((o) => (
+                      <Col xs={24} md={12} lg={8} key={o.orderId}>
+                        <Card
+                          hoverable
+                          actions={[
+                            <Button type="link" key="detail" onClick={() => openOrderDetailModal(o.orderId)}>
+                              Xem chi tiết
+                            </Button>,
+                          ]}
+                        >
+                          <Space direction="vertical" size="small" style={{ width: "100%" }}>
+                            <Space style={{ justifyContent: "space-between", width: "100%" }}>
+                              <Text strong>
+                                Mã đơn: {o.orderId ? `${o.orderId.slice(0, 8)}...` : "-"}
+                              </Text>
+                              <OrdersBadge status={o.status} />
+                            </Space>
+                            <Space size="small" style={{ color: "#6b7280" }}>
+                              <Clock size={14} />
+                              <Text type="secondary">Ngày giao: {o.deliveryDate || "-"}</Text>
+                            </Space>
+                          </Space>
+                        </Card>
+                      </Col>
+                    ))}
+                </Row>
+                <Divider />
+                <Pagination
+                  current={ordersPage}
+                  pageSize={ordersPageSize}
+                  total={orders.length}
+                  onChange={(page) => setOrdersPage(page)}
+                  onShowSizeChange={(current, size) => {
+                    setOrdersPageSize(size);
+                    setOrdersPage(1);
+                  }}
+                  showSizeChanger
+                  pageSizeOptions={["6", "9", "12", "18"]}
+                  style={{ textAlign: "center" }}
+                />
+              </>
             )}
           </Card>
         )}

@@ -21,6 +21,7 @@ export default function CustomerList({ onSelectCustomer }) {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isUpdateModalOpen, setIsUpdateModalOpen] = useState(false);
   const [customerToEdit, setCustomerToEdit] = useState(null);
+  const [searchTerm, setSearchTerm] = useState("");
 
   const fetchCustomers = async () => {
     try {
@@ -128,6 +129,17 @@ export default function CustomerList({ onSelectCustomer }) {
     return statusStyles[key] || "bg-gray-200 text-gray-800 ring-1 ring-gray-300";
   };
 
+  // 🔍 Filter khách hàng theo tên, điện thoại, hoặc địa chỉ
+  const filteredCustomers = customers.filter((c) => {
+    const q = searchTerm.trim().toLowerCase();
+    if (!q) return true;
+    return (
+      (c.name || "").toLowerCase().includes(q) ||
+      (c.phone || "").toLowerCase().includes(q) ||
+      (c.address || "").toLowerCase().includes(q)
+    );
+  });
+
   return (
     <div className="w-full max-w-sm">
       <ToastContainer position="top-right" autoClose={3000} />
@@ -148,7 +160,9 @@ export default function CustomerList({ onSelectCustomer }) {
         <div className="px-4 pt-3">
           <input
             type="text"
-            placeholder="Tìm kiếm khách hàng..."
+            placeholder="Tìm kiếm khách hàng, số điện thoại, địa chỉ,..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
             className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-800 placeholder:text-gray-400 ring-0 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition"
           />
         </div>
@@ -165,51 +179,57 @@ export default function CustomerList({ onSelectCustomer }) {
         {/* List */}
         <div className="mt-2 max-h-96 overflow-y-auto px-3 pb-3">
           <div className="divide-y divide-gray-100 border-t border-gray-100">
-            {customers.map((c) => {
-              const isSelected = selectedId === c.customerId;
-              return (
-                <div
-                  key={c.customerId}
-                  onClick={() => {
-                    setSelectedId(c.customerId);
-                    onSelectCustomer(c);
-                  }}
-                  className={[
-                    "cursor-pointer rounded-xl px-3 py-3 transition",
-                    isSelected
-                      ? "bg-blue-50 ring-1 ring-blue-200"
-                      : "hover:bg-gray-50",
-                  ].join(" ")}
-                >
-                  {/* Hàng đầu */}
-                  <div className="grid grid-cols-3 items-center gap-2">
-                    <div className="truncate text-sm font-semibold text-gray-900">
-                      {c.name}
+            {filteredCustomers.length > 0 ? (
+              filteredCustomers.map((c) => {
+                const isSelected = selectedId === c.customerId;
+                return (
+                  <div
+                    key={c.customerId}
+                    onClick={() => {
+                      setSelectedId(c.customerId);
+                      onSelectCustomer(c);
+                    }}
+                    className={[
+                      "cursor-pointer rounded-xl px-3 py-3 transition",
+                      isSelected
+                        ? "bg-blue-50 ring-1 ring-blue-200"
+                        : "hover:bg-gray-50",
+                    ].join(" ")}
+                  >
+                    {/* Hàng đầu */}
+                    <div className="grid grid-cols-3 items-center gap-2">
+                      <div className="truncate text-sm font-semibold text-gray-900">
+                        {c.name}
+                      </div>
+                      <div className="truncate text-sm text-gray-700">
+                        {c.phone}
+                      </div>
+                      <div className="flex justify-start">
+                        <span
+                          className={`px-2 py-0.5 rounded-md text-[11px] font-semibold ${getStatusClass(
+                            c.status
+                          )}`}
+                        >
+                          {c.status || "unknown"}
+                        </span>
+                      </div>
                     </div>
-                    <div className="truncate text-sm text-gray-700">
-                      {c.phone}
-                    </div>
-                    <div className="flex justify-start">
-                      <span
-                        className={`px-2 py-0.5 rounded-md text-[11px] font-semibold ${getStatusClass(
-                          c.status
-                        )}`}
-                      >
-                        {c.status || "unknown"}
-                      </span>
-                    </div>
-                  </div>
 
-                  {/* Thông tin chi tiết */}
-                  <div className="mt-2 text-xs text-gray-600 space-y-0.5">
-                    <div className="truncate">🏠 {c.address || "Chưa có địa chỉ"}</div>
-                    <div className="truncate">
-                      👤 NV phụ trách: {c.staffContact || "Không có"}
+                    {/* Thông tin chi tiết */}
+                    <div className="mt-2 text-xs text-gray-600 space-y-0.5">
+                      <div className="truncate">🏠 {c.address || "Chưa có địa chỉ"}</div>
+                      <div className="truncate">
+                        👤 NV phụ trách: {c.staffContact || "Không có"}
+                      </div>
                     </div>
                   </div>
-                </div>
-              );
-            })}
+                );
+              })
+            ) : (
+              <div className="py-8 text-center text-sm text-gray-500">
+                ⚠️ Không tìm thấy khách hàng
+              </div>
+            )}
           </div>
         </div>
       </div>

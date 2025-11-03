@@ -32,7 +32,8 @@ const getToken = () => localStorage.getItem("token") ?? "";
 
 // ===== Maps =====
 export const viPayment = {
-  cash: "Tiền mặt",
+  cash: "Thanh toán qua tiền mặt",
+  bank_transfer: "Thanh toán qua thẻ/ngân hàng",
   installment: "Trả góp",
 };
 
@@ -76,6 +77,56 @@ function statusTagColor(raw) {
   }
 }
 
+// Parse installment query string
+function parseInstallmentMethod(paymentMethod) {
+  if (!paymentMethod || typeof paymentMethod !== "string") {
+    return { type: paymentMethod || "-", display: paymentMethod || "-" };
+  }
+
+  if (paymentMethod.includes("installment")) {
+    // Parse query params từ string như "installment?v=1&m=12&pct=10"
+    const params = new URLSearchParams(paymentMethod.split("?")[1] || "");
+    const percent = params.get("pct");
+    const months = params.get("m");
+    
+    if (months && percent) {
+      return {
+        type: "installment",
+        display: `Trả góp ${percent}% mỗi tháng trong vòng ${months} tháng`,
+      };
+    }
+    
+    return {
+      type: "installment",
+      display: "Trả góp",
+    };
+  }
+
+  return { type: paymentMethod, display: viPayment[paymentMethod] || paymentMethod };
+}
+
+// Get progress color based on percentage
+function getProgressColor(percent) {
+  if (percent >= 100) return "#52c41a"; // green
+  if (percent === 0) return "#faad14"; // yellow (chưa trả)
+  return "#d9d9d9"; // gray (neutral)
+}
+
+// Get progress color class
+function getProgressColorClass(percent) {
+  if (percent >= 100) return "bg-green-50"; // green
+  if (percent === 0) return "bg-yellow-50"; // yellow
+  return ""; // no color
+}
+
+// Get progress circle color based on percentage
+function getProgressCircleColor(percent) {
+  if (percent >= 75) return "#6BCB77"; // Xanh lá (75-100%)
+  if (percent >= 50) return "#FFD93D"; // Vàng (50-75%)
+  if (percent >= 25) return "#FFA500"; // Cam (25-50%)
+  return "#FF6B6B"; // Đỏ (0-25%)
+}
+
 const ContractModalAnt = ({ open, contract, onClose, onUpdated }) => {
   const [fileContent, setFileContent] = useState("");
   const [detail, setDetail] = useState(null);
@@ -91,6 +142,25 @@ const ContractModalAnt = ({ open, contract, onClose, onUpdated }) => {
   const [statusValue, setStatusValue] = useState();
   const [updating, setUpdating] = useState(false);
 
+  // Payment modal states
+  const [paymentModalOpen, setPaymentModalOpen] = useState(false);
+  const [paymentAmount, setPaymentAmount] = useState("");
+  const [paymentLoading, setPaymentLoading] = useState(false);
+  const [paymentError, setPaymentError] = useState("");
+
+  // Payment method modal states
+  const [paymentMethodModalOpen, setPaymentMethodModalOpen] = useState(false);
+  const [paymentMethodLoading, setPaymentMethodLoading] = useState(false);
+  const [paymentMethodSuccess, setPaymentMethodSuccess] = useState("");
+  const [isChangingPaymentMethod, setIsChangingPaymentMethod] = useState(false);
+
+  // Installment form states
+  const [installmentModalOpen, setInstallmentModalOpen] = useState(false);
+  const [installmentMonths, setInstallmentMonths] = useState("");
+  const [installmentAdvance, setInstallmentAdvance] = useState("");
+  const [installmentLoading, setInstallmentLoading] = useState(false);
+  const [installmentError, setInstallmentError] = useState("");
+
   // Reusable fetch detail function
   const refetchDetail = async () => {
     const id = contract?.id;
@@ -103,7 +173,7 @@ const ContractModalAnt = ({ open, contract, onClose, onUpdated }) => {
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const json = await res.json();
-      const d = json?.data ?? null;
+      const d = json?.data ?? json ?? null;
       setDetail(d);
       setStatusValue(d?.status);
     } catch (e) {
@@ -137,6 +207,12 @@ const ContractModalAnt = ({ open, contract, onClose, onUpdated }) => {
   const ui = useMemo(() => {
     const d = detail ?? {};
     const car = [d.brand, d.vehicleName, d.versionName].filter(Boolean).join(" ") || contract?.car || "-";
+    
+    // Parse payment method
+    const paymentParsed = parseInstallmentMethod(d.paymentMethod);
+    
+    // Get progress
+    const progressPercent = parseFloat(d.progressPercent) || 0;
 
     return {
       id: contract?.id ?? "-",
@@ -146,7 +222,10 @@ const ContractModalAnt = ({ open, contract, onClose, onUpdated }) => {
       status: viStatus[d.status] || d.status || "-",
       statusRaw: d.status,
       value: formatVND(d.totalValue ?? d.totalAmount ?? null),
-      payment: viPayment[d.paymentMethod] || d.paymentMethod || "-",
+      amountPaid: formatVND(d.amountPaid ?? null),
+      payment: paymentParsed.display,
+      paymentType: paymentParsed.type,
+      progressPercent,
       dealerName: d.dealerName,
       dealerPhone: d.dealerPhone,
       customerPhone: d.customerPhone,
@@ -313,12 +392,268 @@ const ContractModalAnt = ({ open, contract, onClose, onUpdated }) => {
         throw new Error(`${res.status} ${res.statusText}: ${text}`);
       }
       message.success("Cập nhật trạng thái hợp đồng thành công.");
+      notification.success({
+        message: "Cập nhật thành công",
+        description: `Trạng thái: ${viStatus[statusValue] || statusValue}`,
+      });
       setDetail((prev) => ({ ...(prev || {}), status: statusValue }));
     } catch (e) {
       console.error(e);
       message.error(e?.message || "Cập nhật trạng thái thất bại.");
     } finally {
       setUpdating(false);
+    }
+  };
+
+  const handlePayment = async () => {
+    const amount = parseFloat(paymentAmount);
+    if (!amount || amount <= 0) {
+      setPaymentError("Nhập số tiền cần thanh toán (> 0)");
+      return;
+    }
+
+    const totalValue = parseFloat(detail?.totalValue || detail?.totalAmount || 0);
+    const amountPaid = parseFloat(detail?.amountPaid || 0);
+    const remaining = totalValue - amountPaid;
+
+    if (amount > remaining) {
+      setPaymentError(`Số tiền thanh toán không được vượt quá: ${formatVND(remaining)}`);
+      return;
+    }
+
+    try {
+      setPaymentLoading(true);
+      setPaymentError("");
+
+      // Extract payment method - only send the base type (e.g., "installment")
+      const paymentMethod = detail?.paymentMethod || "installment";
+      const basePaymentMethod = paymentMethod.split("?")[0]; // Remove query params
+
+      // Calculate total amount paid: current amountPaid + new payment
+      const totalNewAmountPaid = amountPaid + amount;
+
+      const res = await fetch(`${API_CONTRACT_API}/${contract?.id}`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "*/*",
+          Authorization: `Bearer ${getToken()}`,
+        },
+        body: JSON.stringify({
+          paymentMethod: basePaymentMethod,
+          newAmountPaid: totalNewAmountPaid,
+        }),
+      });
+
+      let data = null;
+      const contentType = res.headers.get("content-type");
+      
+      if (contentType && contentType.includes("application/json")) {
+        try {
+          data = await res.json();
+        } catch (e) {
+          console.warn("Failed to parse JSON response:", e);
+          data = {};
+        }
+      } else {
+        const text = await res.text();
+        console.warn("Response is not JSON:", text);
+        data = {};
+      }
+
+      if (!res.ok) {
+        const errorMsg = data?.message || `HTTP ${res.status}`;
+        setPaymentError(errorMsg);
+        message.error(errorMsg);
+        return;
+      }
+
+      message.success("Thanh toán thành công");
+      notification.success({
+        message: "Cập nhật thanh toán",
+        description: `Đã ghi nhận thanh toán ${formatVND(amount)}`,
+      });
+
+      // Clear modal
+      setPaymentModalOpen(false);
+      setPaymentAmount("");
+      setPaymentError("");
+
+      // Refetch detail
+      await refetchDetail();
+
+      // Call parent callback
+      if (onUpdated) {
+        onUpdated();
+      }
+    } catch (err) {
+      const errorMsg = err instanceof Error ? err.message : "Thanh toán thất bại";
+      setPaymentError(errorMsg);
+      message.error(errorMsg);
+    } finally {
+      setPaymentLoading(false);
+    }
+  };
+
+  const handleSelectPaymentMethod = async (method) => {
+    // Nếu chọn installment, mở modal installment thay vì gửi API ngay
+    if (method === "installment") {
+      setInstallmentMonths("");
+      setInstallmentAdvance("");
+      setInstallmentError("");
+      setPaymentMethodModalOpen(false);
+      setInstallmentModalOpen(true);
+      return;
+    }
+
+    // Nếu chọn cash hoặc bank_transfer, gửi API ngay
+    try {
+      setPaymentMethodLoading(true);
+      const res = await fetch(`${API_CONTRACT_API}/${contract?.id}`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "*/*",
+          Authorization: `Bearer ${getToken()}`,
+        },
+        body: JSON.stringify({
+          paymentMethod: method,
+        }),
+      });
+
+      let data = null;
+      const contentType = res.headers.get("content-type");
+      
+      if (contentType && contentType.includes("application/json")) {
+        try {
+          data = await res.json();
+        } catch (e) {
+          console.warn("Failed to parse JSON response:", e);
+          data = {};
+        }
+      } else {
+        const text = await res.text();
+        console.warn("Response is not JSON:", text);
+        data = {};
+      }
+
+      if (!res.ok) {
+        const errorMsg = data?.message || `HTTP ${res.status}`;
+        message.error(errorMsg);
+        return;
+      }
+
+      setPaymentMethodSuccess(`Đã đổi thành công: ${viPayment[method] || method}`);
+      message.success("Đổi phương thức thanh toán thành công");
+      
+      // Close modal sau 1.5s
+      setTimeout(() => {
+        setPaymentMethodModalOpen(false);
+        setPaymentMethodSuccess("");
+      }, 1500);
+
+      // Refetch detail
+      await refetchDetail();
+
+      // Call parent callback
+      if (onUpdated) {
+        onUpdated();
+      }
+    } catch (err) {
+      const errorMsg = err instanceof Error ? err.message : "Cập nhật phương thức thanh toán thất bại";
+      message.error(errorMsg);
+    } finally {
+      setPaymentMethodLoading(false);
+    }
+  };
+
+  const handleSubmitInstallment = async () => {
+    const months = parseInt(installmentMonths);
+    const advance = parseFloat(installmentAdvance) || 0;
+
+    if (!months || months <= 0) {
+      setInstallmentError("Nhập số tháng (> 0)");
+      return;
+    }
+
+    const pct = Math.round((100 / months) * 100) / 100; // Tính % trung bình
+    const totalValue = parseFloat(detail?.totalValue || detail?.totalAmount || 0);
+    const minAdvance = (pct / 100) * totalValue; // Tính số tiền tối thiểu
+
+    if (advance < minAdvance) {
+      setInstallmentError(`Số tiền trả trước tối thiểu phải là ${formatVND(minAdvance)} (${pct}% của giá trị hợp đồng)`);
+      return;
+    }
+
+    try {
+      setInstallmentLoading(true);
+      setInstallmentError("");
+
+      const res = await fetch(`${API_CONTRACT_API}/${contract?.id}`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "*/*",
+          Authorization: `Bearer ${getToken()}`,
+        },
+        body: JSON.stringify({
+          paymentMethod: "installment",
+          months,
+          pct,
+          newAmountPaid: advance,
+        }),
+      });
+
+      let data = null;
+      const contentType = res.headers.get("content-type");
+      
+      if (contentType && contentType.includes("application/json")) {
+        try {
+          data = await res.json();
+        } catch (e) {
+          console.warn("Failed to parse JSON response:", e);
+          data = {};
+        }
+      } else {
+        const text = await res.text();
+        console.warn("Response is not JSON:", text);
+        data = {};
+      }
+
+      if (!res.ok) {
+        const errorMsg = data?.message || `HTTP ${res.status}`;
+        setInstallmentError(errorMsg);
+        message.error(errorMsg);
+        return;
+      }
+
+      message.success("Cập nhật phương thức trả góp thành công");
+      notification.success({
+        message: "Cấu hình trả góp thành công",
+        description: `${months} tháng - ${pct}% mỗi tháng - Trả trước ${formatVND(advance)}`,
+      });
+      
+      // Close modal
+      setTimeout(() => {
+        setInstallmentModalOpen(false);
+        setInstallmentMonths("");
+        setInstallmentAdvance("");
+        setInstallmentError("");
+      }, 1500);
+
+      // Refetch detail
+      await refetchDetail();
+
+      // Call parent callback
+      if (onUpdated) {
+        onUpdated();
+      }
+    } catch (err) {
+      const errorMsg = err instanceof Error ? err.message : "Cập nhật thất bại";
+      setInstallmentError(errorMsg);
+      message.error(errorMsg);
+    } finally {
+      setInstallmentLoading(false);
     }
   };
 
@@ -337,6 +672,8 @@ const ContractModalAnt = ({ open, contract, onClose, onUpdated }) => {
           {!!ui.status && <Tag color={statusTagColor(ui.statusRaw)}>{ui.status}</Tag>}
         </Space>
       }
+      className={getProgressColorClass(ui.progressPercent)}
+      style={{ borderRadius: 8 }}
     >
       <Row gutter={[16, 16]}>
         <Col xs={24} md={15}>
@@ -434,7 +771,100 @@ const ContractModalAnt = ({ open, contract, onClose, onUpdated }) => {
                 <Descriptions.Item label="Giá trị">
                   <Text strong>{ui.value}</Text>
                 </Descriptions.Item>
-                <Descriptions.Item label="Thanh toán">{ui.payment}</Descriptions.Item>
+                <Descriptions.Item label="Đã thanh toán">
+                  <Text strong>{ui.amountPaid}</Text>
+                </Descriptions.Item>
+                <Descriptions.Item label="Thanh toán">
+                  <div>
+                    {detail?.paymentMethod && detail?.paymentMethod !== "Not selected yet" && !detail?.paymentMethod?.includes("installment") && (
+                      <>
+                        <div style={{ marginBottom: 8 }}>{ui.payment}</div>
+                        <Button 
+                          type="primary"
+                          size="small"
+                          style={{
+                            background: "#1890ff",
+                            fontSize: 12,
+                            fontWeight: "500"
+                          }}
+                          onClick={() => {
+                            setIsChangingPaymentMethod(true);
+                            setPaymentMethodModalOpen(true);
+                          }}
+                        >
+                          Thay đổi phương thức thanh toán
+                        </Button>
+                      </>
+                    )}
+                    {!detail?.paymentMethod || detail?.paymentMethod === "Not selected yet" && (
+                      <Button 
+                        type="primary"
+                        size="small"
+                        style={{
+                          background: "#1890ff",
+                          fontSize: 12,
+                          fontWeight: "500"
+                        }}
+                        onClick={() => setPaymentMethodModalOpen(true)}
+                      >
+                        Lựa chọn phương thức thanh toán
+                      </Button>
+                    )}
+                    {detail?.paymentMethod?.includes("installment") && (
+                      <div>{ui.payment}</div>
+                    )}
+                  </div>
+                </Descriptions.Item>
+                <Descriptions.Item label="Tiến độ thanh toán">
+                  <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                    <div style={{
+                      position: "relative",
+                      width: 60,
+                      height: 60,
+                      borderRadius: "50%",
+                      background: `conic-gradient(
+                        ${getProgressCircleColor(ui.progressPercent)} 0deg ${Math.min(ui.progressPercent, 100) * 3.6}deg,
+                        #f0f0f0 ${Math.min(ui.progressPercent, 100) * 3.6}deg 360deg
+                      )`,
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      boxShadow: "0 4px 12px rgba(0,0,0,0.15)"
+                    }}>
+                      <div style={{
+                        width: 52,
+                        height: 52,
+                        borderRadius: "50%",
+                        background: "white",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        fontSize: 14,
+                        fontWeight: "bold",
+                        color: getProgressCircleColor(ui.progressPercent),
+                        flexDirection: "column"
+                      }}>
+                        <div>{ui.progressPercent.toFixed(0)}%</div>
+                      </div>
+                    </div>
+                    <Button 
+                      type="default"
+                      style={{
+                        background: "#52C96B",
+                        color: "white",
+                        border: "none",
+                        fontWeight: "500",
+                        boxShadow: "0 2px 6px rgba(82, 201, 107, 0.3)",
+                        fontSize: 14,
+                        paddingLeft: 20,
+                        paddingRight: 20
+                      }}
+                      onClick={() => setPaymentModalOpen(true)}
+                    >
+                      Thanh toán
+                    </Button>
+                  </div>
+                </Descriptions.Item>
                 {ui.dealerName && <Descriptions.Item label="Đại lý">{ui.dealerName}</Descriptions.Item>}
                 {ui.dealerPhone && <Descriptions.Item label="SĐT Đại lý">{ui.dealerPhone}</Descriptions.Item>}
                 {ui.customerPhone && <Descriptions.Item label="SĐT KH">{ui.customerPhone}</Descriptions.Item>}
@@ -461,6 +891,229 @@ const ContractModalAnt = ({ open, contract, onClose, onUpdated }) => {
           )}
         </Col>
       </Row>
+
+      {/* Payment Modal */}
+      <Modal
+        title="💳 Thanh toán hợp đồng"
+        open={paymentModalOpen}
+        onOk={handlePayment}
+        onCancel={() => {
+          setPaymentModalOpen(false);
+          setPaymentAmount("");
+          setPaymentError("");
+        }}
+        confirmLoading={paymentLoading}
+        okText="Xác nhận"
+        cancelText="Hủy"
+      >
+        <Space direction="vertical" style={{ width: "100%" }} size={16}>
+          {/* Display current info */}
+          <div style={{ background: "#f5f5f5", padding: 12, borderRadius: 6 }}>
+            <div style={{ marginBottom: 8 }}>
+              <Text>Giá trị hợp đồng: <Text strong>{ui.value}</Text></Text>
+            </div>
+            <div style={{ marginBottom: 8 }}>
+              <Text>Đã thanh toán: <Text strong>{ui.amountPaid}</Text></Text>
+            </div>
+            <div>
+              <Text>Còn lại: <Text strong>{formatVND(Math.max(0, parseFloat(detail?.totalValue || detail?.totalAmount || 0) - parseFloat(detail?.amountPaid || 0)))}</Text></Text>
+            </div>
+          </div>
+
+          {/* Error Alert */}
+          {paymentError && (
+            <Alert
+              type="error"
+              message="Lỗi thanh toán"
+              description={paymentError}
+              showIcon
+              closable
+              onClose={() => setPaymentError("")}
+            />
+          )}
+
+          {/* Payment Input */}
+          <div>
+            <Text strong>Số tiền cần thanh toán (VND)</Text>
+            <Input
+              type="number"
+              placeholder="Nhập số tiền"
+              value={paymentAmount}
+              onChange={(e) => setPaymentAmount(e.target.value)}
+              min="0"
+              step="1000"
+              style={{ marginTop: 6 }}
+              disabled={paymentLoading}
+              onKeyPress={(e) => {
+                if (e.key === "Enter" && !paymentLoading) {
+                  handlePayment();
+                }
+              }}
+            />
+          </div>
+        </Space>
+      </Modal>
+
+      {/* Payment Method Modal */}
+      <Modal
+        title="Lựa chọn phương thức thanh toán"
+        open={paymentMethodModalOpen}
+        onCancel={() => {
+          setPaymentMethodModalOpen(false);
+          setPaymentMethodSuccess("");
+          setIsChangingPaymentMethod(false);
+        }}
+        footer={null}
+        width={400}
+      >
+        <Space direction="vertical" style={{ width: "100%" }} size={12}>
+          {paymentMethodSuccess && (
+            <Alert
+              type="success"
+              message={paymentMethodSuccess}
+              showIcon
+              closable
+              onClose={() => setPaymentMethodSuccess("")}
+            />
+          )}
+          
+          <Button
+            block
+            size="large"
+            style={{
+              background: "#f5f5f5",
+              color: "#000",
+              border: "1px solid #d9d9d9",
+              borderRadius: 6,
+              fontWeight: "500",
+              fontSize: 14
+            }}
+            onClick={() => handleSelectPaymentMethod("cash")}
+            loading={paymentMethodLoading}
+          >
+            Thanh toán tiền mặt
+          </Button>
+
+          <Button
+            block
+            size="large"
+            style={{
+              background: "#f5f5f5",
+              color: "#000",
+              border: "1px solid #d9d9d9",
+              borderRadius: 6,
+              fontWeight: "500",
+              fontSize: 14
+            }}
+            onClick={() => handleSelectPaymentMethod("bank_transfer")}
+            loading={paymentMethodLoading}
+          >
+            Thanh toán ngân hàng / thẻ
+          </Button>
+
+          {!isChangingPaymentMethod && (
+            <Button
+              block
+              size="large"
+              style={{
+                background: "#f5f5f5",
+                color: "#000",
+                border: "1px solid #d9d9d9",
+                borderRadius: 6,
+                fontWeight: "500",
+                fontSize: 14
+              }}
+              onClick={() => handleSelectPaymentMethod("installment")}
+              loading={paymentMethodLoading}
+            >
+              Thanh toán trả góp
+            </Button>
+          )}
+        </Space>
+      </Modal>
+
+      {/* Installment Modal */}
+      <Modal
+        title="Cấu hình thanh toán trả góp"
+        open={installmentModalOpen}
+        onOk={handleSubmitInstallment}
+        onCancel={() => {
+          setInstallmentModalOpen(false);
+          setInstallmentMonths("");
+          setInstallmentAdvance("");
+          setInstallmentError("");
+        }}
+        confirmLoading={installmentLoading}
+        okText="Xác nhận"
+        cancelText="Hủy"
+        width={450}
+      >
+        <Space direction="vertical" style={{ width: "100%" }} size={16}>
+          {installmentError && (
+            <Alert
+              type="error"
+              message="Lỗi"
+              description={installmentError}
+              showIcon
+              closable
+              onClose={() => setInstallmentError("")}
+            />
+          )}
+
+          {/* Months Input */}
+          <div>
+            <Text strong>Trả trong vòng tháng</Text>
+            <Input
+              type="number"
+              placeholder="Nhập số tháng"
+              value={installmentMonths}
+              onChange={(e) => setInstallmentMonths(e.target.value)}
+              min="1"
+              style={{ marginTop: 6 }}
+              disabled={installmentLoading}
+            />
+          </div>
+
+          {/* Auto-calculated percentage */}
+          <div>
+            <Text strong>Trung bình phần trăm cần trả mỗi tháng</Text>
+            <div style={{
+              marginTop: 6,
+              padding: "10px 12px",
+              background: "#f0f5ff",
+              borderRadius: 4,
+              border: "1px solid #b3d8ff",
+              fontSize: 14,
+              fontWeight: "500",
+              color: "#1890ff"
+            }}>
+              {installmentMonths && parseInt(installmentMonths) > 0
+                ? `${(Math.round((100 / parseInt(installmentMonths)) * 100) / 100).toFixed(2)}%`
+                : "Nhập số tháng để tính toán"}
+            </div>
+          </div>
+
+          {/* Advance Payment */}
+          <div>
+            <Text strong>Có thể trả trước</Text>
+            <Input
+              type="number"
+              placeholder="Nhập số tiền (VND)"
+              value={installmentAdvance}
+              onChange={(e) => setInstallmentAdvance(e.target.value)}
+              min="0"
+              step="1000"
+              style={{ marginTop: 6 }}
+              disabled={installmentLoading}
+            />
+            {installmentAdvance && (
+              <Text type="secondary" style={{ fontSize: 12, marginTop: 6, display: "block" }}>
+                {formatVND(parseFloat(installmentAdvance))}
+              </Text>
+            )}
+          </div>
+        </Space>
+      </Modal>
     </Modal>
   );
 };
