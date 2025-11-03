@@ -23,14 +23,15 @@ import { UploadOutlined, FileTextOutlined } from "@ant-design/icons";
 const { Title, Text } = Typography;
 const { Dragger } = Upload;
 
-// ===== Config (GIỮ LOGIC CŨ) =====
-const API_SERVICE = "https://prn232.freeddns.org/customer-service"; // base
-const API_CONTRACT = `${API_SERVICE}/contracts`; // GET detail (đang chạy ổn không có /api)
-const API_CONTRACT_API = `${API_SERVICE}/api/contracts`; // PATCH status (cần /api)
-const API_UPLOAD = "https://prn232.freeddns.org/utility-service/api/Upload"; // Upload file
-const getToken = () => localStorage.getItem("token") ?? "";
+// ============================================================================
+// CONSTANTS
+// ============================================================================
 
-// ===== Maps =====
+const API_SERVICE = "https://prn232.freeddns.org/customer-service";
+const API_CONTRACT = `${API_SERVICE}/contracts`;
+const API_CONTRACT_API = `${API_SERVICE}/api/contracts`;
+const API_UPLOAD = "https://prn232.freeddns.org/utility-service/api/Upload";
+
 export const viPayment = {
   cash: "Thanh toán qua tiền mặt",
   bank_transfer: "Thanh toán qua thẻ/ngân hàng",
@@ -42,9 +43,14 @@ export const viStatus = {
   approved: "approved",
 };
 
-const STATUS_OPTIONS = Object.keys(viStatus); // only: draft, confirmed, approved
+const STATUS_OPTIONS = Object.keys(viStatus);
 
-// ===== Helpers =====
+// ============================================================================
+// UTILITY FUNCTIONS
+// ============================================================================
+
+const getToken = () => localStorage.getItem("token") ?? "";
+
 function formatVND(amount) {
   if (amount == null || isNaN(Number(amount))) return "-";
   try {
@@ -77,14 +83,12 @@ function statusTagColor(raw) {
   }
 }
 
-// Parse installment query string
 function parseInstallmentMethod(paymentMethod) {
   if (!paymentMethod || typeof paymentMethod !== "string") {
     return { type: paymentMethod || "-", display: paymentMethod || "-" };
   }
 
   if (paymentMethod.includes("installment")) {
-    // Parse query params từ string như "installment?v=1&m=12&pct=10"
     const params = new URLSearchParams(paymentMethod.split("?")[1] || "");
     const percent = params.get("pct");
     const months = params.get("m");
@@ -95,39 +99,37 @@ function parseInstallmentMethod(paymentMethod) {
         display: `Trả góp ${percent}% mỗi tháng trong vòng ${months} tháng`,
       };
     }
-    
-    return {
-      type: "installment",
-      display: "Trả góp",
-    };
+    return { type: "installment", display: "Trả góp" };
   }
 
   return { type: paymentMethod, display: viPayment[paymentMethod] || paymentMethod };
 }
 
-// Get progress color based on percentage
 function getProgressColor(percent) {
-  if (percent >= 100) return "#52c41a"; // green
-  if (percent === 0) return "#faad14"; // yellow (chưa trả)
-  return "#d9d9d9"; // gray (neutral)
+  if (percent >= 100) return "#52c41a";
+  if (percent === 0) return "#faad14";
+  return "#d9d9d9";
 }
 
-// Get progress color class
 function getProgressColorClass(percent) {
-  if (percent >= 100) return "bg-green-50"; // green
-  if (percent === 0) return "bg-yellow-50"; // yellow
-  return ""; // no color
+  if (percent >= 100) return "bg-green-50";
+  if (percent === 0) return "bg-yellow-50";
+  return "";
 }
 
-// Get progress circle color based on percentage
 function getProgressCircleColor(percent) {
-  if (percent >= 75) return "#6BCB77"; // Xanh lá (75-100%)
-  if (percent >= 50) return "#FFD93D"; // Vàng (50-75%)
-  if (percent >= 25) return "#FFA500"; // Cam (25-50%)
-  return "#FF6B6B"; // Đỏ (0-25%)
+  if (percent >= 75) return "#6BCB77";
+  if (percent >= 50) return "#FFD93D";
+  if (percent >= 25) return "#FFA500";
+  return "#FF6B6B";
 }
+
+// ============================================================================
+// MAIN COMPONENT
+// ============================================================================
 
 const ContractModalAnt = ({ open, contract, onClose, onUpdated }) => {
+  // ========== STATE MANAGEMENT ==========
   const [fileContent, setFileContent] = useState("");
   const [detail, setDetail] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -138,30 +140,30 @@ const ContractModalAnt = ({ open, contract, onClose, onUpdated }) => {
   const [uploadProgress, setUploadProgress] = useState(0);
   const [uploadError, setUploadError] = useState("");
 
-  // PATCH status
+  // Status update states
   const [statusValue, setStatusValue] = useState();
   const [updating, setUpdating] = useState(false);
 
-  // Payment modal states
+  // Payment states
   const [paymentModalOpen, setPaymentModalOpen] = useState(false);
   const [paymentAmount, setPaymentAmount] = useState("");
   const [paymentLoading, setPaymentLoading] = useState(false);
   const [paymentError, setPaymentError] = useState("");
 
-  // Payment method modal states
+  // Payment method states
   const [paymentMethodModalOpen, setPaymentMethodModalOpen] = useState(false);
   const [paymentMethodLoading, setPaymentMethodLoading] = useState(false);
   const [paymentMethodSuccess, setPaymentMethodSuccess] = useState("");
   const [isChangingPaymentMethod, setIsChangingPaymentMethod] = useState(false);
 
-  // Installment form states
+  // Installment states
   const [installmentModalOpen, setInstallmentModalOpen] = useState(false);
   const [installmentMonths, setInstallmentMonths] = useState("");
   const [installmentAdvance, setInstallmentAdvance] = useState("");
   const [installmentLoading, setInstallmentLoading] = useState(false);
   const [installmentError, setInstallmentError] = useState("");
 
-  // Reusable fetch detail function
+  // ========== EFFECTS & LIFECYCLE ==========
   const refetchDetail = async () => {
     const id = contract?.id;
     if (!id) return;
@@ -184,12 +186,14 @@ const ContractModalAnt = ({ open, contract, onClose, onUpdated }) => {
     }
   };
 
+  // Open modal: fetch detail
   useEffect(() => {
     if (open) {
       refetchDetail();
     }
   }, [open, contract?.id]);
 
+  // Close modal: reset all states
   useEffect(() => {
     if (!open) {
       setFileContent("");
@@ -236,6 +240,7 @@ const ContractModalAnt = ({ open, contract, onClose, onUpdated }) => {
 
   const isPDFData = typeof fileContent === "string" && (fileContent.startsWith("data:application/pdf") || fileContent.toLowerCase().endsWith(".pdf"));
 
+  // ========== FILE UPLOAD HANDLER ==========
   const uploadProps = {
     multiple: false,
     showUploadList: false,
@@ -370,6 +375,7 @@ const ContractModalAnt = ({ open, contract, onClose, onUpdated }) => {
     },
   };
 
+  // ========== STATUS UPDATE HANDLER ==========
   const patchStatus = async () => {
     const id = contract?.id;
     if (!id || !statusValue) return message.warning("Chọn trạng thái trước.");
@@ -405,6 +411,7 @@ const ContractModalAnt = ({ open, contract, onClose, onUpdated }) => {
     }
   };
 
+  // ========== PAYMENT HANDLER ==========
   const handlePayment = async () => {
     const amount = parseFloat(paymentAmount);
     if (!amount || amount <= 0) {
@@ -495,6 +502,7 @@ const ContractModalAnt = ({ open, contract, onClose, onUpdated }) => {
     }
   };
 
+  // ========== PAYMENT METHOD SELECTION HANDLER ==========
   const handleSelectPaymentMethod = async (method) => {
     // Nếu chọn installment, mở modal installment thay vì gửi API ngay
     if (method === "installment") {
@@ -567,6 +575,7 @@ const ContractModalAnt = ({ open, contract, onClose, onUpdated }) => {
     }
   };
 
+  // ========== INSTALLMENT CONFIGURATION HANDLER ==========
   const handleSubmitInstallment = async () => {
     const months = parseInt(installmentMonths);
     const advance = parseFloat(installmentAdvance) || 0;
@@ -657,6 +666,7 @@ const ContractModalAnt = ({ open, contract, onClose, onUpdated }) => {
     }
   };
 
+  // ========== RENDER / JSX ==========
   return (
     <Modal
       open={open}
