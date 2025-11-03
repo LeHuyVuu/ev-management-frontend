@@ -124,6 +124,65 @@ function getProgressCircleColor(percent) {
   return "#FF6B6B";
 }
 
+/** ========= NEW: helper detect & build preview URL ========= */
+function getPreviewInfo(url) {
+  if (!url) return { kind: "none", src: "" };
+  const cleanUrl = url.split("?")[0];
+  const ext = (cleanUrl.split(".").pop() || "").toLowerCase();
+
+  const officeExts = ["doc", "docx", "xls", "xlsx", "ppt", "pptx"];
+  const imageExts = ["jpg", "jpeg", "png", "gif", "webp"];
+
+  if (imageExts.includes(ext)) return { kind: "image", src: url };
+  if (ext === "pdf") return { kind: "pdf", src: url };
+  if (officeExts.includes(ext)) {
+    return {
+      kind: "office",
+      src: `https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(url)}`
+    };
+  }
+  return { kind: "unknown", src: url };
+}
+
+/** ========= NEW: tiny preview component ========= */
+const FilePreview = ({ url }) => {
+  const { kind, src } = getPreviewInfo(url);
+  const frameStyle = {
+    width: "100%",
+    height: 520,
+    border: "1px solid #e5e7eb",
+    borderRadius: 6,
+    background: "#fff",
+  };
+
+  if (kind === "image") {
+    return (
+      <div style={{ ...frameStyle, display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden" }}>
+        <img src={src} alt="Xem trước file" style={{ maxWidth: "100%", maxHeight: "100%", objectFit: "contain" }} />
+      </div>
+    );
+  }
+
+  if (kind === "pdf" || kind === "office") {
+    return (
+      <iframe
+        title="Xem trước file"
+        src={src}
+        style={frameStyle}
+        allow="clipboard-read; clipboard-write"
+        referrerPolicy="no-referrer"
+      />
+    );
+  }
+
+  return (
+    <div style={{ padding: 12, border: "1px dashed #d9d9d9", borderRadius: 6 }}>
+      Không thể hiển thị xem trước.{" "}
+      <Button type="link" onClick={() => window.open(src, "_blank")}>Mở file</Button>
+    </div>
+  );
+};
+
 // ============================================================================
 // MAIN COMPONENT
 // ============================================================================
@@ -697,29 +756,39 @@ const ContractModalAnt = ({ open, contract, onClose, onUpdated }) => {
             <Alert type="error" message={error} showIcon />
           ) : (
             <Space direction="vertical" style={{ width: "100%" }} size={16}>
-              {/* Khu vực xem file (nếu có) */}
+              {/* ====== Khu vực xem file (đã có preview) ====== */}
               {ui.fileUrl && ui.fileUrl !== "Contract don't have file" && (
-                <div style={{ padding: "12px", background: "#e6f7ff", border: "1px solid #91d5ff", borderRadius: 6 }}>
-                  <div style={{ marginBottom: 10 }}>
+                <div style={{ padding: 12, background: "#fafafa", border: "1px solid #e8e8e8", borderRadius: 6 }}>
+                  <div style={{ marginBottom: 8, display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
                     <Text>📄 <strong>File hiện tại:</strong> {ui.fileUrl.split("/").pop()}</Text>
-                  </div>
-                  <Space size="small">
-                    <Button 
-                      type="primary" 
-                      size="small"
-                      onClick={() => {
-                        const url = ui.fileUrl;
-                        const ext = url.split(".").pop()?.toLowerCase();
-                        if (["docx", "doc", "xlsx", "xls", "pptx", "ppt"].includes(ext || "")) {
-                          window.open(`https://view.officeapps.live.com/op/view.aspx?src=${encodeURIComponent(url)}`, "_blank");
-                        } else {
-                          window.open(url, "_blank");
+                    <Space size="small" style={{ marginLeft: "auto" }}>
+                      <Button
+                        size="small"
+                        onClick={() => window.open(ui.fileUrl, "_blank")}
+                      >
+                        Mở tab mới
+                      </Button>
+                      {(() => {
+                        const { kind, src } = getPreviewInfo(ui.fileUrl);
+                        if (kind === "office") {
+                          return (
+                            <Button size="small" type="primary" onClick={() => window.open(src, "_blank")}>
+                              Mở bằng Office Online
+                            </Button>
+                          );
                         }
-                      }}
-                    >
-                      Xem file
-                    </Button>
-                  </Space>
+                        return null;
+                      })()}
+                    </Space>
+                  </div>
+
+                  <FilePreview url={ui.fileUrl} />
+
+                  <div style={{ marginTop: 8 }}>
+                    <Text type="secondary" style={{ fontSize: 12 }}>
+                      Nếu không hiển thị được xem trước, có thể do máy chủ chặn nhúng (X-Frame-Options/CORS). Hãy dùng “Mở tab mới”.
+                    </Text>
+                  </div>
                 </div>
               )}
 
