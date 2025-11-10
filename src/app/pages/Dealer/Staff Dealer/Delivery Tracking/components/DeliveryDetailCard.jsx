@@ -44,6 +44,26 @@ function formatDateISOToVN(iso) {
   return `${dd}/${mm}/${yyyy} ${hh}:${mi}`;
 }
 
+function isoToDatetimeLocal(iso) {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return "";
+  const yyyy = d.getFullYear();
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  const dd = String(d.getDate()).padStart(2, "0");
+  const hh = String(d.getHours()).padStart(2, "0");
+  const mi = String(d.getMinutes()).padStart(2, "0");
+  return `${yyyy}-${mm}-${dd}T${hh}:${mi}`;
+}
+
+function datetimeLocalToISO(value) {
+  if (!value) return "";
+  // value expected in format YYYY-MM-DDTHH:mm
+  const d = new Date(value);
+  if (isNaN(d.getTime())) return "";
+  return d.toISOString();
+}
+
 // Simple skeleton
 function Skeleton({ className = "" }) {
   return <div className={`animate-pulse bg-gray-200 rounded ${className}`} />;
@@ -116,6 +136,11 @@ export default function DeliveryDetailCard({ delivery, isOpen, onClose }) {
       status: displayStatus,
     };
   }, [detail, delivery]);
+
+  // determine current status key used to decide editability
+  const currentStatus =
+    (detail && (detail.status || detail.statusOrder)) || delivery?.status || delivery?.statusOrder || orderStatus;
+  const canEditAddress = String(currentStatus || "").trim() === "preparing";
 
   if (!isOpen || !delivery) return null;
 
@@ -343,15 +368,31 @@ export default function DeliveryDetailCard({ delivery, isOpen, onClose }) {
                       <MapPin size={20} /> Chi tiết giao hàng
                     </h3>
                     <div className="space-y-2">
-                      <p>
-                        <span className="font-medium">Địa chỉ:</span> {ui.address}
-                      </p>
-                      <p>
-                        <span className="font-medium">Thời gian:</span> {ui.time}
-                      </p>
-                      <p>
-                        <span className="font-medium">Ghi chú:</span> {ui.note}
-                      </p>
+                      <div>
+                        <label className="font-medium block mb-1">Địa chỉ giao hàng</label>
+                        {canEditAddress ? (
+                          <textarea
+                            value={(detail && (detail.deliveryAddress || detail.deliveryAddress === "" ? detail.deliveryAddress : delivery?.address)) || ""}
+                            onChange={(e) =>
+                              setDetail((prev) => ({ ...(prev || {}), deliveryAddress: e.target.value }))
+                            }
+                            rows={2}
+                            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm resize-none"
+                          />
+                        ) : (
+                          <p className="text-sm text-gray-700">{(detail && detail.deliveryAddress) || delivery?.address || "-"}</p>
+                        )}
+                      </div>
+
+                      <div>
+                        <label className="font-medium block mb-1">Thời gian</label>
+                        <p className="text-sm text-gray-700">{ui.time}</p>
+                      </div>
+
+                      <div>
+                        <label className="font-medium block mb-1">Ghi chú</label>
+                        <p className="text-sm text-gray-700">{ui.note}</p>
+                      </div>
                     </div>
                     {error && <div className="text-sm text-red-600 mt-2">{error}</div>}
                     {saveInfoError && <div className="text-sm text-red-600 mt-2">{saveInfoError}</div>}
@@ -391,11 +432,14 @@ export default function DeliveryDetailCard({ delivery, isOpen, onClose }) {
                 <div className="mt-4">
                   <button
                     onClick={handleSaveInfo}
-                    disabled={savingInfo}
+                    disabled={!canEditAddress || savingInfo}
                     className="w-full bg-blue-600 disabled:opacity-60 disabled:cursor-not-allowed text-white px-3 py-2 rounded-lg hover:bg-blue-700 transition-colors"
                   >
                     {savingInfo ? "Đang lưu…" : "Lưu thông tin giao hàng"}
                   </button>
+                  {!canEditAddress && (
+                    <p className="text-xs text-gray-500 mt-2">Chỉ có thể chỉnh địa chỉ khi trạng thái đơn là "{viStatus['preparing']}".</p>
+                  )}
                 </div>
               </div>
             </div>

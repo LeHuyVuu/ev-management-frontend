@@ -55,12 +55,19 @@ export default function CustomerList({ onSelectCustomer }) {
   const handleAddCustomer = async (newCustomer) => {
     try {
       const token = localStorage.getItem("token");
+      
+      // Check if token exists
+      if (!token) {
+        toast.error("Không tìm thấy token. Vui lòng đăng nhập lại.");
+        return;
+      }
+      
       const res = await fetch(`${api.customer}/api/customers`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           Accept: "*/*",
-          Authorization: token ? `Bearer ${token}` : "",
+          Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify(newCustomer),
       });
@@ -69,9 +76,13 @@ export default function CustomerList({ onSelectCustomer }) {
 
       if (res.ok && json.status === 200) {
         const created = json.data || json;
-        setCustomers((prev) => [created, ...prev]);
-        setSelectedId(created.customerId);
-        onSelectCustomer(created);
+        // Re-fetch the authoritative list from server to get the newest ordering/fields
+        await fetchCustomers();
+        // Restore selection to the newly created customer
+        try {
+          setSelectedId(created.customerId);
+          onSelectCustomer(created);
+        } catch (_) {}
         toast.success("Đã thêm khách hàng mới");
         setIsModalOpen(false);
       } else {
@@ -86,12 +97,19 @@ export default function CustomerList({ onSelectCustomer }) {
   const handleUpdateCustomer = async (updatedCustomer) => {
     try {
       const token = localStorage.getItem("token");
+      
+      // Check if token exists
+      if (!token) {
+        toast.error("Không tìm thấy token. Vui lòng đăng nhập lại.");
+        return;
+      }
+      
       const res = await fetch(`${api.customer}/api/customers`, {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
           Accept: "*/*",
-          Authorization: token ? `Bearer ${token}` : "",
+          Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify(updatedCustomer),
       });

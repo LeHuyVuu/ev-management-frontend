@@ -14,6 +14,7 @@ import {
   Row,
   Col,
   Input,
+  Select,
   Space,
   Empty,
   Badge,
@@ -52,6 +53,7 @@ export default function CustomerProfile({ customer }) {
   const [openOrderDetail, setOpenOrderDetail] = useState(false);
   const [orderDetail, setOrderDetail] = useState(null);
   const [loadingOrderDetail, setLoadingOrderDetail] = useState(false);
+  const [errors, setErrors] = useState({});
 
   useEffect(() => {
     let profileTimer;
@@ -117,18 +119,75 @@ export default function CustomerProfile({ customer }) {
   }, [customer]);
 
   const handleChange = (field, value) => {
-    setForm((prev) => ({ ...prev, [field]: value }));
+    const newValue = field === 'phone' ? (value || '').toString().replace(/\D/g, '').slice(0,10) : value;
+    setForm((prev) => ({ ...prev, [field]: newValue }));
+    // live validate
+    const err = validateField(field, newValue);
+    setErrors((prev) => ({ ...prev, [field]: err }));
+  };
+
+  // local email validator (same rules as modal)
+  function isValidEmail(email) {
+    if (!email || typeof email !== 'string') return false;
+    const s = email.trim(); if (!s) return false;
+    if (!s.includes('@') || !s.includes('.')) return false;
+    const parts = s.split('@'); if (parts.length !== 2) return false;
+    const [local, domain] = parts; if (!local || !domain) return false;
+    if (local.startsWith('.') || local.endsWith('.')) return false; if (local.includes('..')) return false;
+    if (!/^[A-Za-z0-9._%+-]+$/.test(local)) return false;
+    if (!domain.includes('.')) return false; const domainParts = domain.split('.'); if (domainParts.length < 2) return false;
+    for (const l of domainParts) { if (l.length === 0) return false; if (!/^[A-Za-z0-9-]+$/.test(l)) return false; if (l.startsWith('-')||l.endsWith('-')) return false; }
+    const tld = domainParts[domainParts.length-1]; if (!/^[A-Za-z]{2,}$/.test(tld)) return false;
+    return true;
+  }
+
+  const validateField = (fieldName, value) => {
+    const v = (value || '').toString();
+    switch (fieldName) {
+      case 'name':
+        return v.trim() ? undefined : 'Vui lòng nhập tên khách hàng.';
+      case 'phone': {
+        const digits = v.replace(/\D/g, '');
+        if (!digits) return 'Vui lòng nhập số điện thoại.';
+        if (digits.length !== 10) return 'Số điện thoại phải đúng 10 chữ số.';
+        return undefined;
+      }
+      case 'email': {
+        const t = v.trim(); if (!t) return 'Vui lòng nhập email.';
+        return isValidEmail(t) ? undefined : 'Địa chỉ email không hợp lệ.';
+      }
+      case 'address':
+        return v.trim() ? undefined : 'Vui lòng nhập địa chỉ.';
+      case 'status':
+        return ['active','inactive'].includes(v) ? undefined : 'Trạng thái không hợp lệ.';
+      default:
+        return undefined;
+    }
+  };
+
+  const isFormValid = () => {
+    const fields = ['name','phone','email','address','status'];
+    return fields.every(f => !validateField(f, form[f]));
   };
 
   const handleUpdate = async () => {
     if (!form.customerId) return;
     try {
       setSaving(true);
+      // Ensure we have a token before calling the API
+      const token = localStorage.getItem("token");
+      if (!token) {
+        toast.error("Không tìm thấy token. Vui lòng đăng nhập lại.");
+        setSaving(false);
+        return;
+      }
+
       const res = await fetch(`${api.customer}/api/customers`, {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
           Accept: "*/*",
+          Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({
           customerId: form.customerId,
@@ -286,49 +345,79 @@ export default function CustomerProfile({ customer }) {
                     <Input
                       value={form?.name || ""}
                       onChange={(e) => handleChange("name", e.target.value)}
+                      onBlur={() => setErrors((prev)=>({ ...prev, name: validateField('name', form.name) }))}
                       placeholder="Nhập tên khách hàng"
                       size="large"
+                      aria-invalid={!!errors.name}
+                      autoComplete="name"
                     />
+                    {errors.name && <div className="text-red-600 text-sm mt-1">{errors.name}</div>}
                   </Col>
                   <Col xs={24} md={12}>
                     <Text>Điện thoại</Text>
                     <Input
                       value={form?.phone || ""}
                       onChange={(e) => handleChange("phone", e.target.value)}
+                      onBlur={() => setErrors((prev)=>({ ...prev, phone: validateField('phone', form.phone) }))}
                       placeholder="Số điện thoại"
                       size="large"
+                      type="tel"
+                      inputMode="numeric"
+                      maxLength={10}
+                      aria-invalid={!!errors.phone}
+                      autoComplete="tel"
                     />
+                    {errors.phone && <div className="text-red-600 text-sm mt-1">{errors.phone}</div>}
                   </Col>
                   <Col xs={24} md={12}>
                     <Text>Email</Text>
                     <Input
                       value={form?.email || ""}
                       onChange={(e) => handleChange("email", e.target.value)}
+                      onBlur={() => setErrors((prev)=>({ ...prev, email: validateField('email', form.email) }))}
                       placeholder="Địa chỉ email"
                       size="large"
+                      type="email"
+                      aria-invalid={!!errors.email}
+                      autoComplete="email"
                     />
+                    {errors.email && <div className="text-red-600 text-sm mt-1">{errors.email}</div>}
                   </Col>
                   <Col xs={24} md={12}>
                     <Text>Địa chỉ</Text>
                     <Input
                       value={form?.address || ""}
                       onChange={(e) => handleChange("address", e.target.value)}
+                      onBlur={() => setErrors((prev)=>({ ...prev, address: validateField('address', form.address) }))}
                       placeholder="Địa chỉ"
                       size="large"
+                      aria-invalid={!!errors.address}
+                      autoComplete="street-address"
                     />
+                    {errors.address && <div className="text-red-600 text-sm mt-1">{errors.address}</div>}
                   </Col>
                   <Col xs={24} md={12}>
-                    <Text>Trạng thái</Text>
-                    <Input
-                      value={form?.status || ""}
-                      onChange={(e) => handleChange("status", e.target.value)}
-                      placeholder="Trạng thái"
-                      size="large"
-                    />
+                    <div className="flex items-center gap-2">
+                      <div className="w-20">
+                        <Text>Trạng thái</Text>
+                      </div>
+                      <div className="flex-1">
+                        <Select
+                          value={form?.status || 'active'}
+                          onChange={(val) => handleChange('status', val)}
+                          onBlur={() => setErrors((prev)=>({ ...prev, status: validateField('status', form.status) }))}
+                          size="large"
+                          options={[{ value: 'active', label: 'Active' }, { value: 'inactive', label: 'Inactive' }]}
+                          aria-invalid={!!errors.status}
+                          style={{ width: '100%' }}
+                        />
+                        {errors.status && <div className="text-red-600 text-sm mt-1">{errors.status}</div>}
+                      </div>
+                    </div>
                   </Col>
                   <Col span={24}>
                     <Space>
-                      <Button type="primary" loading={saving} onClick={handleUpdate} size="large">
+                      <Button type="primary" loading={saving} onClick={handleUpdate} size="large" disabled={!isFormValid() || saving}>
                         Lưu thay đổi
                       </Button>
                     </Space>
