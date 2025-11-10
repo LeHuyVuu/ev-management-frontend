@@ -31,7 +31,7 @@ const CREATE_URL = `${API_BASE}/order-service/api/VehicleTransferOrder`;
 const UPDATE_STATUS_URL = (id) =>
   `${API_BASE}/order-service/api/VehicleTransferOrder/${encodeURIComponent(id)}/status`;
 
-const DEALERS_URL = `${API_BASE}/dealer-service/api/Dealers?pageNumber=1&pageSize=1000`;
+const DEALERS_URL = `${API_BASE}/dealer-service/api/Dealers/active-dealers`;
 const VEHICLES_URL = `${API_BASE}/brand-service/api/vehicles?pageNumber=1&pageSize=1000`;
 
 const PAGE_SIZE = 10;
@@ -128,7 +128,7 @@ export default function OrderDistributionAnt() {
       setLoadingDealers(true);
       const res = await fetch(DEALERS_URL, { headers: { accept: "*/*" } });
       const json = await res.json();
-      const items = json?.data?.items ?? [];
+      const items = json?.data ?? [];
       setDealerOptions(
         items.map((d) => ({
           value: d.dealerId,

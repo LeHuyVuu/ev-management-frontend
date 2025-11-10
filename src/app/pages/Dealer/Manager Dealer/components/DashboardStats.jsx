@@ -13,8 +13,8 @@ function formatVnd(value) {
 
 function formatPercent(pct) {
     if (pct == null || Number.isNaN(Number(pct))) return "-";
-    const n = Number(pct);
-    const sign = n > 0 ? "+" : "";
+    const n = Number(pct).toFixed(2);
+    const sign = Number(pct) > 0 ? "+" : "";
     return `${sign}${n}% so với tháng trước`;
 }
 

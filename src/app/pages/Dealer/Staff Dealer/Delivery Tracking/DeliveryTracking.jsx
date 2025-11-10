@@ -1,5 +1,6 @@
 // DeliveryTracking.jsx
 import React, { useEffect, useMemo, useState } from "react";
+import { Pagination, ConfigProvider } from "antd";
 import NewDeliveryCard from "./components/NewDeliveryCard";
 import DeliveryDetailCard from "./components/DeliveryDetailCard";
 
@@ -80,66 +81,67 @@ export default function DeliveryTracking() {
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedDelivery, setSelectedDelivery] = useState(null);
   const [showDeliveryDetail, setShowDeliveryDetail] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(12);
 
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState("");
 
-  // Load danh sách orders
-  useEffect(() => {
-    let mounted = true;
-    async function load() {
-      setLoading(true);
-      setErr("");
-      try {
-        const token = getTokenFromLocalStorage();
-        if (!token) {
-          setErr("Không tìm thấy token trong localStorage.");
-          setLoading(false);
-          return;
-        }
-        const res = await fetch(API_URL, {
-          method: "GET",
-          headers: {
-            accept: "*/*",
-            Authorization: `Bearer ${token}`,
-          },
-        });
-        if (!res.ok) {
-          const text = await res.text();
-          throw new Error(`API lỗi (${res.status}): ${text || res.statusText}`);
-        }
-        const json = await res.json();
-        const arr = Array.isArray(json?.data) ? json.data : [];
-
-        const mapped = arr.map((o) => {
-          const st = mapStatus(o.status); // nhận enum -> style
-          return {
-            id: o.orderId,
-            customer: o.name,
-            car: formatCar(o.brand, o.modelName, o.color),
-            address: o.deliveryAddress || "",
-            time: formatDate(o.deliveryDate),
-            status: st.label,
-            _raw: o,
-            _style: st,
-          };
-        });
-
-        if (mounted) setDeliveriesList(mapped);
-      } catch (e) {
-        if (mounted) setErr(e.message || "Đã xảy ra lỗi khi tải đơn giao hàng.");
-      } finally {
-        if (mounted) setLoading(false);
+  // Hàm load danh sách orders
+  const loadDeliveries = async () => {
+    setLoading(true);
+    setErr("");
+    try {
+      const token = getTokenFromLocalStorage();
+      if (!token) {
+        setErr("Không tìm thấy token trong localStorage.");
+        setLoading(false);
+        return;
       }
+      const res = await fetch(API_URL, {
+        method: "GET",
+        headers: {
+          accept: "*/*",
+          Authorization: `Bearer ${token}`,
+        },
+      });
+      if (!res.ok) {
+        const text = await res.text();
+        throw new Error(`API lỗi (${res.status}): ${text || res.statusText}`);
+      }
+      const json = await res.json();
+      const arr = Array.isArray(json?.data) ? json.data : [];
+
+      const mapped = arr.map((o) => {
+        const st = mapStatus(o.status);
+        return {
+          id: o.orderId,
+          customer: o.name,
+          car: formatCar(o.brand, o.modelName, o.color),
+          address: o.deliveryAddress || "",
+          time: formatDate(o.deliveryDate),
+          status: st.label,
+          _raw: o,
+          _style: st,
+        };
+      });
+
+      setDeliveriesList(mapped);
+    } catch (e) {
+      setErr(e.message || "Đã xảy ra lỗi khi tải đơn giao hàng.");
+    } finally {
+      setLoading(false);
     }
-    load();
-    return () => {
-      mounted = false;
-    };
+  };
+
+  // Load danh sách orders khi component mount
+  useEffect(() => {
+    loadDeliveries();
   }, []);
 
   const handleAddNewDelivery = (newDelivery) => {
-    setDeliveriesList((prev) => [newDelivery, ...prev]);
+    // Reload danh sách deliveries từ API để có dữ liệu mới nhất
+    loadDeliveries();
   };
 
   const handleViewDetail = (delivery) => {
@@ -167,6 +169,9 @@ export default function DeliveryTracking() {
         _style: mapped,
       }));
     }
+
+    // Reload danh sách để đồng bộ với server
+    setTimeout(() => loadDeliveries(), 1000);
   };
 
   const filteredDeliveries = useMemo(() => {
@@ -174,14 +179,32 @@ export default function DeliveryTracking() {
     if (!q) return deliveriesList;
     return deliveriesList.filter(
       (delivery) =>
-        delivery.id.toLowerCase().includes(q) ||
+        (delivery.id || "").toLowerCase().includes(q) ||
         (delivery.customer || "").toLowerCase().includes(q) ||
         (delivery.car || "").toLowerCase().includes(q)
     );
   }, [searchTerm, deliveriesList]);
 
+  // Reset page khi search thay đổi
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm]);
+
+  // Tính pagination
+  const paginatedDeliveries = useMemo(() => {
+    const startIndex = (currentPage - 1) * pageSize;
+    const endIndex = startIndex + pageSize;
+    return filteredDeliveries.slice(startIndex, endIndex);
+  }, [filteredDeliveries, currentPage, pageSize]);
+
+  const handlePageChange = (page, size) => {
+    setCurrentPage(page);
+    setPageSize(size);
+  };
+
   return (
-    <div className="p-6">
+    <ConfigProvider>
+      <div className="p-6">
       <div className="flex justify-between items-center mb-4">
         <h1 className="text-xl font-semibold">Theo dõi Giao hàng</h1>
         <button
@@ -217,43 +240,58 @@ export default function DeliveryTracking() {
       {!loading && err && <p className="text-red-600 text-sm mb-4">⚠️ {err}</p>}
 
       {!loading && !err && (
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-          {filteredDeliveries.map((d) => {
-            const color = d._style?.color || "bg-gray-500";
-            const progress = d._style?.progress || "w-1/4";
-            return (
-              <div
-                key={d.id}
-                className="border rounded-lg p-4 shadow-sm bg-white flex flex-col justify-between"
-              >
-                <div>
-                  <p className="text-sm text-gray-500">Mã đơn hàng: {d.id}</p>
-                  <h2 className="text-lg font-semibold">{d.customer}</h2>
-                  <p className="text-sm text-gray-700 mt-2">{d.car}</p>
-                  <p className="text-sm text-gray-700 mt-1">{d.address}</p>
-                  <p className="text-sm text-gray-700 mt-1">{d.time}</p>
-                </div>
+        <>
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+            {paginatedDeliveries.map((d, idx) => {
+              const color = d._style?.color || "bg-gray-500";
+              const progress = d._style?.progress || "w-1/4";
+              return (
+                <div
+                  key={d.id || idx}
+                  className="border rounded-lg p-4 shadow-sm bg-white flex flex-col justify-between"
+                >
+                  <div>
+                    <p className="text-sm text-gray-500">Mã đơn hàng: {d.id}</p>
+                    <h2 className="text-lg font-semibold">{d.customer}</h2>
+                    <p className="text-sm text-gray-700 mt-2">{d.car}</p>
+                    <p className="text-sm text-gray-700 mt-1">{d.address}</p>
+                    <p className="text-sm text-gray-700 mt-1">{d.time}</p>
+                  </div>
 
-                <div className="mt-3">
-                  <div className="flex justify-between items-center mb-2">
-                    <span className={`text-white text-xs px-2 py-1 rounded ${color}`}>
-                      {d.status}
-                    </span>
-                    <button
-                      onClick={() => handleViewDetail(d)}
-                      className="text-blue-600 hover:underline"
-                    >
-                      Chi tiết
-                    </button>
-                  </div>
-                  <div className="w-full bg-gray-200 rounded-full h-2">
-                    <div className={`${color} h-2 rounded-full ${progress}`}></div>
+                  <div className="mt-3">
+                    <div className="flex justify-between items-center mb-2">
+                      <span className={`text-white text-xs px-2 py-1 rounded ${color}`}>
+                        {d.status}
+                      </span>
+                      <button
+                        onClick={() => handleViewDetail(d)}
+                        className="text-blue-600 hover:underline"
+                      >
+                        Chi tiết
+                      </button>
+                    </div>
+                    <div className="w-full bg-gray-200 rounded-full h-2">
+                      <div className={`${color} h-2 rounded-full ${progress}`}></div>
+                    </div>
                   </div>
                 </div>
-              </div>
-            );
-          })}
-        </div>
+              );
+            })}
+          </div>
+
+          {/* Pagination */}
+          <div className="flex justify-center mt-8">
+            <Pagination
+              current={currentPage}
+              pageSize={pageSize}
+              total={filteredDeliveries.length}
+              onChange={handlePageChange}
+              showSizeChanger
+              pageSizeOptions={[6, 12, 18, 24]}
+              showTotal={(total, range) => `${range[0]}-${range[1]} của ${total} đơn hàng`}
+            />
+          </div>
+        </>
       )}
 
       {/* New Delivery Card Modal */}
@@ -273,7 +311,8 @@ export default function DeliveryTracking() {
         }}
         onUpdateStatus={handleUpdateStatus}
       />
-    </div>
+      </div>
+    </ConfigProvider>
   );
 }
   

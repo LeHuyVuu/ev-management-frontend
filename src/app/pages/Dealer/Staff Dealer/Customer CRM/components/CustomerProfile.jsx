@@ -3,8 +3,29 @@ import api from "../../../../../context/api";
 import { toast, ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import { Package, Clock } from "lucide-react";
-import { Button, Skeleton, Tag, Divider } from "antd";
+import {
+  Button,
+  Skeleton,
+  Tag,
+  Divider,
+  Card,
+  Tabs,
+  Typography,
+  Row,
+  Col,
+  Input,
+  Space,
+  Empty,
+  Badge,
+  Modal,
+  Descriptions,
+  List,
+  Pagination,
+} from "antd";
 import ContractModalAnt from "./ContractCardAnt";
+
+const { Title, Text } = Typography;
+const { TabPane } = Tabs;
 
 export default function CustomerProfile({ customer }) {
   const [activeTab, setActiveTab] = useState("profile");
@@ -21,6 +42,17 @@ export default function CustomerProfile({ customer }) {
   const [loadingOrders, setLoadingOrders] = useState(false);
   const [loadingProfile, setLoadingProfile] = useState(true); // <-- NEW
 
+  // ✅ Pagination states
+  const [contractsPage, setContractsPage] = useState(1);
+  const [contractsPageSize, setContractsPageSize] = useState(9);
+  const [ordersPage, setOrdersPage] = useState(1);
+  const [ordersPageSize, setOrdersPageSize] = useState(9);
+
+  // ✅ NEW: Order detail modal states
+  const [openOrderDetail, setOpenOrderDetail] = useState(false);
+  const [orderDetail, setOrderDetail] = useState(null);
+  const [loadingOrderDetail, setLoadingOrderDetail] = useState(false);
+
   useEffect(() => {
     let profileTimer;
     if (customer?.customerId) {
@@ -29,9 +61,17 @@ export default function CustomerProfile({ customer }) {
       setForm(customer);
       profileTimer = setTimeout(() => setLoadingProfile(false), 300);
 
+      // Lấy token
+      const token = localStorage.getItem("token");
+
       // 🔹 Lấy hợp đồng
       setLoadingContracts(true);
-      fetch(`${api.customer}/customers/${customer.customerId}/contracts`)
+      fetch(`${api.customer}/customers/${customer.customerId}/contracts`, {
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: token ? `Bearer ${token}` : "",
+        },
+      })
         .then((res) => res.json())
         .then((res) => {
           if (res.status === 200) setContracts(res.data || []);
@@ -46,8 +86,13 @@ export default function CustomerProfile({ customer }) {
       // 🔹 Lấy đơn hàng
       setLoadingOrders(true);
       fetch(
-        `https://prn232.freeddns.org/customer-service/customers/${customer.customerId}/orders`,
-        { headers: { Accept: "*/*" } }
+        `${api.customer}/customers/${customer.customerId}/orders`,
+        {
+          headers: {
+            Accept: "*/*",
+            Authorization: token ? `Bearer ${token}` : "",
+          },
+        }
       )
         .then((res) => res.json())
         .then((res) => {
@@ -107,7 +152,13 @@ export default function CustomerProfile({ customer }) {
     }
   };
 
-  if (!customer) return <div>Chọn khách hàng để xem thông tin</div>;
+  if (!customer) {
+    return (
+      <Card style={{ width: "100%" }}>
+        <Empty description="Chọn khách hàng để xem thông tin" />
+      </Card>
+    );
+  }
 
   const openContractDetail = (c) => {
     setSelectedContract({
@@ -118,6 +169,36 @@ export default function CustomerProfile({ customer }) {
     });
     setOpenContract(true);
   };
+
+  // ✅ Lấy OrderDetail theo orderId (GET /api/orders/{orderId})
+  const openOrderDetailModal = async (orderId) => {
+    if (!orderId) return;
+    setOpenOrderDetail(true);
+    setLoadingOrderDetail(true);
+    setOrderDetail(null);
+
+    try {
+      const token = localStorage.getItem("token");
+      const res = await fetch(`${api.customer}/api/orders/${orderId}`, {
+        headers: {
+          Accept: "*/*",
+          Authorization: token ? `Bearer ${token}` : "",
+        },
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok || data?.status === 200) {
+        setOrderDetail(data?.data ?? data); // ⬅️ dùng data.data theo res bạn gửi
+      } else {
+        toast.error(data?.message || "Không lấy được chi tiết đơn hàng");
+      }
+    } catch (e) {
+      console.error("Fetch order detail failed:", e);
+      toast.error("Có lỗi khi tải chi tiết đơn hàng");
+    } finally {
+      setLoadingOrderDetail(false);
+    }
+  };
+
 
   const fmtCurrency = (n) =>
     typeof n === "number"
@@ -130,300 +211,399 @@ export default function CustomerProfile({ customer }) {
         (status || "").toLowerCase() === "draft"
           ? "default"
           : (status || "").toLowerCase() === "signed"
-          ? "green"
-          : "blue"
+            ? "green"
+            : "blue"
       }
-      style={{ textTransform: "capitalize" }}
+      style={{ textTransform: "capitalize", marginLeft: 8 }}
     >
-      {status}
+      {status || "-"}
     </Tag>
   );
 
+  const OrdersBadge = ({ status }) => {
+    const s = (status || "").toLowerCase();
+    const map = {
+      preparing: { color: "gold", text: "preparing" },
+      "shipped from warehouse": { color: "geekblue", text: "shipped" },
+      "in transit": { color: "blue", text: "in transit" },
+      arrived: { color: "purple", text: "arrived" },
+      "out for delivery": { color: "cyan", text: "out for delivery" },
+      completed: { color: "green", text: "completed" },
+      "delivery failed": { color: "red", text: "failed" },
+      waiting: { color: "default", text: "waiting" },
+    };
+    const meta = map[s] || { color: "default", text: status || "-" };
+    return <Badge color={meta.color} text={meta.text} />;
+  };
+
   return (
-    <div className="p-4 border rounded-lg shadow-sm bg-white w-full max-w-6xl">
+    <Card style={{ width: "100%" }} bodyStyle={{ padding: 20 }} bordered>
       <ToastContainer position="top-right" autoClose={3000} />
+      <Space direction="vertical" size="small" style={{ width: "100%" }}>
+        <Space align="center" style={{ width: "100%", justifyContent: "space-between" }}>
+          <Space direction="vertical" size={0}>
+            <Title level={4} style={{ margin: 0 }}>
+              {customer?.name || "Không rõ tên"}
+            </Title>
+            <Text type="secondary">
+              Mã KH: <Text code>{customer?.customerId}</Text>
+            </Text>
+          </Space>
+          <Tag color="processing">Hồ sơ khách hàng</Tag>
+        </Space>
 
-      <h1 className="text-xl font-semibold mb-4">
-        {customer?.name || "Không rõ tên"}
-      </h1>
+        <Tabs
+          activeKey={activeTab}
+          onChange={setActiveTab}
+          items={[
+            { key: "profile", label: "Hồ sơ" },
+            { key: "contracts", label: "Hợp đồng khách hàng" },
+            { key: "orders", label: "Đơn hàng khách hàng" },
+          ]}
+        />
 
-      {/* Tabs */}
-      <div className="bg-gray-100 rounded-lg p-2 mb-6">
-        <div className="inline-flex rounded-md overflow-hidden">
-          <button
-            onClick={() => setActiveTab("profile")}
-            className={`px-4 py-2 text-sm font-medium rounded-md ${
-              activeTab === "profile"
-                ? "bg-white shadow-sm text-gray-800"
-                : "text-gray-500"
-            }`}
+        {/* Tab Hồ sơ */}
+        {activeTab === "profile" && (
+          <Card type="inner" title="Thông tin hồ sơ" bordered>
+            {loadingProfile ? (
+              <>
+                <Row gutter={[16, 16]}>
+                  {Array.from({ length: 5 }).map((_, i) => (
+                    <Col xs={24} md={12} key={i}>
+                      <Skeleton.Input active block style={{ height: 38 }} />
+                    </Col>
+                  ))}
+                  <Col span={24}>
+                    <Skeleton.Button active block style={{ height: 40 }} />
+                  </Col>
+                </Row>
+              </>
+            ) : (
+              <>
+                <Row gutter={[16, 16]}>
+                  <Col xs={24} md={12}>
+                    <Text className="ant-form-item-label">Tên Khách hàng</Text>
+                    <Input
+                      value={form?.name || ""}
+                      onChange={(e) => handleChange("name", e.target.value)}
+                      placeholder="Nhập tên khách hàng"
+                      size="large"
+                    />
+                  </Col>
+                  <Col xs={24} md={12}>
+                    <Text>Điện thoại</Text>
+                    <Input
+                      value={form?.phone || ""}
+                      onChange={(e) => handleChange("phone", e.target.value)}
+                      placeholder="Số điện thoại"
+                      size="large"
+                    />
+                  </Col>
+                  <Col xs={24} md={12}>
+                    <Text>Email</Text>
+                    <Input
+                      value={form?.email || ""}
+                      onChange={(e) => handleChange("email", e.target.value)}
+                      placeholder="Địa chỉ email"
+                      size="large"
+                    />
+                  </Col>
+                  <Col xs={24} md={12}>
+                    <Text>Địa chỉ</Text>
+                    <Input
+                      value={form?.address || ""}
+                      onChange={(e) => handleChange("address", e.target.value)}
+                      placeholder="Địa chỉ"
+                      size="large"
+                    />
+                  </Col>
+                  <Col xs={24} md={12}>
+                    <Text>Trạng thái</Text>
+                    <Input
+                      value={form?.status || ""}
+                      onChange={(e) => handleChange("status", e.target.value)}
+                      placeholder="Trạng thái"
+                      size="large"
+                    />
+                  </Col>
+                  <Col span={24}>
+                    <Space>
+                      <Button type="primary" loading={saving} onClick={handleUpdate} size="large">
+                        Lưu thay đổi
+                      </Button>
+                    </Space>
+                  </Col>
+                </Row>
+              </>
+            )}
+          </Card>
+        )}
+
+        {/* Tab Hợp đồng */}
+        {activeTab === "contracts" && (
+          <Card
+            type="inner"
+            title="Hợp đồng khách hàng"
+            bordered
+            extra={<Text type="secondary">Tổng: {contracts.length}</Text>}
           >
-            Hồ sơ
-          </button>
-          <button
-            onClick={() => setActiveTab("contracts")}
-            className={`px-4 py-2 text-sm font-medium rounded-md ${
-              activeTab === "contracts"
-                ? "bg-white shadow-sm text-gray-800"
-                : "text-gray-500"
-            }`}
-          >
-            Hợp đồng khách hàng
-          </button>
-          <button
-            onClick={() => setActiveTab("orders")}
-            className={`px-4 py-2 text-sm font-medium rounded-md ${
-              activeTab === "orders"
-                ? "bg-white shadow-sm text-gray-800"
-                : "text-gray-500"
-            }`}
-          >
-            Đơn hàng khách hàng
-          </button>
-        </div>
-      </div>
-
-      {/* Tab Hồ sơ */}
-      {activeTab === "profile" && (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {loadingProfile ? (
-            <>
-              <div>
-                <label className="text-sm text-gray-600">Tên Khách hàng</label>
-                <div className="mt-2">
-                  <Skeleton.Input active block style={{ height: 38 }} />
-                </div>
-              </div>
-              <div>
-                <label className="text-sm text-gray-600">Điện thoại</label>
-                <div className="mt-2">
-                  <Skeleton.Input active block style={{ height: 38 }} />
-                </div>
-              </div>
-              <div>
-                <label className="text-sm text-gray-600">Email</label>
-                <div className="mt-2">
-                  <Skeleton.Input active block style={{ height: 38 }} />
-                </div>
-              </div>
-              <div>
-                <label className="text-sm text-gray-600">Địa chỉ</label>
-                <div className="mt-2">
-                  <Skeleton.Input active block style={{ height: 38 }} />
-                </div>
-              </div>
-              <div>
-                <label className="text-sm text-gray-600">Trạng thái</label>
-                <div className="mt-2">
-                  <Skeleton.Input active block style={{ height: 38 }} />
-                </div>
-              </div>
-              <div className="md:col-span-2">
-                <Skeleton.Button active block style={{ height: 40 }} />
-              </div>
-            </>
-          ) : (
-            <>
-              <div>
-                <label className="text-sm text-gray-600">Tên Khách hàng</label>
-                <input
-                  type="text"
-                  value={form?.name || ""}
-                  onChange={(e) => handleChange("name", e.target.value)}
-                  className="mt-2 block w-full border border-gray-200 rounded-md px-3 py-2 bg-white"
-                />
-              </div>
-              <div>
-                <label className="text-sm text-gray-600">Điện thoại</label>
-                <input
-                  type="text"
-                  value={form?.phone || ""}
-                  onChange={(e) => handleChange("phone", e.target.value)}
-                  className="mt-2 block w-full border border-gray-200 rounded-md px-3 py-2 bg-white"
-                />
-              </div>
-              <div>
-                <label className="text-sm text-gray-600">Email</label>
-                <input
-                  type="text"
-                  value={form?.email || ""}
-                  onChange={(e) => handleChange("email", e.target.value)}
-                  className="mt-2 block w-full border border-gray-200 rounded-md px-3 py-2 bg-white"
-                />
-              </div>
-              <div>
-                <label className="text-sm text-gray-600">Địa chỉ</label>
-                <input
-                  type="text"
-                  value={form?.address || ""}
-                  onChange={(e) => handleChange("address", e.target.value)}
-                  className="mt-2 block w-full border border-gray-200 rounded-md px-3 py-2 bg-white"
-                />
-              </div>
-              <div>
-                <label className="text-sm text-gray-600">Trạng thái</label>
-                <input
-                  type="text"
-                  value={form?.status || ""}
-                  onChange={(e) => handleChange("status", e.target.value)}
-                  className="mt-2 block w-full border border-gray-200 rounded-md px-3 py-2 bg-white text-gray-700"
-                />
-              </div>
-              <div className="md:col-span-2">
-                <Button type="primary" loading={saving} onClick={handleUpdate}>
-                  Lưu thay đổi
-                </Button>
-              </div>
-            </>
-          )}
-        </div>
-      )}
-
-      {/* Tab Hợp đồng */}
-      {activeTab === "contracts" && (
-        <div>
-          <h2 className="text-lg font-semibold mb-4">Hợp đồng khách hàng</h2>
-          {loadingContracts ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {[...Array(3)].map((_, i) => (
-                <Skeleton key={i} active paragraph={{ rows: 3 }} />
-              ))}
-            </div>
-          ) : contracts.length === 0 ? (
-            <p className="text-sm text-gray-500">Không có hợp đồng nào</p>
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {contracts.map((c) => (
-                <div
-                  key={c.contractId}
-                  className="border rounded-lg p-4 shadow-sm hover:shadow-md transition bg-white"
-                >
-                  <div className="flex items-start justify-between gap-3">
-                    <h3 className="font-semibold text-gray-800">
-                      Mã hợp đồng
-                      <div className="text-xs text-gray-500 break-all">{c.contractId}</div>
-                    </h3>
-                    <StatusTag status={c.status} />
-                  </div>
-
-                  <Divider className="my-3" />
-
-                  <div className="text-sm space-y-1">
-                    <div>
-                      <span className="text-gray-500">Nhân viên phụ trách: </span>
-                      <span className="font-medium">{c.staffContract || "-"}</span>
-                    </div>
-                    <div>
-                      <span className="text-gray-500">Hãng xe: </span>
-                      <span className="font-medium">{c.brand || "-"}</span>
-                    </div>
-                    <div>
-                      <span className="text-gray-500">Dòng xe: </span>
-                      <span className="font-medium">{c.vehicleName || "-"}</span>
-                    </div>
-                    <div>
-                      <span className="text-gray-500">Phiên bản: </span>
-                      <span className="font-medium">{c.versionName || "-"}</span>
-                    </div>
-                    <div>
-                      <span className="text-gray-500">Giá trị HĐ: </span>
-                      <span className="font-semibold">{fmtCurrency(c.totalValue)}</span>
-                    </div>
-                    <div>
-                      <span className="text-gray-500">Ngày ký: </span>
-                      <span className="font-medium">{c.signedDate || "-"}</span>
-                    </div>
-                  </div>
-
-                  {/* Tạo/Cập nhật nếu API có */}
-                  {(c.createdAt || c.updatedAt) && (
-                    <div className="mt-3 text-xs text-gray-500">
-                      {c.createdAt && (
-                        <div>
-                          Tạo: {new Date(c.createdAt).toLocaleDateString()}
-                        </div>
-                      )}
-                      {c.updatedAt && (
-                        <div>
-                          Cập nhật: {new Date(c.updatedAt).toLocaleDateString()}
-                        </div>
-                      )}
-                    </div>
-                  )}
-
-                  <div className="mt-3">
-                    <Button
-                      type="link"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        openContractDetail(c);
-                      }}
+            {loadingContracts ? (
+              <Row gutter={[16, 16]}>
+                {[...Array(3)].map((_, i) => (
+                  <Col xs={24} md={12} lg={8} key={i}>
+                    <Card>
+                      <Skeleton active paragraph={{ rows: 3 }} />
+                    </Card>
+                  </Col>
+                ))}
+              </Row>
+            ) : contracts.length === 0 ? (
+              <Empty description="Không có hợp đồng nào" />
+            ) : (
+              <>
+                <Row gutter={[16, 16]}>
+                  {contracts
+                    .slice(
+                      (contractsPage - 1) * contractsPageSize,
+                      contractsPage * contractsPageSize
+                    )
+                    .map((c) => (
+                      <Col xs={24} md={12} lg={8} key={c.contractId}>
+                    <Card
+                      hoverable
+                      title={
+                        <Space direction="vertical" size={0}>
+                          <Text strong>Mã hợp đồng</Text>
+                          <Text type="secondary" style={{ wordBreak: "break-all" }}>
+                            {c.contractId}
+                          </Text>
+                        </Space>
+                      }
+                      extra={<StatusTag status={c.status} />}
+                      actions={[
+                        <Button type="link" onClick={() => openContractDetail(c)} key="xem">
+                          Xem chi tiết
+                        </Button>,
+                      ]}
                     >
-                      Xem chi tiết
-                    </Button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
+                      <Space direction="vertical" size="small" style={{ width: "100%" }}>
+                        <Space>
+                          <Text type="secondary">Nhân viên phụ trách:</Text>
+                          <Text strong>{c.staffContract || "-"}</Text>
+                        </Space>
+                        <Space>
+                          <Text type="secondary">Hãng xe:</Text>
+                          <Text strong>{c.brand || "-"}</Text>
+                        </Space>
+                        <Space>
+                          <Text type="secondary">Dòng xe:</Text>
+                          <Text strong>{c.vehicleName || "-"}</Text>
+                        </Space>
+                        <Space>
+                          <Text type="secondary">Phiên bản:</Text>
+                          <Text strong>{c.versionName || "-"}</Text>
+                        </Space>
+                        <Space>
+                          <Text type="secondary">Giá trị HĐ:</Text>
+                          <Text strong>{fmtCurrency(c.totalValue)}</Text>
+                        </Space>
+                        <Space>
+                          <Text type="secondary">Ngày ký:</Text>
+                          <Text strong>{c.signedDate || "-"}</Text>
+                        </Space>
 
-      {/* Tab Đơn hàng */}
-      {activeTab === "orders" && (
-        <div>
-          <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
-            <Package className="text-blue-600" size={18} />
-            Danh sách đơn hàng
-          </h2>
-          {loadingOrders ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {[...Array(3)].map((_, i) => (
-                <Skeleton key={i} active paragraph={{ rows: 2 }} />
-              ))}
-            </div>
-          ) : orders.length === 0 ? (
-            <p className="text-sm text-gray-500 italic">
-              Khách hàng chưa có đơn hàng nào.
-            </p>
+                        {(c.createdAt || c.updatedAt) && (
+                          <>
+                            <Divider style={{ margin: "8px 0" }} />
+                            <Space size="small" direction="vertical">
+                              {c.createdAt && (
+                                <Text type="secondary">
+                                  Tạo: {new Date(c.createdAt).toLocaleDateString()}
+                                </Text>
+                              )}
+                              {c.updatedAt && (
+                                <Text type="secondary">
+                                  Cập nhật: {new Date(c.updatedAt).toLocaleDateString()}
+                                </Text>
+                              )}
+                            </Space>
+                          </>
+                        )}
+                      </Space>
+                    </Card>
+                      </Col>
+                    ))}
+                </Row>
+                <Divider />
+                <Pagination
+                  current={contractsPage}
+                  pageSize={contractsPageSize}
+                  total={contracts.length}
+                  onChange={(page) => setContractsPage(page)}
+                  onShowSizeChange={(current, size) => {
+                    setContractsPageSize(size);
+                    setContractsPage(1);
+                  }}
+                  showSizeChanger
+                  pageSizeOptions={["6", "9", "12", "18"]}
+                  style={{ textAlign: "center" }}
+                />
+              </>
+            )}
+          </Card>
+        )}
+
+        {/* Tab Đơn hàng */}
+        {activeTab === "orders" && (
+          <Card
+            type="inner"
+            title={
+              <Space>
+                <Package style={{ color: "#1677ff" }} size={18} />
+                <Text strong>Danh sách đơn hàng</Text>
+              </Space>
+            }
+            bordered
+            extra={<Text type="secondary">Tổng: {orders.length}</Text>}
+          >
+            {loadingOrders ? (
+              <Row gutter={[16, 16]}>
+                {[...Array(3)].map((_, i) => (
+                  <Col xs={24} md={12} lg={8} key={i}>
+                    <Card>
+                      <Skeleton active paragraph={{ rows: 2 }} />
+                    </Card>
+                  </Col>
+                ))}
+              </Row>
+            ) : orders.length === 0 ? (
+              <Empty description="Khách hàng chưa có đơn hàng nào" />
+            ) : (
+              <>
+                <Row gutter={[16, 16]}>
+                  {orders
+                    .slice(
+                      (ordersPage - 1) * ordersPageSize,
+                      ordersPage * ordersPageSize
+                    )
+                    .map((o) => (
+                      <Col xs={24} md={12} lg={8} key={o.orderId}>
+                        <Card
+                          hoverable
+                          actions={[
+                            <Button type="link" key="detail" onClick={() => openOrderDetailModal(o.orderId)}>
+                              Xem chi tiết
+                            </Button>,
+                          ]}
+                        >
+                          <Space direction="vertical" size="small" style={{ width: "100%" }}>
+                            <Space style={{ justifyContent: "space-between", width: "100%" }}>
+                              <Text strong>
+                                Mã đơn: {o.orderId ? `${o.orderId.slice(0, 8)}...` : "-"}
+                              </Text>
+                              <OrdersBadge status={o.status} />
+                            </Space>
+                            <Space size="small" style={{ color: "#6b7280" }}>
+                              <Clock size={14} />
+                              <Text type="secondary">Ngày giao: {o.deliveryDate || "-"}</Text>
+                            </Space>
+                          </Space>
+                        </Card>
+                      </Col>
+                    ))}
+                </Row>
+                <Divider />
+                <Pagination
+                  current={ordersPage}
+                  pageSize={ordersPageSize}
+                  total={orders.length}
+                  onChange={(page) => setOrdersPage(page)}
+                  onShowSizeChange={(current, size) => {
+                    setOrdersPageSize(size);
+                    setOrdersPage(1);
+                  }}
+                  showSizeChanger
+                  pageSizeOptions={["6", "9", "12", "18"]}
+                  style={{ textAlign: "center" }}
+                />
+              </>
+            )}
+          </Card>
+        )}
+
+        {/* ✅ Modal chi tiết hợp đồng */}
+        <ContractModalAnt
+          open={openContract}
+          contract={selectedContract}
+          onClose={() => setOpenContract(false)}
+        />
+
+        {/* ✅ NEW: Modal chi tiết đơn hàng */}
+        <Modal
+          title="Chi tiết đơn hàng"
+          open={openOrderDetail}
+          onCancel={() => setOpenOrderDetail(false)}
+          footer={<Button onClick={() => setOpenOrderDetail(false)}>Đóng</Button>}
+          width={720}
+        >
+          {loadingOrderDetail ? (
+            <>
+              <Skeleton active paragraph={{ rows: 3 }} />
+              <Divider />
+              <Skeleton active paragraph={{ rows: 2 }} />
+            </>
+          ) : !orderDetail ? (
+            <Empty description="Không có dữ liệu chi tiết" />
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {orders.map((o) => (
-                <div
-                  key={o.orderId}
-                  className="border rounded-lg p-4 shadow-sm hover:shadow-md transition bg-gray-50"
-                >
-                  <div className="flex justify-between items-center">
-                    <p className="font-medium text-gray-800 text-sm">
-                      Mã đơn: {o.orderId.slice(0, 8)}...
-                    </p>
-                    <span
-                      className={`text-xs px-2 py-1 rounded ${
-                        o.status === "preparing"
-                          ? "bg-yellow-200 text-yellow-800"
-                          : "bg-green-200 text-green-800"
-                      }`}
-                    >
-                      {o.status}
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-1 mt-2 text-xs text-gray-600">
-                    <Clock size={12} />
-                    Ngày giao: {o.deliveryDate}
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
+            <>
+              <Descriptions bordered column={2} size="small">
+                <Descriptions.Item label="Mã đơn" span={2}>
+                  <Text code>{orderDetail.orderId || "-"}</Text>
+                </Descriptions.Item>
+                <Descriptions.Item label="Trạng thái">
+                  <OrdersBadge status={orderDetail.status} />
+                </Descriptions.Item>
+                <Descriptions.Item label="Ngày giao">
+                  {orderDetail.deliveryDate || "-"}
+                </Descriptions.Item>
 
-      {/* ✅ Modal chi tiết hợp đồng */}
-      <ContractModalAnt
-        open={openContract}
-        contract={selectedContract}
-        onClose={() => setOpenContract(false)}
-      />
-    </div>
+                <Descriptions.Item label="Tên khách hàng">
+                  {orderDetail.name || "-"}
+                </Descriptions.Item>
+                <Descriptions.Item label="Điện thoại">
+                  {orderDetail.phone || "-"}
+                </Descriptions.Item>
+                <Descriptions.Item label="Email" span={2}>
+                  {orderDetail.email || "-"}
+                </Descriptions.Item>
+
+                <Descriptions.Item label="Hãng xe">
+                  {orderDetail.brand || "-"}
+                </Descriptions.Item>
+                <Descriptions.Item label="Dòng xe">
+                  {orderDetail.modelName || "-"}
+                </Descriptions.Item>
+                <Descriptions.Item label="Màu sắc">
+                  {orderDetail.color || "-"}
+                </Descriptions.Item>
+                <Descriptions.Item label="Địa chỉ giao" span={2}>
+                  {orderDetail.deliveryAddress || "-"}
+                </Descriptions.Item>
+              </Descriptions>
+
+              {orderDetail.timestamp && (
+                <>
+                  <Divider />
+                  <Text type="secondary">
+                    Cập nhật lúc: {new Date(orderDetail.timestamp).toLocaleString()}
+                  </Text>
+                </>
+              )}
+            </>
+          )}
+        </Modal>
+
+      </Space>
+    </Card>
   );
 }
