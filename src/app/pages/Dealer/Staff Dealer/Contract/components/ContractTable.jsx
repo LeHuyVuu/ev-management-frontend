@@ -5,34 +5,12 @@ import { ReloadOutlined, CheckCircleOutlined } from "@ant-design/icons";
 import { ToastContainer, toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import "antd/dist/reset.css";
-
-// ======= Config =======
+// API base URLs from shared api config or env
 const BASE_URL = api.order || import.meta.env.VITE_API_ORDER;
 const IDENTITY_BASE_URL = api.identity || import.meta.env.VITE_API_IDENTITY;
-const TOKEN_KEYS = ["token", "accessToken", "jwt", "id_token"]; // we'll try these in order
 
-// Tập status tổng
-const STATUS_OPTIONS = [
-  "requested",
-  "approved",
-  "in_transit",
-  "received",
-  "cancelled",
-];
-
-// ======= Cho phép theo vai trò dealer =======
-// Nếu dealer hiện tại == fromDealerId -> chỉ cho các status dưới đây
-const FROM_DEALER_ALLOWED = [
-  "received",
-  // TODO: thêm các status khác nếu cần
-];
-
-// Nếu dealer hiện tại == toDealerId -> chỉ cho các status dưới đây
-const TO_DEALER_ALLOWED = [
-  "in_transit",
-  // TODO: thêm các status khác nếu cần
-];
-
+// token helpers (try several common keys)
+const TOKEN_KEYS = ["token", "accessToken", "jwt", "id_token"];
 function getTokenFromLocalStorage() {
   for (const k of TOKEN_KEYS) {
     const v = window.localStorage.getItem(k);
@@ -40,23 +18,36 @@ function getTokenFromLocalStorage() {
   }
   return null;
 }
+const STATUS_OPTIONS = ["pending", "shipping", "received", "cancelled", "rejected"];
+
+const STATUS_META = {
+  pending: { label: "Đang chờ", color: "gold" },
+  shipping: { label: "Đang vận chuyển", color: "processing" },
+  received: { label: "Đã nhận", color: "green" },
+  cancelled: { label: "Đã hủy", color: "volcano" },
+  rejected: { label: "Từ chối", color: "red" },
+};
+
+// Map possible backend status values to our unified UI statuses
+const BACKEND_TO_UI_STATUS = {
+  requested: "pending",
+  approved: "pending",
+  processing: "pending",
+  in_transit: "shipping",
+  shipping: "shipping",
+  received: "received",
+  delivered: "received",
+  cancelled: "cancelled",
+  canceled: "cancelled",
+  rejected: "rejected",
+};
+// ======= Cho phép theo vai trò dealer =======
+const FROM_DEALER_ALLOWED = ["shipping"];
+const TO_DEALER_ALLOWED = ["received"];
 
 function statusColor(status) {
-  switch ((status || "").toLowerCase()) {
-    case "requested":
-      return "geekblue";
-    case "approved":
-      return "purple";
-    case "in_transit":
-      return "gold";
-    case "received":
-      return "green";
-    case "cancelled":
-    case "canceled":
-      return "red";
-    default:
-      return "default";
-  }
+  const s = (status || "").toLowerCase();
+  return STATUS_META[s]?.color || "default";
 }
 
 const ContractTable = () => {

@@ -36,21 +36,27 @@ const VEHICLES_URL = `${API_BASE}/brand-service/api/vehicles?pageNumber=1&pageSi
 
 const PAGE_SIZE = 10;
 
-// Nếu cần xác thực, gán token ở đây (Bearer ...). Nếu không, set TOKEN = null.
-const TOKEN = localStorage.getItem("token");
-/** Trạng thái → nhãn & màu AntD */
+// Don't capture token once at module load — read current token when making requests
+function getToken() {
+  return localStorage.getItem("token") || localStorage.getItem("accessToken") || null;
+}
+
+function getAuthHeaders() {
+  const h = { accept: "*/*" };
+  const t = getToken();
+  if (t) h.Authorization = `Bearer ${t}`;
+  return h;
+}
+/** Trạng thái → nhãn & màu AntD (harmony with distribution statuses) */
 const STATUS_META = {
-  processing: { label: "Processing", color: "gold" },
-  pending: { label: "Pending", color: "default" },
-  confirmed: { label: "Confirmed", color: "blue" },
-  failed: { label: "Failed", color: "red" },
-  cancelled: { label: "Cancelled", color: "volcano" },
-  completed: { label: "Completed", color: "green" },
+  pending:   { label: "Đang chờ",        color: "gold" },
+  shipping:  { label: "Đang vận chuyển", color: "processing" },
+  received:  { label: "Đã nhận",         color: "green" },
+  cancelled: { label: "Đã hủy",          color: "volcano" },
+  rejected:  { label: "Từ chối",         color: "red" },
 };
-const STATUS_OPTIONS = Object.keys(STATUS_META).map((k) => ({
-  value: k,
-  label: STATUS_META[k].label,
-}));
+
+const STATUS_OPTIONS = Object.keys(STATUS_META).map((k) => ({ value: k, label: STATUS_META[k].label }));
 
 function StatusTag({ value }) {
   const meta = STATUS_META[value] || { label: value || "-", color: "default" };
@@ -82,11 +88,7 @@ export default function OrderDistributionAnt() {
   const [loadingDealers, setLoadingDealers] = useState(false);
   const [loadingVehicles, setLoadingVehicles] = useState(false);
 
-  const headers = useMemo(() => {
-    const h = { accept: "*/*" };
-    if (TOKEN) h.Authorization = `Bearer ${TOKEN}`;
-    return h;
-  }, []);
+  // Note: compute headers per-request via getAuthHeaders() to avoid stale token
 
   /** -------- Fetch list -------- */
   const fetchList = async (p = 1) => {
@@ -94,7 +96,7 @@ export default function OrderDistributionAnt() {
       setLoading(true);
       setLoadErr("");
       const url = `${LIST_URL}?pageNumber=${p}&pageSize=${PAGE_SIZE}`;
-      const res = await fetch(url, { headers });
+  const res = await fetch(url, { headers: getAuthHeaders() });
       const json = await res.json();
       if (json?.status !== 200) throw new Error(json?.message || "Fetch failed");
       const items = json?.data?.items || [];
@@ -126,7 +128,8 @@ export default function OrderDistributionAnt() {
   const fetchDealers = async () => {
     try {
       setLoadingDealers(true);
-      const res = await fetch(DEALERS_URL, { headers: { accept: "*/*" } });
+      // include auth headers when available
+  const res = await fetch(DEALERS_URL, { headers: getAuthHeaders() });
       const json = await res.json();
       const items = json?.data ?? [];
       setDealerOptions(
@@ -145,13 +148,35 @@ export default function OrderDistributionAnt() {
   const fetchVehicles = async () => {
     try {
       setLoadingVehicles(true);
-      const res = await fetch(VEHICLES_URL, { headers: { accept: "*/*" } });
+      // include auth headers when available
+      // first try the vehicles endpoint
+      let res = await fetch(VEHICLES_URL, { headers: getAuthHeaders() });
       const json = await res.json();
       const items = json?.data?.items ?? [];
+      // If the vehicles endpoint didn't return items, try the vehicle-versions endpoint (common alternative)
+      if ((!items || items.length === 0) && getToken()) {
+        try {
+          const altUrl = `${API_BASE}/brand-service/api/vehicle-versions/dealer?pageNumber=1&pageSize=200`;
+          const altRes = await fetch(altUrl, { headers: getAuthHeaders() });
+          const altJson = await altRes.json().catch(() => ({}));
+          const altItems = altJson?.data?.items ?? altJson?.data ?? [];
+          if (Array.isArray(altItems) && altItems.length > 0) {
+            setVehicleOptions(
+              altItems.map((v) => ({
+                value: v.vehicleVersionId || v.id || v.vehicleId,
+                label: `${v.brand ?? ""} ${v.versionName ?? v.modelName ?? ""}`.trim(),
+              }))
+            );
+            return;
+          }
+        } catch (er) {
+          // ignore fallback error — we'll handle below
+        }
+      }
       setVehicleOptions(
         items.map((v) => ({
-          value: v.vehicleId, // dùng vehicleId làm value
-          label: `${v.brand ?? ""} ${v.modelName ?? ""}`.trim(), // GHÉP brand + modelName
+          value: v.vehicleVersionId || v.id || v.vehicleId,
+          label: `${v.brand ?? ""} ${v.modelName ?? v.versionName ?? ""}`.trim(),
         }))
       );
     } catch (e) {
@@ -188,7 +213,7 @@ export default function OrderDistributionAnt() {
       setCreating(true);
       const res = await fetch(CREATE_URL, {
         method: "POST",
-        headers: { "Content-Type": "application/json", ...headers },
+        headers: { "Content-Type": "application/json", ...getAuthHeaders() },
         body: JSON.stringify(payload),
       });
       const j = await res.json().catch(() => ({}));
@@ -210,7 +235,10 @@ export default function OrderDistributionAnt() {
       };
       setRows((prev) => [added, ...prev]);
       setTotal((t) => t + 1);
-      message.success("Tạo đơn chuyển xe thành công");
+      // show a clearer success message with the created id when available
+      const createdId = added.id;
+      const shortId = (createdId || "").toString().slice(0, 8);
+      message.success(`Tạo đơn thành công${createdId ? ` — ID: ${shortId}` : ""}`);
       setOpenCreate(false);
       createForm.resetFields();
     } catch (e) {
@@ -231,7 +259,7 @@ export default function OrderDistributionAnt() {
         method: "PUT",
         headers: {
           "Content-Type": "application/json", // nếu server yêu cầu text/plain: đổi thành 'text/plain'
-          ...headers,
+          ...getAuthHeaders(),
         },
         body: JSON.stringify(status), // body là "string"
       });
@@ -287,11 +315,6 @@ export default function OrderDistributionAnt() {
         <Space>
           <Button
             size="small"
-            icon={<EyeOutlined />}
-            onClick={() => message.info(record.id)}
-          />
-          <Button
-            size="small"
             type="default"
             icon={<EditOutlined />}
             onClick={() => {
@@ -312,7 +335,6 @@ export default function OrderDistributionAnt() {
               message.success("Đã xóa (mock)");
             }}
           >
-            <Button danger size="small" icon={<DeleteOutlined />} />
           </Popconfirm>
         </Space>
       ),
@@ -380,7 +402,7 @@ export default function OrderDistributionAnt() {
         <Form
           form={createForm}
           layout="vertical"
-          initialValues={{ quantity: 1, status: "processing" }}
+          initialValues={{ quantity: 1, status: "pending" }}
         >
           {/* From Dealer */}
           <Form.Item
