@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   Table,
   Tag,
@@ -18,46 +18,41 @@ import {
   EditOutlined,
   DeleteOutlined,
   SyncOutlined,
-  PlusOutlined,
+  // PlusOutlined,
 } from "@ant-design/icons";
 
 /** ===== Config ===== */
 const SHORT_ID_LEN = 8;
-/** ===== Config (BRAND) ===== */
+/** ===== Config (STATUS for distribution) ===== */
+// Updated per request: allowed statuses for vehicle distribution
 const STATUS_OPTIONS = [
-  "received",      // Brand đã tiếp nhận yêu cầu của dealer
-  "approved",      // Brand duyệt
-  "rejected",      // Brand từ chối
-  "assigned",      // Đã phân xe
-  "in_transit",    // Đang vận chuyển
-  "at_dealer",     // Đã đến đại lý
-  "delivered",     // Hoàn tất giao
-  "cancelled",     // Hủy
+  "pending",
+  "shipping",
+  "received",
+  "cancelled",
+  "rejected",
 ];
 
 const STATUS_META = {
-  received:   { label: "Đã tiếp nhận",    color: "processing" },
-  approved:   { label: "Đã duyệt",        color: "blue" },
-  rejected:   { label: "Từ chối",         color: "red" },
-  assigned:   { label: "Đã phân xe",      color: "purple" },
-  in_transit: { label: "Đang vận chuyển", color: "gold" },
-  at_dealer:  { label: "Tại đại lý",      color: "cyan" },
-  delivered:  { label: "Đã giao",         color: "green" },
-  cancelled:  { label: "Đã hủy",          color: "volcano" },
+  pending:   { label: "Đang chờ",         color: "gold" },
+  shipping:  { label: "Đang vận chuyển",  color: "processing" },
+  received:  { label: "Đã nhận",          color: "green" },
+  cancelled: { label: "Đã hủy",           color: "volcano" },
+  rejected:  { label: "Từ chối",          color: "red" },
 };
 
-<<<<<<< Updated upstream
-const TOKEN =
-  (typeof window !== "undefined" && localStorage.getItem("token")) ||
-  ""; // fallback empty
-=======
 const getToken = () => (typeof window !== "undefined" && localStorage.getItem("token")) || "";
->>>>>>> Stashed changes
 
 /** ===== Helpers ===== */
 function shortId(id = "") {
   if (!id) return "";
   return id.length > SHORT_ID_LEN ? id.slice(0, SHORT_ID_LEN) + "…" : id;
+}
+
+function toTimestampOrInf(d) {
+  if (!d) return Infinity;
+  const t = new Date(d).getTime();
+  return Number.isFinite(t) ? t : Infinity;
 }
 
 function StatusTag({ value }) {
@@ -80,15 +75,11 @@ export default function AllocationRequestsList() {
 
   const [lastUpdated, setLastUpdated] = useState(null); // {id,status,at}
 
-<<<<<<< Updated upstream
-  const fetchList = async () => {
-=======
   // AntD message & modal (context-based API)
   const [messageApi, messageContextHolder] = message.useMessage();
   const [modal, modalContextHolder] = Modal.useModal();
 
   const fetchList = async (page = 1, pageSize = 10) => {
->>>>>>> Stashed changes
     try {
       setLoading(true);
       setLoadErr("");
@@ -115,14 +106,13 @@ export default function AllocationRequestsList() {
           deliveryDate: item.expectedDelivery,
           status: item.status,
         }));
-        mapped.sort(
-          (a, b) => new Date(b.requestDate || 0) - new Date(a.requestDate || 0)
-        );
+        // Default sort: nearest deliveryDate first (closest upcoming -> farthest).
+        mapped.sort((a, b) => toTimestampOrInf(a.deliveryDate) - toTimestampOrInf(b.deliveryDate));
         setData(mapped);
         const total = json?.data?.totalItems ?? json?.data?.total ?? json?.totalItems ?? 0;
         setPagination({ current: page, pageSize, total: Number(total) || 0 });
       } else {
-        throw new Error("Không thể tải dữ liệu.");
+        throw new Error(json?.message || "Không thể tải dữ liệu.");
       }
     } catch (err) {
       setLoadErr(err.message || "Lỗi không xác định.");
@@ -163,7 +153,7 @@ export default function AllocationRequestsList() {
   const onFinish = async (values) => {
     const { id, status } = values || {};
     if (!id || !status) {
-      message.warning("Vui lòng nhập ID và chọn trạng thái");
+      messageApi.warning("Vui lòng nhập ID và chọn trạng thái");
       return;
     }
     try {
@@ -175,7 +165,7 @@ export default function AllocationRequestsList() {
         {
           method: "PUT",
           headers: {
-            "Content-Type": "application/json", // nếu server yêu cầu text/plain: đổi thành text/plain và body: status
+            "Content-Type": "application/json", // nếu server yêu cầu text/plain: đổi "application/json" -> "text/plain" và body: status
             accept: "*/*",
             Authorization: `Bearer ${getToken()}`,
           },
@@ -195,11 +185,11 @@ export default function AllocationRequestsList() {
       setData((prev) => prev.map((row) => (row.id === id ? { ...row, status } : row)));
 
       setLastUpdated({ id, status, at: new Date().toLocaleString() });
-      message.success("Cập nhật trạng thái thành công");
+      messageApi.success("Cập nhật trạng thái thành công");
       setOpen(false);
       form.resetFields();
     } catch (err) {
-      message.error(err.message || "Có lỗi khi cập nhật trạng thái");
+      messageApi.error(err.message || "Có lỗi khi cập nhật trạng thái");
     } finally {
       setUpdating(false);
     }
@@ -227,10 +217,12 @@ export default function AllocationRequestsList() {
     {
       title: "Ngày yêu cầu",
       dataIndex: "requestDate",
-      width: 180,
+      width: 160,
+      sorter: (a, b) => toTimestampOrInf(a.requestDate) - toTimestampOrInf(b.requestDate),
       render: (v) =>
         v ? (
-          new Date(v).toLocaleString()
+          // show only date (no time)
+          new Date(v).toLocaleDateString()
         ) : (
           <Typography.Text type="secondary">-</Typography.Text>
         ),
@@ -238,10 +230,12 @@ export default function AllocationRequestsList() {
     {
       title: "Dự kiến giao",
       dataIndex: "deliveryDate",
-      width: 180,
+      width: 160,
+      sorter: (a, b) => toTimestampOrInf(a.deliveryDate) - toTimestampOrInf(b.deliveryDate),
       render: (v) =>
         v ? (
-          new Date(v).toLocaleString()
+          // show only date (no time)
+          new Date(v).toLocaleDateString()
         ) : (
           <Typography.Text type="secondary">-</Typography.Text>
         ),
@@ -263,7 +257,29 @@ export default function AllocationRequestsList() {
       width: 210,
       render: (_, record) => (
         <Space>
-          <Button size="small" icon={<EyeOutlined />} onClick={() => message.info(`Xem ${record.id}`)} />
+          <Button
+            size="small"
+            icon={<EyeOutlined />}
+            onClick={() => {
+              // Dùng modal instance (context-based) để đảm bảo render
+              modal.info({
+                title: "Chi tiết yêu cầu phân bổ",
+                content: (
+                  <div>
+                    <p><strong>ID:</strong> {record.id}</p>
+                    <p><strong>Xe:</strong> {record.car}</p>
+                    <p><strong>Đại lý:</strong> {record.destination}</p>
+                    <p><strong>Số lượng:</strong> {record.quantity}</p>
+                    <p><strong>Trạng thái:</strong> <StatusTag value={record.status} /></p>
+                  </div>
+                ),
+                width: 500,
+                centered: true,
+                // Nếu môi trường có container tùy biến, có thể bật dòng dưới:
+                // getContainer: () => document.body,
+              });
+            }}
+          />
           <Button size="small" type="default" icon={<EditOutlined />} onClick={() => openModal(record)}>
             Cập nhật
           </Button>
@@ -272,9 +288,8 @@ export default function AllocationRequestsList() {
             description={`Xóa yêu cầu ${record.id}?`}
             okText="Xóa"
             cancelText="Hủy"
-            onConfirm={() => message.success(`${record.id} đã xóa (mock)`)}
+            onConfirm={() => messageApi.success(`${record.id} đã xóa (mock)`)}
           >
-            <Button danger size="small" icon={<DeleteOutlined />} />
           </Popconfirm>
         </Space>
       ),
@@ -283,6 +298,10 @@ export default function AllocationRequestsList() {
 
   return (
     <div style={{ background: "#fff", borderRadius: 12, padding: 16 }}>
+      {/* context holders cho message & modal */}
+      {messageContextHolder}
+      {modalContextHolder}
+
       <Space style={{ width: "100%", justifyContent: "space-between", marginBottom: 12 }}>
         <div>
           <Typography.Title level={4} style={{ margin: 0 }}>
@@ -291,9 +310,9 @@ export default function AllocationRequestsList() {
           <Typography.Text type="secondary">Theo dõi trạng thái và cập nhật trực tiếp.</Typography.Text>
         </div>
         <Space>
-          <Button icon={<PlusOutlined />} onClick={() => message.info("TODO: Create New Order")}>
+          {/* <Button icon={<PlusOutlined />} onClick={() => messageApi.info("TODO: Create New Order")}>
             Tạo đơn mới
-          </Button>
+          </Button> */}
           <Button type="primary" icon={<SyncOutlined />} onClick={fetchList} loading={loading}>
             Tải lại
           </Button>

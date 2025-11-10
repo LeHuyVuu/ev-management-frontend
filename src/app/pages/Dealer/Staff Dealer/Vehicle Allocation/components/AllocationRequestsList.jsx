@@ -46,7 +46,7 @@ const STATUS_META = {
 };
 
 
-const TOKEN = localStorage.getItem("token");// G
+const getToken = () => (typeof window !== "undefined" && localStorage.getItem("token")) || "";
 /** ===== Helpers ===== */
 function shortId(id = "") {
   if (!id) return "";
@@ -84,7 +84,7 @@ export default function AllocationRequestsList() {
           {
             headers: {
               accept: "*/*",
-              Authorization: `Bearer ${TOKEN}`,
+              Authorization: `Bearer ${getToken()}`,
             },
           }
         );
@@ -149,11 +149,7 @@ export default function AllocationRequestsList() {
           headers: {
             "Content-Type": "application/json",
             accept: "*/*",
-<<<<<<< Updated upstream
-            Authorization: `Bearer ${TOKEN}`,
-=======
             Authorization: `Bearer ${getToken()}`,
->>>>>>> Stashed changes
           },
           body: JSON.stringify(status),
         }
@@ -164,11 +160,7 @@ export default function AllocationRequestsList() {
         try {
           const j = await resp.json();
           msg = j?.message || msg;
-<<<<<<< Updated upstream
-        } catch { }
-=======
         } catch (e) {}
->>>>>>> Stashed changes
         throw new Error(msg);
       }
 
