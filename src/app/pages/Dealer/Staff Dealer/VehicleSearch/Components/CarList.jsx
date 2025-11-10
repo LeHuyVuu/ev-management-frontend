@@ -1,9 +1,9 @@
 import React, { useEffect, useState } from "react";
+import api from "../../../../../context/api";
 
-const BASE_URL =
-  "https://prn232.freeddns.org/brand-service/api/vehicle-versions/dealer-stock";
-const DETAIL_URL =
-  "https://prn232.freeddns.org/brand-service/api/vehicle-versions";
+const BRAND_BASE = api.brand || import.meta.env.VITE_API_BRAND;
+const BASE_URL = `${BRAND_BASE}/api/vehicle-versions/dealer-stock`;
+const DETAIL_URL = `${BRAND_BASE}/api/vehicle-versions`;
 const TOKEN = localStorage.getItem("token");
 
 function formatPrice(price) {
