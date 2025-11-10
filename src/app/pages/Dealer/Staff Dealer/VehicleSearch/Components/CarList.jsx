@@ -4,7 +4,9 @@ import api from "../../../../../context/api";
 const BRAND_BASE = api.brand || import.meta.env.VITE_API_BRAND;
 const BASE_URL = `${BRAND_BASE}/api/vehicle-versions/dealer-stock`;
 const DETAIL_URL = `${BRAND_BASE}/api/vehicle-versions`;
-const TOKEN = localStorage.getItem("token");
+
+// ✅ Lấy token mới nhất tại thời điểm gọi
+const getToken = () => localStorage.getItem("token");
 
 function formatPrice(price) {
   return price?.toLocaleString("vi-VN") + " ₫";
@@ -41,7 +43,7 @@ export default function CarList({ filters }) {
       if (filters.priceMin) params.append("minPrice", filters.priceMin);
       if (filters.priceMax) params.append("maxPrice", filters.priceMax);
 
-      // ✅ Thêm danh sách màu (dạng list<string>)
+      // ✅ Danh sách màu (list<string>)
       if (filters.selectedColors?.length > 0) {
         filters.selectedColors.forEach((color) =>
           params.append("colors", color)
@@ -50,14 +52,21 @@ export default function CarList({ filters }) {
 
       const url = `${BASE_URL}?${params.toString()}`;
 
-      const res = await fetch(url, {
-        headers: {
-          Authorization: `Bearer ${TOKEN}`,
-          "Content-Type": "application/json",
-        },
-      });
+      // ✅ headers động
+      const headers = { "Content-Type": "application/json" };
+      const token = getToken();
+      if (token) headers.Authorization = `Bearer ${token}`;
 
-      if (!res.ok) throw new Error("Không thể tải dữ liệu từ máy chủ.");
+      const res = await fetch(url, { headers });
+
+      if (!res.ok) {
+        if (res.status === 401) {
+          throw new Error(
+            "Phiên đăng nhập đã hết hạn hoặc thiếu token. Vui lòng đăng nhập lại."
+          );
+        }
+        throw new Error("Không thể tải dữ liệu từ máy chủ.");
+      }
 
       const data = await res.json();
       if (data.status === 200 && data.data?.items) {
@@ -78,6 +87,7 @@ export default function CarList({ filters }) {
 
   useEffect(() => {
     fetchCars(pageNumber);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filters, pageNumber]);
 
   const sortedCars = React.useMemo(() => {
@@ -93,12 +103,23 @@ export default function CarList({ filters }) {
 
   const fetchCarDetail = async (vehicleVersionId, setFunc) => {
     try {
+      const headers = { "Content-Type": "application/json" };
+      const token = getToken();
+      if (token) headers.Authorization = `Bearer ${token}`;
+
       const res = await fetch(`${DETAIL_URL}/${vehicleVersionId}/dealer`, {
-        headers: {
-          Authorization: `Bearer ${TOKEN}`,
-          "Content-Type": "application/json",
-        },
+        headers,
       });
+
+      if (!res.ok) {
+        if (res.status === 401) {
+          throw new Error(
+            "Phiên đăng nhập đã hết hạn hoặc thiếu token. Vui lòng đăng nhập lại."
+          );
+        }
+        throw new Error("Không thể tải chi tiết xe từ máy chủ.");
+      }
+
       const data = await res.json();
       if (data.status === 200 && data.data) {
         setFunc(data.data);
@@ -114,18 +135,15 @@ export default function CarList({ filters }) {
         (c) => c.vehicleVersionId === car.vehicleVersionId
       );
 
-      // Nếu xe đã tồn tại → bỏ chọn
       if (exists) {
         return prev.filter((c) => c.vehicleVersionId !== car.vehicleVersionId);
       }
 
-      // Giới hạn tối đa 5 xe
       if (prev.length >= 5) {
         alert("Chỉ có thể so sánh tối đa 5 xe cùng lúc!");
         return prev;
       }
 
-      // Thêm xe mới
       return [...prev, car];
     });
   };
@@ -341,12 +359,12 @@ export default function CarList({ filters }) {
           <div
             className={`bg-white rounded-2xl shadow-xl p-6 relative overflow-x-auto ${
               compareList.length === 1
-                ? "max-w-md" // 1 xe → bảng nhỏ gọn
+                ? "max-w-md"
                 : compareList.length === 2
-                ? "max-w-3xl" // 2 xe → vừa
+                ? "max-w-3xl"
                 : compareList.length === 3
-                ? "max-w-5xl" // 3 xe → rộng hơn
-                : "max-w-7xl" // ≥4 xe → full rộng
+                ? "max-w-5xl"
+                : "max-w-7xl"
             } w-full`}
           >
             <button
