@@ -28,7 +28,6 @@ import Authentication from "../pages/Authentication/Authentication";
 
 // Protected wrapper
 import ProtectedRoute from "../routes/ProtectedRoute";
-import ForecastPage from "../pages/AI/ForecastPage";
 import ManageVehicleAllocationTransfer from "../pages/EVM/ManageVehicleAllocationTransfer/ManageVehicleAllocationTransfer";
 import Feedbacks from "../pages/Feedbacks/page";
 
@@ -79,7 +78,6 @@ const MainRoutes = () => {
                 </Route>
 
               </Route>
-              <Route path="ai" element={<ForecastPage />} />
 
 
               {/* 404 fallback */}

@@ -112,7 +112,7 @@ const AIForecast = () => {
     setUseDomain(checked);
     try {
       localStorage.setItem("aifc.useDomain", checked ? "1" : "0");
-    } catch {}
+    } catch { }
     // (tuỳ chọn) clear SW/caches để hạn chế “bản cũ” trong trình duyệt
     await nukeSwAndCaches();
     // Reload dữ liệu với BASE_URL mới
@@ -513,12 +513,12 @@ const AIForecast = () => {
         {
           role: "system",
           content:
-            "Bạn là chuyên gia dự báo thị trường ô tô tại Việt Nam. Giọng điệu thân thiện, tự nhiên, hơi dí dỏm nhưng chính xác. Chỉ viết tối đa 3 câu, mỗi câu ngắn gọn, dễ hiểu, không ký tự đặc biệt, không định dạng. Ưu tiên sự rõ ràng, mạch lạc và logic.",
+            "Bạn là chuyên gia dự báo thị trường ô tô Việt Nam, hiểu xu hướng bán hàng, phân bổ xe và tâm lý người mua. Hãy nói với giọng thân thiện, tự nhiên, hơi dí dỏm nhưng vẫn sắc bén và chuyên nghiệp. Trả lời ngắn gọn tối đa 3 câu, mỗi câu rõ ràng, mạch lạc, không ký tự đặc biệt, không định dạng. Ưu tiên diễn đạt logic và dễ hiểu như đang nói chuyện thật.",
         },
         {
           role: "user",
           content:
-            "Phân tích dữ liệu để dự báo xu hướng xe. Nói ngắn gọn như đang trò chuyện: 1 câu về xu hướng, 1 câu dự báo 1–2 tuần, 1 câu chốt nhẹ nhàng, vui tươi. Không liệt kê, không giải thích dài. Dữ liệu: " +
+            "Dựa trên dữ liệu sau, hãy dự báo xu hướng xe. Viết 1 câu về xu hướng hiện tại, 1 câu về dự đoán 1–2 tuần tới, 1 câu kết luận nhẹ nhàng, vui vẻ, tự nhiên. Không liệt kê, không giải thích dài dòng. Dữ liệu: " +
             JSON.stringify(payloadSummary),
         },
       ],
@@ -762,8 +762,8 @@ const AIForecast = () => {
                 (aiLoading
                   ? "bg-blue-100 text-blue-700"
                   : aiReco
-                  ? "bg-emerald-100 text-emerald-700"
-                  : "bg-gray-100 text-gray-600")
+                    ? "bg-emerald-100 text-emerald-700"
+                    : "bg-gray-100 text-gray-600")
               }
               title={aiErr || ""}
             >
@@ -795,7 +795,7 @@ const AIForecast = () => {
             <button
               type="button"
               onClick={() => {
-                navigator.clipboard?.writeText(aiReco || recommendations.join("\n")).catch(() => {});
+                navigator.clipboard?.writeText(aiReco || recommendations.join("\n")).catch(() => { });
               }}
               className="text-xs px-2 py-1 rounded-md border border-gray-200 hover:bg-gray-50"
             >

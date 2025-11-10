@@ -1,5 +1,5 @@
-import React, { useEffect } from "react";
-import { X } from "lucide-react";
+import React, { useEffect, useMemo } from "react";
+import { X, CheckCircle, XCircle, AlertTriangle, Info } from "lucide-react";
 
 const ProfileModal = ({ onClose, loading, error, profile }) => {
   useEffect(() => {
@@ -7,6 +7,40 @@ const ProfileModal = ({ onClose, loading, error, profile }) => {
     window.addEventListener("keydown", onEsc);
     return () => window.removeEventListener("keydown", onEsc);
   }, [onClose]);
+
+  // Unified status (loading / error / info)
+  const status = useMemo(() => {
+    if (loading) return { type: "info", title: "Đang tải", message: "Đang tải hồ sơ người dùng..." };
+    if (error) return { type: "error", title: "Có lỗi xảy ra", message: error };
+    if (profile?.status) return { type: "success", title: "Trạng thái người dùng", message: profile.status };
+    return null;
+  }, [loading, error, profile]);
+
+  const StatusIcon = useMemo(() => {
+    switch (status?.type) {
+      case "success":
+        return <CheckCircle className="w-5 h-5" />;
+      case "error":
+        return <XCircle className="w-5 h-5" />;
+      case "warn":
+        return <AlertTriangle className="w-5 h-5" />;
+      default:
+        return <Info className="w-5 h-5" />;
+    }
+  }, [status]);
+
+  const statusColors = useMemo(() => {
+    switch (status?.type) {
+      case "success":
+        return { bg: "bg-emerald-50", text: "text-emerald-800", sub: "text-emerald-700", ring: "from-emerald-500 via-green-500 to-emerald-600" };
+      case "error":
+        return { bg: "bg-rose-50", text: "text-rose-800", sub: "text-rose-700", ring: "from-rose-500 via-red-500 to-rose-600" };
+      case "warn":
+        return { bg: "bg-amber-50", text: "text-amber-800", sub: "text-amber-700", ring: "from-amber-500 via-yellow-500 to-amber-600" };
+      default:
+        return { bg: "bg-blue-50", text: "text-blue-800", sub: "text-blue-700", ring: "from-blue-500 via-purple-500 to-cyan-500" };
+    }
+  }, [status]);
 
   return (
     <div
@@ -23,9 +57,9 @@ const ProfileModal = ({ onClose, loading, error, profile }) => {
         aria-label="Đóng hộp thoại"
       />
 
-      {/* Dialog wrapper with gradient border */}
+      {/* Dialog wrapper with animated gradient border */}
       <div className="relative w-full md:max-w-2xl max-w-xl mx-4">
-        <div className="rounded-2xl p-[1.25px] bg-gradient-to-br from-indigo-500 via-fuchsia-500 to-amber-400 shadow-[0_10px_30px_rgba(0,0,0,0.25)]">
+        <div className="rounded-2xl shimmer-border shadow-[0_10px_30px_rgba(0,0,0,0.25)]">
           <div className="rounded-2xl bg-white/95 dark:bg-neutral-900/90 border border-white/40 dark:border-white/10 overflow-hidden">
             {/* Header (sticky) */}
             <div className="sticky top-0 z-10 flex items-center justify-between px-6 py-4 border-b border-black/5 dark:border-white/10 bg-white/90 dark:bg-neutral-900/80 backdrop-blur">
@@ -45,6 +79,21 @@ const ProfileModal = ({ onClose, loading, error, profile }) => {
               </button>
             </div>
 
+            {/* Unified status banner (under header) */}
+            {status && (
+              <div className="px-6 pt-4">
+                <div className={`status-border rounded-xl ${statusColors.bg}`}>
+                  <div className={`rounded-xl ${statusColors.bg} px-4 py-3 flex items-start gap-3`}>
+                    <div className={`${statusColors.text}`}>{StatusIcon}</div>
+                    <div className="flex-1">
+                      {status.title && <div className={`font-semibold ${statusColors.text}`}>{status.title}</div>}
+                      <div className={`text-sm ${statusColors.sub}`}>{status.message}</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
             {/* Body */}
             <div className="px-6 py-5 max-h-[78vh] overflow-y-auto [scrollbar-width:thin] [scrollbar-color:theme(colors.indigo.300)_transparent]">
               {loading && (
@@ -58,17 +107,11 @@ const ProfileModal = ({ onClose, loading, error, profile }) => {
                 </div>
               )}
 
-              {error && (
-                <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-xl px-4 py-3">
-                  {error}
-                </p>
-              )}
-
               {!loading && !error && profile && (
                 <div className="space-y-6">
                   {/* Top identity block */}
                   <div className="flex items-center gap-4">
-                    <div className="h-14 w-14 rounded-2xl bg-gradient-to-br from-indigo-500 to-fuchsia-500 text-white grid place-items-center text-lg font-semibold shadow-inner">
+                    <div className="h-14 w-14 rounded-2xl gradient-orb text-white grid place-items-center text-lg font-semibold shadow-inner">
                       {profile?.name?.charAt(0)?.toUpperCase() || "U"}
                     </div>
                     <div className="min-w-0">
@@ -80,7 +123,7 @@ const ProfileModal = ({ onClose, loading, error, profile }) => {
                   {/* Details layout: 2 columns on md+ */}
                   <div className="grid grid-cols-1 md:grid-cols-5 gap-5">
                     {/* Left column: meta list */}
-                    <div className="md:col-span-3 rounded-2xl border border-black/5 dark:border-white/10 bg-white/70 dark:bg-neutral-900/70">
+                    <div className="md:col-span-5 rounded-2xl border border-black/5 dark:border-white/10 bg-white/70 dark:bg-neutral-900/70">
                       <div className="px-5 py-4 border-b border-black/5 dark:border-white/10 text-sm font-semibold text-gray-700 dark:text-gray-200">
                         Thông tin chung
                       </div>
@@ -118,29 +161,8 @@ const ProfileModal = ({ onClose, loading, error, profile }) => {
                             <dt className="text-xs uppercase tracking-wide text-gray-500">Updated At</dt>
                             <dd className="mt-1 font-medium">{profile.updatedAt || "—"}</dd>
                           </div>
-                          <div className="sm:col-span-2">
-                            <dt className="text-xs uppercase tracking-wide text-gray-500">Password Hash</dt>
-                            <dd className="mt-1 font-mono text-[11px] leading-5 break-all bg-black/5 dark:bg-white/5 rounded-lg px-3 py-2">
-                              {profile.passwordHash || "—"}
-                            </dd>
-                          </div>
+                          {/* Removed Password Hash for security */}
                         </dl>
-                      </div>
-                    </div>
-
-                    {/* Right column: status card */}
-                    <div className="md:col-span-2 rounded-2xl border border-emerald-200/60 dark:border-emerald-800/40 bg-emerald-50/70 dark:bg-emerald-900/10">
-                      <div className="px-5 py-4 border-b border-emerald-200/60 dark:border-emerald-800/40 text-sm font-semibold text-emerald-800 dark:text-emerald-300">
-                        Trạng thái
-                      </div>
-                      <div className="p-5">
-                        <span className="inline-flex items-center gap-2 rounded-full px-3 py-1 text-sm font-medium bg-white text-emerald-700 border border-emerald-200 shadow-sm dark:bg-transparent dark:text-emerald-300 dark:border-emerald-700/40">
-                          <span className="h-2 w-2 rounded-full bg-emerald-500 shadow-[0_0_0_3px_rgba(16,185,129,0.15)]" />
-                          {profile.status || "—"}
-                        </span>
-                        <p className="mt-4 text-xs text-emerald-800/80 dark:text-emerald-200/80">
-                          Người dùng đang hoạt động. Bạn có thể cập nhật vai trò hoặc vô hiệu hoá trong trang quản trị.
-                        </p>
                       </div>
                     </div>
                   </div>
@@ -161,6 +183,30 @@ const ProfileModal = ({ onClose, loading, error, profile }) => {
           </div>
         </div>
       </div>
+
+      {/* Animated border + utilities */}
+      <style>{`
+        .shimmer-border {
+          position: relative;
+          padding: 1.25px;
+          background: linear-gradient(90deg, #6366f1, #d946ef, #22d3ee, #6366f1);
+          background-size: 200% 100%;
+          animation: borderMove 6s linear infinite;
+        }
+        .status-border {
+          position: relative; padding: 1px;
+          background: linear-gradient(90deg, #60a5fa, #a78bfa, #22d3ee, #60a5fa);
+          background-size: 200% 100%;
+          animation: borderMove 8s linear infinite;
+        }
+        @keyframes borderMove {
+          0% { background-position: 0% 50%; }
+          100% { background-position: 200% 50%; }
+        }
+        .gradient-orb {
+          background: radial-gradient(100% 100% at 50% 0%, #8b5cf6 0%, #3b82f6 50%, #06b6d4 100%);
+        }
+      `}</style>
     </div>
   );
 };
