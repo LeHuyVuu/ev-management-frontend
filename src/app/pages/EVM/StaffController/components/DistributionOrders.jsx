@@ -34,11 +34,11 @@ const STATUS_OPTIONS = [
 ];
 
 const STATUS_META = {
-  pending:   { label: "Đang chờ",         color: "gold" },
-  shipping:  { label: "Đang vận chuyển",  color: "processing" },
-  received:  { label: "Đã nhận",          color: "green" },
-  cancelled: { label: "Đã hủy",           color: "volcano" },
-  rejected:  { label: "Từ chối",          color: "red" },
+  pending: { label: "Đang chờ", color: "gold" },
+  shipping: { label: "Đang vận chuyển", color: "processing" },
+  received: { label: "Đã nhận", color: "green" },
+  cancelled: { label: "Đã hủy", color: "volcano" },
+  rejected: { label: "Từ chối", color: "red" },
 };
 
 const TOKEN =
@@ -79,20 +79,33 @@ export default function AllocationRequestsList() {
   const [messageApi, messageContextHolder] = message.useMessage();
   const [modal, modalContextHolder] = Modal.useModal();
 
-  const fetchList = async () => {
+  // ===== Pagination (server-side) =====
+  const [pagination, setPagination] = useState({
+    current: 1,
+    pageSize: 10,
+    total: 0,
+  });
+
+  const fetchList = async (pageParams = {}) => {
+    const { current = pagination.current, pageSize = pagination.pageSize } =
+      pageParams;
     try {
       setLoading(true);
       setLoadErr("");
-      const res = await fetch(
-        "https://prn232.freeddns.org/order-service/api/VehicleAllocation?pageNumber=1&pageSize=10",
-        {
-          headers: {
-            accept: "*/*",
-            Authorization: `Bearer ${TOKEN}`,
-          },
-        }
+      const url = new URL(
+        "https://prn232.freeddns.org/order-service/api/VehicleAllocation"
       );
+      url.searchParams.set("pageNumber", String(current));
+      url.searchParams.set("pageSize", String(pageSize));
+
+      const res = await fetch(url.toString(), {
+        headers: {
+          accept: "*/*",
+          Authorization: `Bearer ${TOKEN}`,
+        },
+      });
       const json = await res.json();
+
       if (json.status === 200 && json.data?.items) {
         const mapped = json.data.items.map((item) => ({
           key: item.allocationId,
@@ -105,9 +118,28 @@ export default function AllocationRequestsList() {
           deliveryDate: item.expectedDelivery,
           status: item.status,
         }));
-        // Default sort: nearest deliveryDate first (closest upcoming -> farthest).
-        mapped.sort((a, b) => toTimestampOrInf(a.deliveryDate) - toTimestampOrInf(b.deliveryDate));
+
+        // Optional client-side ordering within the current page
+        mapped.sort(
+          (a, b) =>
+            toTimestampOrInf(a.deliveryDate) - toTimestampOrInf(b.deliveryDate)
+        );
         setData(mapped);
+
+        // Try to extract pagination meta from backend; fallback to passed-in values
+        const total =
+          json.data?.totalItems ??
+          json.data?.totalCount ??
+          json.data?.total ??
+          0;
+        const pageNum = json.data?.pageNumber ?? current;
+        const size = json.data?.pageSize ?? pageSize;
+        setPagination((prev) => ({
+          ...prev,
+          current: pageNum,
+          pageSize: size,
+          total,
+        }));
       } else {
         throw new Error(json?.message || "Không thể tải dữ liệu.");
       }
@@ -120,7 +152,7 @@ export default function AllocationRequestsList() {
 
   // Fetch list on mount
   useEffect(() => {
-    fetchList();
+    fetchList({ current: 1, pageSize: 10 });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -147,6 +179,18 @@ export default function AllocationRequestsList() {
       messageApi.warning("Vui lòng nhập ID và chọn trạng thái");
       return;
     }
+
+    // ==== Chặn chọn trạng thái "trên" (trước) trạng thái hiện tại ====
+    const prev = current?.status;
+    if (prev) {
+      const prevIdx = STATUS_OPTIONS.indexOf(prev);
+      const nextIdx = STATUS_OPTIONS.indexOf(status);
+      if (prevIdx !== -1 && nextIdx !== -1 && nextIdx < prevIdx) {
+        messageApi.warning("Không thể quay lại trạng thái trước đó");
+        return;
+      }
+    }
+
     try {
       setUpdating(true);
       const resp = await fetch(
@@ -172,8 +216,10 @@ export default function AllocationRequestsList() {
         throw new Error(msg);
       }
 
-      // Update ngay trong table
-      setData((prev) => prev.map((row) => (row.id === id ? { ...row, status } : row)));
+      // Update ngay trong table (giữ nguyên page hiện tại)
+      setData((prevRows) =>
+        prevRows.map((row) => (row.id === id ? { ...row, status } : row))
+      );
 
       setLastUpdated({ id, status, at: new Date().toLocaleString() });
       messageApi.success("Cập nhật trạng thái thành công");
@@ -209,7 +255,8 @@ export default function AllocationRequestsList() {
       title: "Ngày yêu cầu",
       dataIndex: "requestDate",
       width: 160,
-      sorter: (a, b) => toTimestampOrInf(a.requestDate) - toTimestampOrInf(b.requestDate),
+      sorter: (a, b) =>
+        toTimestampOrInf(a.requestDate) - toTimestampOrInf(b.requestDate),
       render: (v) =>
         v ? (
           // show only date (no time)
@@ -222,7 +269,8 @@ export default function AllocationRequestsList() {
       title: "Dự kiến giao",
       dataIndex: "deliveryDate",
       width: 160,
-      sorter: (a, b) => toTimestampOrInf(a.deliveryDate) - toTimestampOrInf(b.deliveryDate),
+      sorter: (a, b) =>
+        toTimestampOrInf(a.deliveryDate) - toTimestampOrInf(b.deliveryDate),
       render: (v) =>
         v ? (
           // show only date (no time)
@@ -257,11 +305,22 @@ export default function AllocationRequestsList() {
                 title: "Chi tiết yêu cầu phân bổ",
                 content: (
                   <div>
-                    <p><strong>ID:</strong> {record.id}</p>
-                    <p><strong>Xe:</strong> {record.car}</p>
-                    <p><strong>Đại lý:</strong> {record.destination}</p>
-                    <p><strong>Số lượng:</strong> {record.quantity}</p>
-                    <p><strong>Trạng thái:</strong> <StatusTag value={record.status} /></p>
+                    <p>
+                      <strong>ID:</strong> {record.id}
+                    </p>
+                    <p>
+                      <strong>Xe:</strong> {record.car}
+                    </p>
+                    <p>
+                      <strong>Đại lý:</strong> {record.destination}
+                    </p>
+                    <p>
+                      <strong>Số lượng:</strong> {record.quantity}
+                    </p>
+                    <p>
+                      <strong>Trạng thái:</strong>{" "}
+                      <StatusTag value={record.status} />
+                    </p>
                   </div>
                 ),
                 width: 500,
@@ -271,7 +330,12 @@ export default function AllocationRequestsList() {
               });
             }}
           />
-          <Button size="small" type="default" icon={<EditOutlined />} onClick={() => openModal(record)}>
+          <Button
+            size="small"
+            type="default"
+            icon={<EditOutlined />}
+            onClick={() => openModal(record)}
+          >
             Cập nhật
           </Button>
           <Popconfirm
@@ -280,12 +344,18 @@ export default function AllocationRequestsList() {
             okText="Xóa"
             cancelText="Hủy"
             onConfirm={() => messageApi.success(`${record.id} đã xóa (mock)`)}
-          >
-          </Popconfirm>
+          ></Popconfirm>
         </Space>
       ),
     },
   ];
+
+  // Handle table events (pagination / filters / sorters)
+  const handleTableChange = (pag /*, filters, sorter*/) => {
+    const { current, pageSize } = pag;
+    setPagination((prev) => ({ ...prev, current, pageSize }));
+    fetchList({ current, pageSize });
+  };
 
   return (
     <div style={{ background: "#fff", borderRadius: 12, padding: 16 }}>
@@ -293,18 +363,31 @@ export default function AllocationRequestsList() {
       {messageContextHolder}
       {modalContextHolder}
 
-      <Space style={{ width: "100%", justifyContent: "space-between", marginBottom: 12 }}>
+      <Space
+        style={{
+          width: "100%",
+          justifyContent: "space-between",
+          marginBottom: 12,
+        }}
+      >
         <div>
           <Typography.Title level={4} style={{ margin: 0 }}>
             Các yêu cầu phân bổ từ các đại lý
           </Typography.Title>
-          <Typography.Text type="secondary">Theo dõi trạng thái và cập nhật trực tiếp.</Typography.Text>
+          <Typography.Text type="secondary">
+            Theo dõi trạng thái và cập nhật trực tiếp.
+          </Typography.Text>
         </div>
         <Space>
           {/* <Button icon={<PlusOutlined />} onClick={() => messageApi.info("TODO: Create New Order")}>
             Tạo đơn mới
           </Button> */}
-          <Button type="primary" icon={<SyncOutlined />} onClick={fetchList} loading={loading}>
+          <Button
+            type="primary"
+            icon={<SyncOutlined />}
+            onClick={() => fetchList()}
+            loading={loading}
+          >
             Tải lại
           </Button>
         </Space>
@@ -334,8 +417,16 @@ export default function AllocationRequestsList() {
           columns={columns}
           dataSource={data}
           loading={loading}
-          pagination={{ pageSize: 10, showSizeChanger: false }}
           bordered
+          pagination={{
+            current: pagination.current,
+            pageSize: pagination.pageSize,
+            total: pagination.total,
+            showSizeChanger: true,
+            pageSizeOptions: ["10", "20", "50"],
+            showTotal: (t, range) => `${range[0]}-${range[1]} / ${t}`,
+          }}
+          onChange={handleTableChange}
         />
       )}
 
@@ -348,18 +439,45 @@ export default function AllocationRequestsList() {
         confirmLoading={updating}
         onOk={() => form.submit()}
         destroyOnClose
+        zIndex={2000}
       >
-        <Form form={form} layout="vertical" onFinish={onFinish} initialValues={{ id: "", status: "" }}>
-          <Form.Item name="id" label="Allocation ID" rules={[{ required: true, message: "Nhập Allocation ID" }]}>
+        <Form
+          form={form}
+          layout="vertical"
+          onFinish={onFinish}
+          initialValues={{ id: "", status: "" }}
+        >
+          <Form.Item
+            name="id"
+            label="Allocation ID"
+            rules={[{ required: true, message: "Nhập Allocation ID" }]}
+          >
             <Input placeholder="Nhập ID (UUID)" />
           </Form.Item>
 
-          <Form.Item name="status" label="Trạng thái" rules={[{ required: true, message: "Chọn trạng thái" }]}>
+          <Form.Item
+            name="status"
+            label="Trạng thái"
+            rules={[{ required: true, message: "Chọn trạng thái" }]}
+          >
             <Select
               placeholder="Chọn trạng thái"
-              options={STATUS_OPTIONS.map((s) => ({ value: s, label: STATUS_META[s]?.label || s }))}
+              // ⛔ Khóa toàn bộ khi đã received
+              disabled={current?.status === "received"}
+              options={STATUS_OPTIONS.map((s, i) => ({
+                value: s,
+                label: STATUS_META[s]?.label || s,
+                // Giữ luật: không cho lùi (chỉ khi chưa received)
+                disabled:
+                  current?.status && current?.status !== "received"
+                    ? i < STATUS_OPTIONS.indexOf(current.status)
+                    : false,
+              }))}
               showSearch
               optionFilterProp="label"
+              getPopupContainer={(trigger) => trigger.parentElement}
+              placement="bottomLeft"
+              listHeight={256}
             />
           </Form.Item>
         </Form>
