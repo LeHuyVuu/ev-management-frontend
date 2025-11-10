@@ -147,21 +147,7 @@ export default function RecentQuotes() {
       render: (n) => <Text style={{ color: "#3f51b5" }}>{formatVND(n)}</Text>,
       width: 160,
     },
-    {
-      title: "Trạng thái",
-      dataIndex: "status",
-      key: "status",
-      filters: [
-        { text: "draft", value: "draft" },
-        { text: "pending", value: "pending" },
-        { text: "confirmed", value: "confirmed" },
-        { text: "canceled", value: "canceled" },
-      ],
-      onFilter: (value, record) => (record.status || "").toLowerCase() === String(value),
-      render: (s) => <Tag>{s || "—"}</Tag>,
-      width: 140,
-      responsive: ["lg"],
-    },
+    
     {
       title: "Thao tác",
       key: "actions",
