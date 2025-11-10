@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
+import api from "../../../../../context/api";
 import { User, Car, DollarSign } from "lucide-react";
 import { ToastContainer, toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
@@ -15,7 +16,28 @@ const AUTHZ = RAW_TOKEN.startsWith("Bearer ")
   ? RAW_TOKEN.trim()
   : `Bearer ${RAW_TOKEN.trim()}`;
 
-const baseURL = "https://prn232.freeddns.org";
+// We'll map incoming service-prefixed paths to specific service bases (api.*)
+// so callers can continue using " /customer-service/... " style paths.
+
+const baseURL = import.meta.env.VITE_API_BASE || "https://prn232.freeddns.org";
+
+function resolveServicePath(path) {
+  if (!path || !path.startsWith("/")) return path;
+  const parts = path.split("/").filter(Boolean);
+  const svc = parts[0];
+  const rest = path.replace(new RegExp(`^/${svc}`), "");
+  const mapping = {
+    "customer-service": api.customer || import.meta.env.VITE_API_CUSTOMER,
+    "brand-service": api.brand || import.meta.env.VITE_API_BRAND,
+    "financial-service": api.financial || import.meta.env.VITE_API_FINANCIAL,
+    "dealer-service": api.dealer || import.meta.env.VITE_API_DEALER,
+    "order-service": api.order || import.meta.env.VITE_API_ORDER,
+    "utility-service": api.utility || import.meta.env.VITE_API_UTILITY,
+    "identity-service": api.identity || import.meta.env.VITE_API_IDENTITY,
+  };
+  const base = mapping[svc] || baseURL;
+  return `${base}${rest}`;
+}
 
 /** 🔧 Helper gọi API có kèm Authorization, log lỗi chi tiết */
 async function apiFetch(path, options = {}) {
@@ -84,7 +106,7 @@ export default function QuoteForm() {
       try {
         setLoadingPromos(true);
         setPromosError(null);
-        const res = await fetch(`${baseURL}/financial-service/api/Promotion`, {
+        const res = await fetch(resolveServicePath('/financial-service/api/Promotion'), {
           method: "GET",
           headers: { Accept: "*/*" },
         });
@@ -120,7 +142,7 @@ export default function QuoteForm() {
         setVehicleErr(null);
 
         const res = await fetch(
-          `${baseURL}/brand-service/api/vehicle-versions/dealer?pageNumber=1&pageSize=100`,
+          resolveServicePath('/brand-service/api/vehicle-versions/dealer?pageNumber=1&pageSize=100'),
           { headers: { Authorization: AUTHZ, Accept: "application/json" } }
         );
 
@@ -162,8 +184,41 @@ export default function QuoteForm() {
   // ====== TẠO KHÁCH HÀNG ======
   const handleCreateCustomer = async () => {
     try {
-      if (!customerName || !customerPhone) {
-        toast.warn("Vui lòng nhập ít nhất Tên và SĐT.");
+      // Validation: Tên, SĐT, Email, Địa chỉ are required and must be reasonable
+      const missing = [];
+      if (!customerName || !customerName.trim()) missing.push("Tên");
+      if (!customerPhone || !customerPhone.trim()) missing.push("Số điện thoại");
+      if (!email || !email.trim()) missing.push("Email");
+      if (!address || !address.trim()) missing.push("Địa chỉ");
+
+      if (missing.length > 0) {
+        toast.warn(`Vui lòng nhập: ${missing.join(", ")}`);
+        return;
+      }
+
+      // Basic phone validation: digits only, length 9-12
+      const phoneDigits = (customerPhone || "").toString().replace(/\D/g, "");
+      if (phoneDigits.length !== 10) {
+        toast.warn("Số điện thoại không hợp lệ (10 chữ số). Vui lòng kiểm tra lại.");
+        return;
+      }
+
+      // Standard email validation: requires local@domain.tld with valid TLD
+      const isValidQuoteEmail = (e) => {
+        const s = e.trim();
+        const standard = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        const parts = s.split('@');
+        if (parts.length !== 2) return false;
+        const [local, domain] = parts;
+        if (!local || !domain) return false;
+        const domainParts = domain.split('.');
+        if (domainParts.length < 2) return false;
+        const tld = domainParts[domainParts.length - 1];
+        if (!/[A-Za-z]{2,}/.test(tld)) return false;
+        return standard.test(s);
+      };
+      if (!isValidQuoteEmail(email)) {
+        toast.warn("Email không hợp lệ. Định dạng hợp lệ: user@example.com");
         return;
       }
       setCreatingCustomer(true);

@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
+import api from "../../../../../context/api";
 import {
   Modal,
   Typography,
@@ -27,10 +28,10 @@ const { Dragger } = Upload;
 // CONSTANTS
 // ============================================================================
 
-const API_SERVICE = "https://prn232.freeddns.org/customer-service";
+const API_SERVICE = api.customer || import.meta.env.VITE_API_CUSTOMER || "https://prn232.freeddns.org/customer-service";
 const API_CONTRACT = `${API_SERVICE}/contracts`;
 const API_CONTRACT_API = `${API_SERVICE}/api/contracts`;
-const API_UPLOAD = "https://prn232.freeddns.org/utility-service/api/Upload";
+const API_UPLOAD = (api.utility || import.meta.env.VITE_API_UTILITY || "https://prn232.freeddns.org/utility-service") + "/api/Upload";
 
 export const viPayment = {
   cash: "Thanh toán qua tiền mặt",

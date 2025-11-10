@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import dayjs from "dayjs";
 import "dayjs/locale/vi";
+import api from "../../../../../context/api";
 
 dayjs.locale("vi");
 
@@ -10,32 +11,77 @@ export default function TestDriveCalendar({ selectedDate, onDateSelect }) {
   const token = localStorage.getItem("token");
   const today = dayjs();
 
-  // ✅ Fetch toàn bộ lịch trong tháng để đếm số lượng mỗi ngày
-  useEffect(() => {
-    const startDate = currentMonth.startOf("month").format("YYYY-MM-DD");
-    const endDate = currentMonth.endOf("month").format("YYYY-MM-DD");
+  // Extract fetch logic so it can be called on month change or when an external
+  // event requests a refresh (e.g., after creating a booking)
+  const fetchCounts = async (forMonth = currentMonth) => {
+    try {
+      const startDate = forMonth.startOf("month").format("YYYY-MM-DD");
+      const endDate = forMonth.endOf("month").format("YYYY-MM-DD");
 
-    fetch(
-      `https://prn232.freeddns.org/order-service/api/TestDrive?pageNumber=1&pageSize=500&startDate=${startDate}&endDate=${endDate}`,
-      {
-        headers: {
-          Authorization: `Bearer ${token}`,
-          Accept: "application/json",
-        },
-      }
-    )
-      .then((res) => res.json())
-      .then((data) => {
-        if (data?.status === 200 && data.data?.items) {
-          const grouped = {};
-          data.data.items.forEach((item) => {
-            const dateKey = dayjs(item.driveDate).format("YYYY-MM-DD");
-            grouped[dateKey] = (grouped[dateKey] || 0) + 1;
-          });
-          setCountByDate(grouped);
+      const base = api.order || import.meta.env.VITE_API_ORDER;
+      const res = await fetch(
+        `${base}/api/TestDrive?pageNumber=1&pageSize=500&startDate=${startDate}&endDate=${endDate}`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            Accept: "application/json",
+          },
         }
-      })
-      .catch((err) => console.error("Lỗi khi fetch TestDrive counts:", err));
+      );
+      const data = await res.json();
+
+      if (data?.status === 200 && data.data?.items) {
+        const grouped = {};
+        data.data.items.forEach((item) => {
+          const dateKey = dayjs(item.driveDate).format("YYYY-MM-DD");
+          grouped[dateKey] = (grouped[dateKey] || 0) + 1;
+        });
+        setCountByDate(grouped);
+      } else {
+        // Fallback: clear counts if response not as expected
+        setCountByDate({});
+      }
+    } catch (err) {
+      console.error("Lỗi khi fetch TestDrive counts:", err);
+    }
+  };
+
+  // Fetch when currentMonth changes
+  useEffect(() => {
+    fetchCounts(currentMonth);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentMonth]);
+
+  // Listen for global refresh events so other components (BookingForm) can
+  // notify the calendar to re-fetch. The event detail may include a `date`.
+  useEffect(() => {
+    const handler = (e) => {
+      try {
+        const payloadDate = e?.detail?.date;
+        if (payloadDate) {
+          const d = dayjs(payloadDate);
+          // If the incoming date is in a different month, switch calendar to
+          // that month so the user sees the relevant day; otherwise just
+          // re-fetch the current month to get the latest counts.
+          if (!d.isSame(currentMonth, "month")) {
+            setCurrentMonth(d.startOf("month"));
+          } else {
+            fetchCounts(currentMonth);
+          }
+        } else {
+          // Generic refresh
+          fetchCounts(currentMonth);
+        }
+      } catch (err) {
+        console.warn("calendar:refresh handler error:", err);
+      }
+    };
+
+    window.addEventListener("calendar:refresh", handler);
+    return () => window.removeEventListener("calendar:refresh", handler);
+    // Note: intentionally not including fetchCounts in deps to avoid
+    // re-registering on every render; fetchCounts closes over currentMonth.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentMonth]);
 
   // Calendar rendering logic

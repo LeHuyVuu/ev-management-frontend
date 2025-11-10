@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import api from '../../../../../context/api';
 import Select from 'react-select';
 import dayjs from 'dayjs';
 import { toast, ToastContainer } from 'react-toastify';
@@ -38,7 +39,8 @@ export default function BookingForm({ selectedDate, onDateSelect }) {
 
   // Fetch customers
   useEffect(() => {
-    fetch('https://prn232.freeddns.org/customer-service/api/customers', {
+    const base = api.customer || import.meta.env.VITE_API_CUSTOMER || 'https://prn232.freeddns.org/customer-service';
+    fetch(`${base}/api/customers`, {
       headers: { Authorization: `Bearer ${token}` },
     })
       .then((res) => res.json())
@@ -56,7 +58,8 @@ export default function BookingForm({ selectedDate, onDateSelect }) {
 
   // Fetch vehicles
   useEffect(() => {
-    fetch('https://prn232.freeddns.org/brand-service/api/vehicle-versions/dealer?pageNumber=1&pageSize=100', {
+    const base = api.brand || import.meta.env.VITE_API_BRAND || 'https://prn232.freeddns.org/brand-service';
+    fetch(`${base}/api/vehicle-versions/dealer?pageNumber=1&pageSize=100`, {
       headers: { Authorization: `Bearer ${token}` },
     })
       .then((res) => res.json())
@@ -74,7 +77,8 @@ export default function BookingForm({ selectedDate, onDateSelect }) {
 
   // Fetch staff
   useEffect(() => {
-    fetch('https://prn232.freeddns.org/dealer-service/users/dealer-staffs', {
+    const base = api.dealer || import.meta.env.VITE_API_DEALER || 'https://prn232.freeddns.org/dealer-service';
+    fetch(`${base}/users/dealer-staffs`, {
       headers: {
         Authorization: `Bearer ${token}`,
         Accept: 'application/json',
@@ -125,7 +129,8 @@ export default function BookingForm({ selectedDate, onDateSelect }) {
     };
 
     try {
-      const res = await fetch('https://prn232.freeddns.org/order-service/api/TestDrive', {
+  const base = api.order || import.meta.env.VITE_API_ORDER || 'https://prn232.freeddns.org/order-service';
+  const res = await fetch(`${base}/api/TestDrive`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -140,6 +145,25 @@ export default function BookingForm({ selectedDate, onDateSelect }) {
       if (res.ok && (data.status === 200 || data.success)) {
         toast.success('🎉 Đặt lịch lái thử thành công!');
         console.log('Booking success:', data);
+        // Notify parent or other components to refresh calendar data
+        try {
+          // If parent passed onDateSelect, trigger a sync for the selected date
+          if (onDateSelect && typeof onDateSelect === 'function') {
+            onDateSelect(dayjs(formData.testDate));
+          }
+        } catch (e) {
+          console.warn('onDateSelect callback failed:', e);
+        }
+
+        // Dispatch a global event that calendar components can listen to
+        try {
+          if (typeof window !== 'undefined' && window.dispatchEvent) {
+            window.dispatchEvent(new CustomEvent('calendar:refresh', { detail: { date: formData.testDate } }));
+          }
+        } catch (e) {
+          console.warn('Dispatch calendar:refresh failed:', e);
+        }
+
         return;
       }
 

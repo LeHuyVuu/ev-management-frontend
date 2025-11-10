@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from "react";
+import api from "../../../../../context/api";
 
-const VEHICLE_API =
-  "https://prn232.freeddns.org/brand-service/api/vehicles?pageNumber=1&pageSize=10";
+const VEHICLE_API_BASE = api.brand || import.meta.env.VITE_API_BRAND;
+const VEHICLE_API = `${VEHICLE_API_BASE}/api/vehicles?pageNumber=1&pageSize=10`;
 const TOKEN = localStorage.getItem("token");
 
 const COLOR_OPTIONS = [
@@ -33,8 +34,12 @@ export default function FilterSearch({ onFilterChange }) {
           },
         });
         const data = await res.json();
-        if (data.status === 200 && data.data?.items) {
-          setVehicles(data.data.items);
+        if (data.status === 200) {
+          // Support two response shapes:
+          // 1) { status:200, data: { items: [...] } }
+          // 2) { status:200, data: [ ... ] }
+          const items = data.data?.items ?? data.data ?? [];
+          if (Array.isArray(items)) setVehicles(items);
         }
       } catch (error) {
         console.error(error);
