@@ -28,7 +28,6 @@ import Authentication from "../pages/Authentication/Authentication";
 
 // Protected wrapper
 import ProtectedRoute from "../routes/ProtectedRoute";
-import ForecastPage from "../pages/AI/ForecastPage";
 import ManageVehicleAllocationTransfer from "../pages/EVM/ManageVehicleAllocationTransfer/ManageVehicleAllocationTransfer";
 import Feedbacks from "../pages/Feedbacks/page";
 
@@ -47,39 +46,38 @@ const MainRoutes = () => {
             // <ProtectedRoute>
             <Routes>
 
-              {/* <Route element={<ProtectedRoute allowedRoles={[3, 4, 1 ,2]} />}> */}
-              {/* Dealer group */}
-              <Route path="dealer" element={<DealerLayout />}>
-                <Route path="dashboard" element={<ManagerDashboard />} />
-                <Route path="vehicle-search" element={<VehicleSearch />} />
-                <Route path="contract" element={<ContractManagement />} />
-                <Route path="customer-crm" element={<CustomerCRM />} />
-                <Route path="delivery-tracking" element={<DeliveryTracking />} />
-                <Route path="driver-schedule" element={<DriverSchedule />} />
-                <Route path="quote-management" element={<QuoteManagement />} />
-                <Route path="vehicle-allocation" element={<VehicleAllocation />} />
-                <Route path="vehicle-management" element={<VehicleManagement />} />
-                <Route path="profile" element={<Profile />} />
-              </Route>
-              {/* </Route> */}
-
-
-
-
-              {/* <Route element={<ProtectedRoute allowedRoles={[1, 2, 3, 4]} />}> */}
-              {/* EVM group */}
-              <Route path="evm" element={<EVMLayout />}>
-                <Route path="product-distribution" element={<ProductDistribution />} />
-                <Route path="dealer-management" element={<DealerManagement />} />
-                <Route path="reports-analytics" element={<ReportsAnalytics />} />
-                <Route path="system-administration" element={<SystemAdministration />} />
-                <Route path="staff-controller" element={<StaffController />} />
-                <Route path="/evm/vehicle-allocation-transfer" element={<ManageVehicleAllocationTransfer />} />
-
+              <Route element={<ProtectedRoute allowedRoles={[3, 4]} />}>
+                {/* Dealer group */}
+                <Route path="dealer" element={<DealerLayout />}>
+                  <Route path="dashboard" element={<ManagerDashboard />} />
+                  <Route path="vehicle-search" element={<VehicleSearch />} />
+                  <Route path="contract" element={<ContractManagement />} />
+                  <Route path="customer-crm" element={<CustomerCRM />} />
+                  <Route path="delivery-tracking" element={<DeliveryTracking />} />
+                  <Route path="driver-schedule" element={<DriverSchedule />} />
+                  <Route path="quote-management" element={<QuoteManagement />} />
+                  <Route path="vehicle-allocation" element={<VehicleAllocation />} />
+                  <Route path="vehicle-management" element={<VehicleManagement />} />
+                  <Route path="profile" element={<Profile />} />
+                </Route>
               </Route>
 
-              {/* </Route> */}
-              <Route path="ai" element={<ForecastPage />} />
+
+
+
+              <Route element={<ProtectedRoute allowedRoles={[1, 2]} />}>
+                {/* EVM group */}
+                <Route path="evm" element={<EVMLayout />}>
+                  <Route path="product-distribution" element={<ProductDistribution />} />
+                  <Route path="dealer-management" element={<DealerManagement />} />
+                  <Route path="reports-analytics" element={<ReportsAnalytics />} />
+                  <Route path="system-administration" element={<SystemAdministration />} />
+                  <Route path="staff-controller" element={<StaffController />} />
+                  <Route path="/evm/vehicle-allocation-transfer" element={<ManageVehicleAllocationTransfer />} />
+
+                </Route>
+
+              </Route>
 
 
               {/* 404 fallback */}

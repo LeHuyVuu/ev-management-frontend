@@ -40,8 +40,14 @@ const STATUS_META = {
   rejected:  { label: "Từ chối",          color: "red" },
 };
 
+/** =======================
+ *  TOKEN
+ *  =======================
+ *  ❌ Trước đây (lỗi): const TOKEN = localStorage.getItem("token");
+ *  ✅ Sửa thành hàm lấy token tại thời điểm gọi API
+ */
+const getToken = () => localStorage.getItem("token") || ""; // [CHANGE]
 
-const TOKEN = localStorage.getItem("token");// G
 /** ===== Helpers ===== */
 function shortId(id = "") {
   if (!id) return "";
@@ -78,7 +84,7 @@ export default function AllocationRequestsList() {
           {
             headers: {
               accept: "*/*",
-              Authorization: `Bearer ${TOKEN}`,
+              Authorization: `Bearer ${getToken()}`, // [CHANGE]
             },
           }
         );
@@ -88,7 +94,8 @@ export default function AllocationRequestsList() {
             key: item.allocationId,
             id: item.allocationId,
             idShort: shortId(item.allocationId),
-            car: (item.vehicleName || "") +
+            car:
+              (item.vehicleName || "") +
               (item.versionName ? " " + item.versionName : "") +
               (item.color ? " " + item.color : "") +
               (item.evType ? ` - ${item.evType}` : ""),
@@ -144,7 +151,7 @@ export default function AllocationRequestsList() {
           headers: {
             "Content-Type": "application/json", // nếu server yêu cầu text/plain: đổi thành text/plain và body: status
             accept: "*/*",
-            Authorization: `Bearer ${TOKEN}`,
+            Authorization: `Bearer ${getToken()}`, // [CHANGE]
           },
           body: JSON.stringify(status), // backend khai báo body là "string"
         }
@@ -154,7 +161,7 @@ export default function AllocationRequestsList() {
         try {
           const j = await resp.json();
           msg = j?.message || msg;
-        } catch { }
+        } catch {}
         throw new Error(msg);
       }
 
@@ -218,7 +225,6 @@ export default function AllocationRequestsList() {
       width: 170,
       render: (_, record) => (
         <Space>
-         
           <Button
             size="small"
             type="default"

@@ -588,10 +588,11 @@ export default function CustomerProfile({ customer }) {
                           <Space direction="vertical" size="small" style={{ width: "100%" }}>
                             <Space style={{ justifyContent: "space-between", width: "100%" }}>
                               <Text strong>
-                                Mã đơn: {o.orderId ? `${o.orderId.slice(0, 8)}...` : "-"}
+                                Mã đơn: {o.orderId}
                               </Text>
-                              <OrdersBadge status={o.status} />
                             </Space>
+                              <OrdersBadge status={o.status} />
+
                             <Space size="small" style={{ color: "#6b7280" }}>
                               <Clock size={14} />
                               <Text type="secondary">Ngày giao: {o.deliveryDate || "-"}</Text>
