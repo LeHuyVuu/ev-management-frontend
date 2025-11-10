@@ -94,22 +94,6 @@ export default function AddModelModal({
     }
   }
 
-  function extractApiErrorMessage(resp, fallback = "Yêu cầu thất bại") {
-  if (!resp || typeof resp !== "object") return fallback;
-  // Một số BE trả Message (viết hoa), số khác message/title, hoặc mảng lỗi
-  if (typeof resp.Message === "string" && resp.Message.trim()) return resp.Message;
-  if (typeof resp.message === "string" && resp.message.trim()) return resp.message;
-  if (typeof resp.title === "string" && resp.title.trim()) return resp.title;
-  if (Array.isArray(resp.errors) && resp.errors.length) {
-    const first = resp.errors[0];
-    if (typeof first === "string" && first.trim()) return first;
-    if (typeof first?.message === "string" && first.message.trim()) return first.message;
-  }
-  if (typeof resp.error === "string" && resp.error.trim()) return resp.error;
-  return fallback;
-}
-
-
   async function handleCreateVehicle(e) {
   e.preventDefault();
   if (!newVehicle.brand || !newVehicle.modelName) {
@@ -123,25 +107,13 @@ export default function AddModelModal({
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(newVehicle),
     });
+    const json = await res.json();
+    if (json.status !== 200)
+      throw new Error(json.message || "Tạo model thất bại");
 
-    // Thử parse JSON an toàn
-    let json;
-    try {
-      json = await res.json();
-    } catch {
-      json = null;
-    }
-
-    // Coi như “giống Add Vehicle Version”: kiểm tra status và ném Error với message từ BE
-    if (!res.ok || (json && json.status !== 200)) {
-      const msg = extractApiErrorMessage(json, `Tạo model thất bại (${res.status})`);
-      throw new Error(msg);
-    }
-
-    // Thành công
     await fetchVehicles();
 
-    const created = json?.data || null;
+    const created = json.data || null;
     const found =
       created && created.vehicleId
         ? created
@@ -155,7 +127,7 @@ export default function AddModelModal({
       setForm((f) => ({ ...f, vehicleId: found.vehicleId }));
     }
 
-    // Chỉ đóng khung "Create Vehicle"
+    // chỉ đóng phần "Create Vehicle", KHÔNG đóng modal chính
     setShowCreateVehicle(false);
     setNewVehicle({ brand: "", modelName: "", description: "" });
 
@@ -168,7 +140,6 @@ export default function AddModelModal({
     error: (e) => e.message || "Tạo model thất bại",
   });
 }
-
 
 
   function closeAndReset() {

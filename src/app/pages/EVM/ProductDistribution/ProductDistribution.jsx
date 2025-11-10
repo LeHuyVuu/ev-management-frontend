@@ -6,15 +6,15 @@ import DiscountPolicyManagement from "./components/DiscountPolicyManagement";
 import PromotionManagement from "./components/PromotionManagement";
 
 function ProductDistribution() {
-  const [activeTab, setActiveTab] = useState("discount");
+  const [activeTab, setActiveTab] = useState("wholesale");
 
   const tabs = [
-    // {
-    //   id: "wholesale",
-    //   label: "Wholesale Price",
-    //   icon: DollarSign,
-    //   component: <WholesalePriceManagement />,
-    // },
+    {
+      id: "wholesale",
+      label: "Wholesale Price",
+      icon: DollarSign,
+      component: <WholesalePriceManagement />,
+    },
     {
       id: "discount",
       label: "Discount Policy",

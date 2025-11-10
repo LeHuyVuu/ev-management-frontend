@@ -8,7 +8,7 @@ function SystemAdministration() {
       <div className="flex">
         <main className="flex-1 p-6 space-y-8">
           <UserManagement />
-          {/* <RoleAndAccess /> */}
+          <RoleAndAccess />
         </main>
       </div>
     </div>

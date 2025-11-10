@@ -8,8 +8,7 @@ const CreateDealerModal = ({ onClose, onCreate }) => {
     address: "",
     contactEmail: "",
     contactPhone: "",
-    // đồng bộ với <option value="active">
-    status: "active",
+    status: "Active",
   });
 
   const handleChange = (field, value) => {
@@ -32,7 +31,7 @@ const CreateDealerModal = ({ onClose, onCreate }) => {
   return (
     <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50">
       <div className="bg-white rounded-lg shadow-lg w-full max-w-lg p-6">
-        <h3 className="text-xl font-semibold mb-4">Create Dealer</h3>
+        <h3 className="text-xl font-semibold mb-4">Create Dealer Account</h3>
 
         <div className="space-y-3">
           <div>

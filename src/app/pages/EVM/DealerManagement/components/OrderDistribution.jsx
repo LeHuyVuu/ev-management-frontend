@@ -7,6 +7,7 @@ import {
   Form,
   Input,
   InputNumber,
+  DatePicker,
   Select,
   Space,
   Typography,
@@ -31,7 +32,7 @@ const UPDATE_STATUS_URL = (id) =>
   `${API_BASE}/order-service/api/VehicleTransferOrder/${encodeURIComponent(id)}/status`;
 
 const DEALERS_URL = `${API_BASE}/dealer-service/api/Dealers/active-dealers`;
-const VEHICLES_URL = `${API_BASE}/brand-service/api/vehicle-versions?pageNumber=1&pageSize=1000`;
+const VEHICLES_URL = `${API_BASE}/brand-service/api/vehicles?pageNumber=1&pageSize=1000`;
 
 const PAGE_SIZE = 10;
 
@@ -54,10 +55,8 @@ const STATUS_META = {
   cancelled: { label: "Đã hủy",          color: "volcano" },
   rejected:  { label: "Từ chối",         color: "red" },
 };
-const STATUS_OPTIONS = Object.keys(STATUS_META).map((k) => ({
-  value: k,
-  label: STATUS_META[k].label,
-}));
+
+const STATUS_OPTIONS = Object.keys(STATUS_META).map((k) => ({ value: k, label: STATUS_META[k].label }));
 
 function StatusTag({ value }) {
   const meta = STATUS_META[value] || { label: value || "-", color: "default" };
@@ -66,29 +65,30 @@ function StatusTag({ value }) {
 
 /** ===================== COMPONENT ===================== */
 export default function OrderDistributionAnt() {
+  // Table state
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(true);
   const [loadErr, setLoadErr] = useState("");
   const [page, setPage] = useState(1);
   const [total, setTotal] = useState(0);
 
+  // Create modal
   const [openCreate, setOpenCreate] = useState(false);
   const [creating, setCreating] = useState(false);
   const [createForm] = Form.useForm();
 
+  // Update status modal
   const [openUpdate, setOpenUpdate] = useState(false);
   const [updating, setUpdating] = useState(false);
   const [updateForm] = Form.useForm();
 
-  const [dealerOptions, setDealerOptions] = useState([]);
-  const [vehicleOptions, setVehicleOptions] = useState([]);
+  // Select options
+  const [dealerOptions, setDealerOptions] = useState([]); // {value, label}
+  const [vehicleOptions, setVehicleOptions] = useState([]); // {value, label}
   const [loadingDealers, setLoadingDealers] = useState(false);
   const [loadingVehicles, setLoadingVehicles] = useState(false);
 
   // Note: compute headers per-request via getAuthHeaders() to avoid stale token
-
-  const [messageApi, messageContextHolder] = message.useMessage();
-  const [modal, modalContextHolder] = Modal.useModal();
 
   /** -------- Fetch list -------- */
   const fetchList = async (p = 1) => {
@@ -114,7 +114,7 @@ export default function OrderDistributionAnt() {
       setPage(json?.data?.pageNumber ?? p);
     } catch (e) {
       setLoadErr(e?.message || "Không thể tải danh sách.");
-      messageApi.error(e?.message || "Load failed");
+      message.error(e?.message || "Load failed");
     } finally {
       setLoading(false);
     }
@@ -124,7 +124,7 @@ export default function OrderDistributionAnt() {
     fetchList(1);
   }, []);
 
-  /** -------- Fetch dropdown data -------- */
+  /** -------- Fetch dropdown options khi mở Create -------- */
   const fetchDealers = async () => {
     try {
       setLoadingDealers(true);
@@ -139,7 +139,7 @@ export default function OrderDistributionAnt() {
         }))
       );
     } catch (e) {
-      messageApi.error(e?.message || "Không tải được danh sách đại lý");
+      message.error(e?.message || "Không tải được danh sách đại lý");
     } finally {
       setLoadingDealers(false);
     }
@@ -175,14 +175,12 @@ export default function OrderDistributionAnt() {
       }
       setVehicleOptions(
         items.map((v) => ({
-          value: v.vehicleVersionId,
-          label: `${v.brand ?? ""} ${v.modelName ?? ""} ${v.versionName ?? ""} ${v.color ?? ""}`
-            .replace(/\s+/g, " ")
-            .trim(),
+          value: v.vehicleVersionId || v.id || v.vehicleId,
+          label: `${v.brand ?? ""} ${v.modelName ?? v.versionName ?? ""}`.trim(),
         }))
       );
     } catch (e) {
-      messageApi.error(e?.message || "Không tải được danh sách xe");
+      message.error(e?.message || "Không tải được danh sách xe");
     } finally {
       setLoadingVehicles(false);
     }
@@ -193,27 +191,23 @@ export default function OrderDistributionAnt() {
       if (dealerOptions.length === 0) fetchDealers();
       if (vehicleOptions.length === 0) fetchVehicles();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [openCreate]);
-
-  const fromDealerId = Form.useWatch("fromDealerId", createForm);
 
   /** -------- Create (POST) -------- */
   const submitCreate = async () => {
     try {
-      // validateFields chỉ resolve nếu tất cả hợp lệ
       const values = await createForm.validateFields();
-      if (values.fromDealerId === values.toDealerId) {
-        messageApi.warning("From Dealer và To Dealer không được trùng nhau");
-        return;
-      }
-
       const payload = {
         fromDealerId: values.fromDealerId,
         toDealerId: values.toDealerId,
+        // Backend expect vehicleVersionId; hiện dùng vehicleId từ Select để gửi theo field này
         vehicleVersionId: values.vehicleVersionId,
         quantity: Number(values.quantity),
-        requestDate: new Date().toISOString(),
-        status: "processing",
+        requestDate: values.requestDate
+          ? values.requestDate.toDate().toISOString()
+          : new Date().toISOString(),
+        status: values.status || "processing",
       };
 
       setCreating(true);
@@ -223,34 +217,43 @@ export default function OrderDistributionAnt() {
         body: JSON.stringify(payload),
       });
       const j = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(j?.message || `Create failed (${res.status})`);
+      if (!res.ok) {
+        throw new Error(j?.message || `Create failed (HTTP ${res.status})`);
+      }
 
+      // Thêm vào bảng ngay
       const added = {
-        id: j?.data?.vehicleTransferOrderId || crypto.randomUUID(),
-        from: j?.data?.fromDealerName || "",
+        id:
+          j?.data?.vehicleTransferOrderId ||
+          (crypto?.randomUUID ? crypto.randomUUID() : String(Date.now())),
+        from: j?.data?.fromDealerName || "", // nếu backend trả, ưu tiên dùng
         to: j?.data?.toDealerName || "",
-        product: j?.data?.vehicleName || "",
+        product: j?.data?.vehicleName || "", // nếu backend chưa trả tên, có thể để trống
         quantity: payload.quantity,
         date: payload.requestDate,
         status: payload.status,
       };
       setRows((prev) => [added, ...prev]);
       setTotal((t) => t + 1);
-      messageApi.success("Tạo đơn chuyển xe thành công");
+      // show a clearer success message with the created id when available
+      const createdId = added.id;
+      const shortId = (createdId || "").toString().slice(0, 8);
+      message.success(`Tạo đơn thành công${createdId ? ` — ID: ${shortId}` : ""}`);
       setOpenCreate(false);
       createForm.resetFields();
     } catch (e) {
-      messageApi.error(e?.message || "Vui lòng kiểm tra lại thông tin nhập");
+      message.error(e?.message || "Có lỗi khi tạo đơn");
     } finally {
       setCreating(false);
     }
   };
 
-  /** -------- Update status -------- */
+  /** -------- Update status (PUT) -------- */
   const submitUpdate = async () => {
     try {
       const values = await updateForm.validateFields();
       const { id, status } = values;
+
       setUpdating(true);
       const res = await fetch(UPDATE_STATUS_URL(id), {
         method: "PUT",
@@ -260,18 +263,26 @@ export default function OrderDistributionAnt() {
         },
         body: JSON.stringify(status), // body là "string"
       });
-      if (!res.ok) throw new Error(`Update failed (${res.status})`);
+      if (!res.ok) {
+        let msg = `Update failed (HTTP ${res.status})`;
+        try {
+          const j = await res.json();
+          msg = j?.message || msg;
+        } catch {}
+        throw new Error(msg);
+      }
       setRows((prev) => prev.map((r) => (r.id === id ? { ...r, status } : r)));
-      messageApi.success("Cập nhật trạng thái thành công");
+      message.success("Cập nhật trạng thái thành công");
       setOpenUpdate(false);
       updateForm.resetFields();
     } catch (e) {
-      messageApi.error(e?.message || "Có lỗi khi cập nhật trạng thái");
+      message.error(e?.message || "Có lỗi khi cập nhật trạng thái");
     } finally {
       setUpdating(false);
     }
   };
 
+  /** -------- Columns -------- */
   const columns = [
     { title: "Source", dataIndex: "from", ellipsis: true },
     { title: "Destination", dataIndex: "to", ellipsis: true },
@@ -282,7 +293,11 @@ export default function OrderDistributionAnt() {
       dataIndex: "date",
       width: 170,
       render: (v) =>
-        v ? dayjs(v).format("YYYY-MM-DD") : <Typography.Text type="secondary">-</Typography.Text>,
+        v ? (
+          dayjs(v).format("YYYY-MM-DD")
+        ) : (
+          <Typography.Text type="secondary">-</Typography.Text>
+        ),
     },
     {
       title: "Status",
@@ -300,28 +315,6 @@ export default function OrderDistributionAnt() {
         <Space>
           <Button
             size="small"
-            icon={<EyeOutlined />}
-            onClick={() =>
-              modal.info({
-                title: "Chi tiết Vehicle Transfer Order",
-                content: (
-                  <div>
-                    <p><strong>ID:</strong> {record.id}</p>
-                    <p><strong>Source:</strong> {record.from}</p>
-                    <p><strong>Destination:</strong> {record.to}</p>
-                    <p><strong>Product:</strong> {record.product}</p>
-                    <p><strong>Quantity:</strong> {record.quantity}</p>
-                    <p><strong>Date:</strong> {record.date}</p>
-                    <p><strong>Status:</strong> <StatusTag value={record.status} /></p>
-                  </div>
-                ),
-                width: 500,
-                centered: true,
-              })
-            }
-          />
-          <Button
-            size="small"
             type="default"
             icon={<EditOutlined />}
             onClick={() => {
@@ -333,12 +326,13 @@ export default function OrderDistributionAnt() {
           </Button>
           <Popconfirm
             title="Xóa (mock)?"
+            description={`Xóa ${record.id}?`}
             okText="Xóa"
             cancelText="Hủy"
             onConfirm={() => {
               setRows((prev) => prev.filter((x) => x.id !== record.id));
               setTotal((t) => Math.max(0, t - 1));
-              messageApi.success("Đã xóa (mock)");
+              message.success("Đã xóa (mock)");
             }}
           >
           </Popconfirm>
@@ -349,10 +343,9 @@ export default function OrderDistributionAnt() {
 
   return (
     <div style={{ background: "#fff", borderRadius: 12, padding: 16 }}>
-      {messageContextHolder}
-      {modalContextHolder}
-
-      <Space style={{ width: "100%", justifyContent: "space-between", marginBottom: 12 }}>
+      <Space
+        style={{ width: "100%", justifyContent: "space-between", marginBottom: 12 }}
+      >
         <div>
           <Typography.Title level={4} style={{ margin: 0 }}>
             Vehicle Transfer Orders
@@ -368,17 +361,16 @@ export default function OrderDistributionAnt() {
           <Button
             type="primary"
             icon={<PlusOutlined />}
-            onClick={() => {
-              createForm.resetFields();
-              setOpenCreate(true);
-            }}
+            onClick={() => setOpenCreate(true)}
           >
             Create
           </Button>
         </Space>
       </Space>
 
-      {loadErr && <Alert type="error" message={loadErr} showIcon style={{ marginBottom: 12 }} />}
+      {loadErr ? (
+        <Alert type="error" message={loadErr} showIcon style={{ marginBottom: 12 }} />
+      ) : null}
 
       <Table
         rowKey="id"
@@ -397,20 +389,22 @@ export default function OrderDistributionAnt() {
         }}
       />
 
-      {/* CREATE MODAL */}
+      {/* ===================== CREATE MODAL (POST) ===================== */}
       <Modal
         open={openCreate}
         title="Create Transfer Order"
-        onCancel={() => {
-          setOpenCreate(false);
-          createForm.resetFields();
-        }}
+        onCancel={() => setOpenCreate(false)}
         onOk={submitCreate}
         okText="Create"
         confirmLoading={creating}
         destroyOnClose
       >
-        <Form form={createForm} layout="vertical" initialValues={{ quantity: 1 }}>
+        <Form
+          form={createForm}
+          layout="vertical"
+          initialValues={{ quantity: 1, status: "pending" }}
+        >
+          {/* From Dealer */}
           <Form.Item
             name="fromDealerId"
             label="From Dealer"
@@ -425,6 +419,7 @@ export default function OrderDistributionAnt() {
             />
           </Form.Item>
 
+          {/* To Dealer */}
           <Form.Item
             name="toDealerId"
             label="To Dealer"
@@ -433,16 +428,18 @@ export default function OrderDistributionAnt() {
             <Select
               showSearch
               placeholder="Chọn đại lý đích"
-              options={dealerOptions.filter((o) => o.value !== fromDealerId)}
+              options={dealerOptions}
               loading={loadingDealers}
               optionFilterProp="label"
             />
           </Form.Item>
 
+          {/* Vehicle (brand + modelName) → gửi vào field vehicleVersionId */}
           <Form.Item
             name="vehicleVersionId"
-            label="Vehicle"
+            label="Vehicle (Brand + Model)"
             rules={[{ required: true, message: "Chọn xe" }]}
+            tooltip="Hiển thị brand + model; value = vehicleId, gửi lên dưới tên field vehicleVersionId"
           >
             <Select
               showSearch
@@ -456,37 +453,26 @@ export default function OrderDistributionAnt() {
           <Form.Item
             name="quantity"
             label="Quantity"
-            rules={[
-              { required: true, message: "Nhập số lượng" },
-              {
-                validator: (_, value) => {
-                  if (value === undefined || value === null) {
-                    return Promise.reject("Vui lòng nhập số lượng");
-                  }
-                  if (typeof value !== "number" || isNaN(value)) {
-                    return Promise.reject("Số lượng phải là số");
-                  }
-                  if (value <= 0) {
-                    return Promise.reject("Số lượng phải lớn hơn 0");
-                  }
-                  return Promise.resolve();
-                },
-              },
-            ]}
+            rules={[{ required: true, type: "number", min: 1 }]}
           >
             <InputNumber min={1} style={{ width: "100%" }} />
+          </Form.Item>
+
+          <Form.Item name="requestDate" label="Request Date">
+            <DatePicker style={{ width: "100%" }} format="YYYY-MM-DD" />
+          </Form.Item>
+
+          <Form.Item name="status" label="Status">
+            <Select options={STATUS_OPTIONS} />
           </Form.Item>
         </Form>
       </Modal>
 
-      {/* UPDATE MODAL */}
+      {/* ===================== UPDATE STATUS MODAL (PUT) ===================== */}
       <Modal
         open={openUpdate}
         title="Update Order Status"
-        onCancel={() => {
-          setOpenUpdate(false);
-          updateForm.resetFields();
-        }}
+        onCancel={() => setOpenUpdate(false)}
         onOk={submitUpdate}
         okText="Update"
         confirmLoading={updating}

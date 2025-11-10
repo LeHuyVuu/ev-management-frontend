@@ -35,29 +35,21 @@ const MainRoutes = () => {
   return (
     <BrowserRouter>
       <Routes>
-        {/* Public routes */}
+        {/* Login KHÔNG bảo vệ */}
         <Route path="/" element={<Navigate to="/login" replace />} />
         <Route path="/login" element={<Authentication />} />
         <Route path="/feedbacks" element={<Feedbacks />} />
-
-        {/* Protected routes */}
+        {/* Toàn bộ routes khác phải login */}
         <Route
           path="/*"
           element={
+            // <ProtectedRoute>
             <Routes>
-              {/* Dealer group */}
-              <Route element={<ProtectedRoute allowedRoles={[3, 4]} />}>
-                <Route path="dealer" element={<DealerLayout />}>
-                  {/* chỉ role 3 mới vào được dashboard */}
-                  <Route
-                    path="dashboard"
-                    element={
-                      <ProtectedRoute allowedRoles={[3]}>
-                        <ManagerDashboard />
-                      </ProtectedRoute>
-                    }
-                  />
 
+              <Route element={<ProtectedRoute allowedRoles={[3, 4]} />}>
+                {/* Dealer group */}
+                <Route path="dealer" element={<DealerLayout />}>
+                  <Route path="dashboard" element={<ManagerDashboard />} />
                   <Route path="vehicle-search" element={<VehicleSearch />} />
                   <Route path="contract" element={<ContractManagement />} />
                   <Route path="customer-crm" element={<CustomerCRM />} />
@@ -67,33 +59,31 @@ const MainRoutes = () => {
                   <Route path="vehicle-allocation" element={<VehicleAllocation />} />
                   <Route path="vehicle-management" element={<VehicleManagement />} />
                   <Route path="profile" element={<Profile />} />
-
-                  {/* fallback nếu role khác cố truy cập dashboard */}
-                  <Route
-                    path="dashboard/*"
-                    element={<Navigate to="/dealer/vehicle-search" replace />}
-                  />
                 </Route>
               </Route>
 
-              {/* EVM group */}
+
+
+
               <Route element={<ProtectedRoute allowedRoles={[1, 2]} />}>
+                {/* EVM group */}
                 <Route path="evm" element={<EVMLayout />}>
                   <Route path="product-distribution" element={<ProductDistribution />} />
                   <Route path="dealer-management" element={<DealerManagement />} />
                   <Route path="reports-analytics" element={<ReportsAnalytics />} />
                   <Route path="system-administration" element={<SystemAdministration />} />
                   <Route path="staff-controller" element={<StaffController />} />
-                  <Route
-                    path="vehicle-allocation-transfer"
-                    element={<ManageVehicleAllocationTransfer />}
-                  />
+                  <Route path="/evm/vehicle-allocation-transfer" element={<ManageVehicleAllocationTransfer />} />
+
                 </Route>
+
               </Route>
+
 
               {/* 404 fallback */}
               <Route path="*" element={<div className="p-6">Not Found</div>} />
             </Routes>
+            // </ProtectedRoute>
           }
         />
       </Routes>

@@ -68,7 +68,7 @@ const isDark = (hex) => {
 const EVModelManagement = ({ onModelAdded }) => {
   const [models, setModels] = useState([]);
   const [pageNumber, setPageNumber] = useState(1);
-  const [pageSize] = useState(10);
+  const [pageSize] = useState(5);
   const [totalPages, setTotalPages] = useState(1);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
