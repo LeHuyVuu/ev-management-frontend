@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { toast, ToastContainer } from "react-toastify";
 import { Pencil, Trash2, Zap } from "lucide-react";
 import "react-toastify/dist/ReactToastify.css";
@@ -9,23 +9,53 @@ const DiscountPolicyManagement = () => {
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
 
-  // ✅ State cho modal edit
+  // ===== Edit modal state =====
   const [editingItem, setEditingItem] = useState(null);
   const [editForm, setEditForm] = useState({
     discount_rate: "",
     valid_from: "",
     valid_to: "",
   });
+  const [editErrors, setEditErrors] = useState({
+    discount_rate: "",
+    valid_from: "",
+    valid_to: "",
+  });
 
-  // ✅ State cho form thêm mới
+  // ===== Add form state =====
   const [form, setForm] = useState({
     dealer_id: "",
     discount_rate: "",
     valid_from: "",
     valid_to: "",
   });
+  const [formErrors, setFormErrors] = useState({
+    dealer_id: "",
+    discount_rate: "",
+    valid_from: "",
+    valid_to: "",
+  });
 
-  // ✅ Định màu trạng thái
+  // ===== Helpers =====
+  const isPositive = (v) => !Number.isNaN(Number(v)) && Number(v) > 0;
+
+  const toLocalDate = (str) => {
+    if (!str) return NaN;
+    const [y, m, d] = str.split("-").map(Number);
+    return new Date(y, m - 1, d);
+  };
+
+  const validateDateRange = (fromStr, toStr) => {
+    const from = toLocalDate(fromStr);
+    const to = toLocalDate(toStr);
+    if (!fromStr) return { field: "valid_from", msg: "Vui lòng chọn Valid From." };
+    if (!toStr) return { field: "valid_to", msg: "Vui lòng chọn Valid To." };
+    if (isNaN(from)) return { field: "valid_from", msg: "Ngày không hợp lệ." };
+    if (isNaN(to)) return { field: "valid_to", msg: "Ngày không hợp lệ." };
+    if (to < from) return { field: "valid_to", msg: "Valid To phải sau hoặc bằng Valid From." };
+    return null;
+  };
+
   const getStatusColor = (status) => {
     switch (status?.toLowerCase()) {
       case "active":
@@ -39,7 +69,7 @@ const DiscountPolicyManagement = () => {
     }
   };
 
-  // ✅ Fetch danh sách discount
+  // ===== Fetch discounts =====
   const fetchDiscounts = async () => {
     try {
       setLoading(true);
@@ -52,9 +82,13 @@ const DiscountPolicyManagement = () => {
         const items = json.data?.items || [];
         setDiscounts(items);
 
-        // Lấy danh sách dealer (unique)
+        // only active dealers + unique by dealer_id
         const uniqueDealers = [
-          ...new Map(items.map((i) => [i.dealer?.dealer_id, i.dealer])).values(),
+          ...new Map(
+            items
+              .filter((i) => i.dealer && String(i.dealer.status || "").toLowerCase() === "active")
+              .map((i) => [i.dealer?.dealer_id, i.dealer])
+          ).values(),
         ];
         setDealers(uniqueDealers);
       } else {
@@ -64,6 +98,7 @@ const DiscountPolicyManagement = () => {
     } catch (err) {
       console.error("Error loading discounts:", err);
       setDiscounts([]);
+      setDealers([]);
     } finally {
       setLoading(false);
     }
@@ -73,10 +108,127 @@ const DiscountPolicyManagement = () => {
     fetchDiscounts();
   }, []);
 
-  // ✅ Thêm Discount Policy
+  // ===== Field-level validators (Add) =====
+  const validateAddField = (name, value, whole = form) => {
+    switch (name) {
+      case "dealer_id":
+        return value ? "" : "Vui lòng chọn Dealer.";
+      case "discount_rate":
+        return isPositive(value) ? "" : "Discount rate phải lớn hơn 0.";
+      case "valid_from":
+      case "valid_to": {
+        const err = validateDateRange(whole.valid_from, whole.valid_to);
+        if (!err) return "";
+        // show error only on the relevant field
+        return err.field === name ? err.msg : "";
+      }
+      default:
+        return "";
+    }
+  };
+
+  // ===== Field-level validators (Edit) =====
+  const validateEditField = (name, value, whole = editForm) => {
+    switch (name) {
+      case "discount_rate":
+        return isPositive(value) ? "" : "Discount rate phải lớn hơn 0.";
+      case "valid_from":
+      case "valid_to": {
+        const err = validateDateRange(whole.valid_from, whole.valid_to);
+        if (!err) return "";
+        return err.field === name ? err.msg : "";
+      }
+      default:
+        return "";
+    }
+  };
+
+  // ===== Derived validity for disabling buttons =====
+  const addFormValid =
+    form.dealer_id &&
+    isPositive(form.discount_rate) &&
+    !validateDateRange(form.valid_from, form.valid_to);
+
+  const editFormValid =
+    isPositive(editForm.discount_rate) &&
+    !validateDateRange(editForm.valid_from, editForm.valid_to);
+
+  // ===== Handlers: Add form change/blur =====
+  const handleAddChange = (e) => {
+    const { name, value } = e.target;
+    const next = { ...form, [name]: value };
+    setForm(next);
+    setFormErrors((prev) => ({
+      ...prev,
+      [name]: validateAddField(name, value, next),
+      // when either date changes, update the other date's error too (sync pair)
+      ...(name === "valid_from" || name === "valid_to"
+        ? {
+            valid_from: validateAddField("valid_from", next.valid_from, next),
+            valid_to: validateAddField("valid_to", next.valid_to, next),
+          }
+        : {}),
+    }));
+  };
+
+  const handleAddBlur = (e) => {
+    const { name } = e.target;
+    setFormErrors((prev) => ({
+      ...prev,
+      [name]: validateAddField(name, form[name], form),
+      ...(name === "valid_from" || name === "valid_to"
+        ? {
+            valid_from: validateAddField("valid_from", form.valid_from, form),
+            valid_to: validateAddField("valid_to", form.valid_to, form),
+          }
+        : {}),
+    }));
+  };
+
+  // ===== Handlers: Edit form change/blur =====
+  const handleEditChange = (e) => {
+    const { name, value } = e.target;
+    const next = { ...editForm, [name]: value };
+    setEditForm(next);
+    setEditErrors((prev) => ({
+      ...prev,
+      [name]: validateEditField(name, value, next),
+      ...(name === "valid_from" || name === "valid_to"
+        ? {
+            valid_from: validateEditField("valid_from", next.valid_from, next),
+            valid_to: validateEditField("valid_to", next.valid_to, next),
+          }
+        : {}),
+    }));
+  };
+
+  const handleEditBlur = (e) => {
+    const { name } = e.target;
+    setEditErrors((prev) => ({
+      ...prev,
+      [name]: validateEditField(name, editForm[name], editForm),
+      ...(name === "valid_from" || name === "valid_to"
+        ? {
+            valid_from: validateEditField("valid_from", editForm.valid_from, editForm),
+            valid_to: validateEditField("valid_to", editForm.valid_to, editForm),
+          }
+        : {}),
+    }));
+  };
+
+  // ===== Add submit =====
   const handleAddPolicy = async () => {
-    if (!form.dealer_id || !form.discount_rate || !form.valid_from || !form.valid_to) {
-      toast.warning("Vui lòng điền đầy đủ thông tin.");
+    // Final validate all fields & show errors inline
+    const newErrors = {
+      dealer_id: validateAddField("dealer_id", form.dealer_id, form),
+      discount_rate: validateAddField("discount_rate", form.discount_rate, form),
+      valid_from: validateAddField("valid_from", form.valid_from, form),
+      valid_to: validateAddField("valid_to", form.valid_to, form),
+    };
+    setFormErrors(newErrors);
+
+    if (Object.values(newErrors).some(Boolean)) {
+      toast.error("Vui lòng sửa các lỗi trước khi thêm.");
       return;
     }
 
@@ -86,10 +238,7 @@ const DiscountPolicyManagement = () => {
         "https://prn232.freeddns.org/financial-service/api/DealerDiscount",
         {
           method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Accept: "*/*",
-          },
+          headers: { "Content-Type": "application/json", Accept: "*/*" },
           body: JSON.stringify({
             dealer_id: form.dealer_id,
             discount_rate: parseFloat(form.discount_rate),
@@ -106,13 +255,14 @@ const DiscountPolicyManagement = () => {
         const newItem = {
           dealer_discount_id: Math.random().toString(),
           dealer: dealer || { dealer_id: form.dealer_id, name: "New Dealer" },
-          discount_rate: form.discount_rate,
+          discount_rate: parseFloat(form.discount_rate),
           valid_from: form.valid_from,
           valid_to: form.valid_to,
           status: "pending",
         };
         setDiscounts((prev) => [newItem, ...prev]);
         setForm({ dealer_id: "", discount_rate: "", valid_from: "", valid_to: "" });
+        setFormErrors({ dealer_id: "", discount_rate: "", valid_from: "", valid_to: "" });
       } else {
         toast.error(json.message || "Thêm chính sách thất bại!");
       }
@@ -123,7 +273,7 @@ const DiscountPolicyManagement = () => {
     }
   };
 
-  // ✅ Edit
+  // ===== Edit open/save =====
   const openEditModal = (item) => {
     setEditingItem(item);
     setEditForm({
@@ -131,10 +281,22 @@ const DiscountPolicyManagement = () => {
       valid_from: item.valid_from,
       valid_to: item.valid_to,
     });
+    setEditErrors({ discount_rate: "", valid_from: "", valid_to: "" });
   };
 
   const handleEditSave = async () => {
-    if (!editingItem) return;
+    const newErrors = {
+      discount_rate: validateEditField("discount_rate", editForm.discount_rate, editForm),
+      valid_from: validateEditField("valid_from", editForm.valid_from, editForm),
+      valid_to: validateEditField("valid_to", editForm.valid_to, editForm),
+    };
+    setEditErrors(newErrors);
+
+    if (Object.values(newErrors).some(Boolean)) {
+      toast.error("Vui lòng sửa các lỗi trước khi lưu.");
+      return;
+    }
+
     try {
       setSaving(true);
       const res = await fetch(
@@ -154,7 +316,7 @@ const DiscountPolicyManagement = () => {
         setDiscounts((prev) =>
           prev.map((d) =>
             d.dealer_discount_id === editingItem.dealer_discount_id
-              ? { ...d, ...editForm }
+              ? { ...d, ...editForm, discount_rate: parseFloat(editForm.discount_rate) }
               : d
           )
         );
@@ -169,7 +331,7 @@ const DiscountPolicyManagement = () => {
     }
   };
 
-  // ✅ Activate
+  // ===== Activate/Delete =====
   const handleActivate = async (id) => {
     try {
       const res = await fetch(
@@ -179,9 +341,7 @@ const DiscountPolicyManagement = () => {
       if (res.ok) {
         toast.success("Kích hoạt thành công!");
         setDiscounts((prev) =>
-          prev.map((d) =>
-            d.dealer_discount_id === id ? { ...d, status: "active" } : d
-          )
+          prev.map((d) => (d.dealer_discount_id === id ? { ...d, status: "active" } : d))
         );
       } else {
         toast.error("Kích hoạt thất bại!");
@@ -191,7 +351,6 @@ const DiscountPolicyManagement = () => {
     }
   };
 
-  // ✅ Delete
   const handleDelete = async (id) => {
     if (!window.confirm("Bạn có chắc chắn muốn xóa chính sách này không?")) return;
     try {
@@ -214,18 +373,12 @@ const DiscountPolicyManagement = () => {
     <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
       <ToastContainer position="top-right" autoClose={3000} />
 
-      <h2 className="text-2xl font-bold text-gray-900 mb-2">
-        Discount Policy Management
-      </h2>
-      <p className="text-gray-600 mb-6">
-        Configure and manage discount rates for individual dealers.
-      </p>
+      <h2 className="text-2xl font-bold text-gray-900 mb-2">Discount Policy Management</h2>
+      <p className="text-gray-600 mb-6">Configure and manage discount rates for individual dealers.</p>
 
-      {/* === BẢNG DANH SÁCH === */}
+      {/* === LIST TABLE === */}
       <div className="mb-8">
-        <h3 className="text-lg font-semibold text-gray-900 mb-4">
-          Dealer Discount Policies
-        </h3>
+        <h3 className="text-lg font-semibold text-gray-900 mb-4">Dealer Discount Policies</h3>
         {loading ? (
           <p className="text-gray-500 text-sm">Loading data...</p>
         ) : (
@@ -233,32 +386,18 @@ const DiscountPolicyManagement = () => {
             <table className="min-w-full border border-gray-200">
               <thead className="bg-gray-50">
                 <tr>
-                  <th className="px-6 py-3 text-left text-sm font-medium text-gray-500">
-                    Dealer Name
-                  </th>
-                  <th className="px-6 py-3 text-left text-sm font-medium text-gray-500">
-                    Discount Rate (%)
-                  </th>
-                  <th className="px-6 py-3 text-left text-sm font-medium text-gray-500">
-                    Validity Period
-                  </th>
-                  <th className="px-6 py-3 text-left text-sm font-medium text-gray-500">
-                    Status
-                  </th>
-                  <th className="px-6 py-3 text-left text-sm font-medium text-gray-500">
-                    Actions
-                  </th>
+                  <th className="px-6 py-3 text-left text-sm font-medium text-gray-500">Dealer Name</th>
+                  <th className="px-6 py-3 text-left text-sm font-medium text-gray-500">Discount Rate (%)</th>
+                  <th className="px-6 py-3 text-left text-sm font-medium text-gray-500">Validity Period</th>
+                  <th className="px-6 py-3 text-left text-sm font-medium text-gray-500">Status</th>
+                  <th className="px-6 py-3 text-left text-sm font-medium text-gray-500">Actions</th>
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
                 {discounts.map((item) => (
                   <tr key={item.dealer_discount_id}>
-                    <td className="px-6 py-4 text-sm font-medium text-gray-900">
-                      {item.dealer?.name}
-                    </td>
-                    <td className="px-6 py-4 text-sm text-gray-900">
-                      {item.discount_rate}%
-                    </td>
+                    <td className="px-6 py-4 text-sm font-medium text-gray-900">{item.dealer?.name}</td>
+                    <td className="px-6 py-4 text-sm text-gray-900">{item.discount_rate}%</td>
                     <td className="px-6 py-4 text-sm text-gray-500">
                       {item.valid_from} → {item.valid_to}
                     </td>
@@ -302,67 +441,92 @@ const DiscountPolicyManagement = () => {
         )}
       </div>
 
-      {/* === FORM ADD POLICY === */}
+      {/* === ADD FORM === */}
       <div className="border-t pt-6">
-        <h3 className="text-lg font-semibold text-gray-900 mb-4">
-          Add New Discount Policy
-        </h3>
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
+        <h3 className="text-lg font-semibold text-gray-900 mb-4">Add New Discount Policy</h3>
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-2">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Dealer Name
-            </label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Dealer Name</label>
             <select
+              name="dealer_id"
               value={form.dealer_id}
-              onChange={(e) => setForm({ ...form, dealer_id: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md bg-white focus:ring-2 focus:ring-indigo-500"
+              onChange={handleAddChange}
+              onBlur={handleAddBlur}
+              className={`w-full px-3 py-2 border rounded-md bg-white focus:ring-2 ${
+                formErrors.dealer_id ? "border-red-400 focus:ring-red-300" : "border-gray-300 focus:ring-indigo-500"
+              }`}
             >
               <option value="">-- Select Dealer --</option>
               {dealers.map((d) => (
                 <option key={d.dealer_id} value={d.dealer_id}>
-                  {d.name} ({d.region})
+                  {d.name} {d.region ? `(${d.region})` : ""}
                 </option>
               ))}
             </select>
+            {formErrors.dealer_id && (
+              <p className="mt-1 text-xs text-red-600">{formErrors.dealer_id}</p>
+            )}
           </div>
+
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Discount Rate (%)
-            </label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Discount Rate (%)</label>
             <input
+              name="discount_rate"
               type="number"
+              min="0.01"
+              step="0.01"
               value={form.discount_rate}
-              onChange={(e) => setForm({ ...form, discount_rate: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md"
+              onChange={handleAddChange}
+              onBlur={handleAddBlur}
+              className={`w-full px-3 py-2 border rounded-md ${
+                formErrors.discount_rate ? "border-red-400 focus:ring-red-300" : "border-gray-300 focus:ring-indigo-500"
+              }`}
             />
+            {formErrors.discount_rate && (
+              <p className="mt-1 text-xs text-red-600">{formErrors.discount_rate}</p>
+            )}
           </div>
+
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Valid From
-            </label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Valid From</label>
             <input
+              name="valid_from"
               type="date"
               value={form.valid_from}
-              onChange={(e) => setForm({ ...form, valid_from: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md"
+              onChange={handleAddChange}
+              onBlur={handleAddBlur}
+              className={`w-full px-3 py-2 border rounded-md ${
+                formErrors.valid_from ? "border-red-400 focus:ring-red-300" : "border-gray-300 focus:ring-indigo-500"
+              }`}
             />
+            {formErrors.valid_from && (
+              <p className="mt-1 text-xs text-red-600">{formErrors.valid_from}</p>
+            )}
           </div>
+
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Valid To
-            </label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Valid To</label>
             <input
+              name="valid_to"
               type="date"
+              min={form.valid_from || ""}
               value={form.valid_to}
-              onChange={(e) => setForm({ ...form, valid_to: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md"
+              onChange={handleAddChange}
+              onBlur={handleAddBlur}
+              className={`w-full px-3 py-2 border rounded-md ${
+                formErrors.valid_to ? "border-red-400 focus:ring-red-300" : "border-gray-300 focus:ring-indigo-500"
+              }`}
             />
+            {formErrors.valid_to && (
+              <p className="mt-1 text-xs text-red-600">{formErrors.valid_to}</p>
+            )}
           </div>
         </div>
+
         <div className="flex justify-end">
           <button
             onClick={handleAddPolicy}
-            disabled={saving}
+            disabled={!addFormValid || saving}
             className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 disabled:opacity-50"
           >
             {saving ? "Saving..." : "Add Discount Policy"}
@@ -370,47 +534,59 @@ const DiscountPolicyManagement = () => {
         </div>
       </div>
 
-      {/* === MODAL EDIT === */}
+      {/* === EDIT MODAL === */}
       {editingItem && (
         <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-40 z-50">
           <div className="bg-white rounded-lg shadow-lg p-6 w-full max-w-md">
             <h3 className="text-lg font-semibold mb-4">Edit Discount Policy</h3>
 
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Discount Rate (%)
-            </label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Discount Rate (%)</label>
             <input
+              name="discount_rate"
               type="number"
+              min="0.01"
+              step="0.01"
               value={editForm.discount_rate}
-              onChange={(e) =>
-                setEditForm({ ...editForm, discount_rate: e.target.value })
-              }
-              className="w-full border border-gray-300 rounded-md px-3 py-2 mb-3"
+              onChange={handleEditChange}
+              onBlur={handleEditBlur}
+              className={`w-full border rounded-md px-3 py-2 mb-1 ${
+                editErrors.discount_rate ? "border-red-400 focus:ring-red-300" : "border-gray-300 focus:ring-indigo-500"
+              }`}
             />
+            {editErrors.discount_rate && (
+              <p className="mb-2 text-xs text-red-600">{editErrors.discount_rate}</p>
+            )}
 
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Valid From
-            </label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Valid From</label>
             <input
+              name="valid_from"
               type="date"
               value={editForm.valid_from}
-              onChange={(e) =>
-                setEditForm({ ...editForm, valid_from: e.target.value })
-              }
-              className="w-full border border-gray-300 rounded-md px-3 py-2 mb-3"
+              onChange={handleEditChange}
+              onBlur={handleEditBlur}
+              className={`w-full border rounded-md px-3 py-2 mb-1 ${
+                editErrors.valid_from ? "border-red-400 focus:ring-red-300" : "border-gray-300 focus:ring-indigo-500"
+              }`}
             />
+            {editErrors.valid_from && (
+              <p className="mb-2 text-xs text-red-600">{editErrors.valid_from}</p>
+            )}
 
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Valid To
-            </label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Valid To</label>
             <input
+              name="valid_to"
               type="date"
+              min={editForm.valid_from || ""}
               value={editForm.valid_to}
-              onChange={(e) =>
-                setEditForm({ ...editForm, valid_to: e.target.value })
-              }
-              className="w-full border border-gray-300 rounded-md px-3 py-2 mb-3"
+              onChange={handleEditChange}
+              onBlur={handleEditBlur}
+              className={`w-full border rounded-md px-3 py-2 mb-1 ${
+                editErrors.valid_to ? "border-red-400 focus:ring-red-300" : "border-gray-300 focus:ring-indigo-500"
+              }`}
             />
+            {editErrors.valid_to && (
+              <p className="mb-2 text-xs text-red-600">{editErrors.valid_to}</p>
+            )}
 
             <div className="flex justify-end gap-3 mt-4">
               <button
@@ -421,7 +597,7 @@ const DiscountPolicyManagement = () => {
               </button>
               <button
                 onClick={handleEditSave}
-                disabled={saving}
+                disabled={!editFormValid || saving}
                 className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 disabled:opacity-50"
               >
                 {saving ? "Saving..." : "Lưu"}

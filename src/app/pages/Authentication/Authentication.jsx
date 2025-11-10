@@ -239,7 +239,7 @@ function Authentication() {
             </button>
           </form>
 
-          <div className="mt-8 text-center">
+          {/* <div className="mt-8 text-center">
             <p className="text-gray-600">
               {isLogin ? "Don't have an account?" : "Already have an account?"}
               <button
@@ -254,7 +254,7 @@ function Authentication() {
                 {isLogin ? 'Sign up' : 'Sign in'}
               </button>
             </p>
-          </div>
+          </div> */}
         </div>
       </div>
     </div>
