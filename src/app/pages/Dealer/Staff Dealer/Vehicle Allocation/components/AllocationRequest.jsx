@@ -28,7 +28,7 @@ export default function AllocationRequest() {
         setLoadingVersions(true);
         setVersionsError("");
         const res = await fetch(
-          "https://prn232.freeddns.org/brand-service/api/vehicle-versions/dealer?pageNumber=1&pageSize=100",
+          "https://prn232.freeddns.org/brand-service/api/vehicle-versions/dealer-stock?pageNumber=1&pageSize=100",
           {
             headers: {
               accept: "*/*",
@@ -112,7 +112,7 @@ export default function AllocationRequest() {
       requestDate: nowIso,
       expectedDelivery: form.expectedDelivery ? toISODateZ(form.expectedDelivery) : null,
       // Truyền cố định trạng thái: "received" (Đã tạo/nhận yêu cầu)
-      status: "received",
+      status: "pending",
     };
 
     try {
@@ -136,6 +136,8 @@ export default function AllocationRequest() {
       }
       setSuccessMsg("Tạo yêu cầu thành công!");
       toast.success("Tạo yêu cầu thành công!");
+      // báo cho list refetch (để item mới nằm dòng đầu)
+      window.dispatchEvent(new Event("allocation:refresh"));
       resetForm();
     } catch (err) {
       const msg = err?.message || "Đã xảy ra lỗi khi tạo yêu cầu.";
