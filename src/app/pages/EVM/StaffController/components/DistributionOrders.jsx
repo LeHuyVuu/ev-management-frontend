@@ -107,15 +107,6 @@ export default function AllocationRequestsList() {
   const [fQtyMin, setFQtyMin] = useState(null);
   const [fQtyMax, setFQtyMax] = useState(null);
 
-  // =========== NEW: Filter states ===========
-  const [q, setQ] = useState(""); // keyword search
-  const [fStatuses, setFStatuses] = useState([]); // multiple statuses
-  const [fDestinations, setFDestinations] = useState([]); // multiple dealers
-  const [fReqRange, setFReqRange] = useState([null, null]); // [start,end] dayjs
-  const [fDelRange, setFDelRange] = useState([null, null]); // [start,end] dayjs
-  const [fQtyMin, setFQtyMin] = useState(null);
-  const [fQtyMax, setFQtyMax] = useState(null);
-
   // ===== Pagination (server-side) =====
   const [pagination, setPagination] = useState({
     current: 1,
