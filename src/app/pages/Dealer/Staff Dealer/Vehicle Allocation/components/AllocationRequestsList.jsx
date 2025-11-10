@@ -63,6 +63,7 @@ export default function AllocationRequestsList() {
   const [data, setData] = useState([]); // rows
   const [loading, setLoading] = useState(true);
   const [loadErr, setLoadErr] = useState("");
+  const [pagination, setPagination] = useState({ current: 1, pageSize: 10, total: 0 });
 
   // Update modal state
   const [open, setOpen] = useState(false);
@@ -131,52 +132,118 @@ export default function AllocationRequestsList() {
     form.resetFields();
   };
 
-  // Submit update
+  // Submit update from modal
   const onFinish = async (values) => {
     const { id, status } = values || {};
     if (!id || !status) {
       message.warning("Vui lòng nhập ID và chọn trạng thái");
       return;
     }
+
     try {
       setUpdating(true);
       const resp = await fetch(
-        `https://prn232.freeddns.org/order-service/api/VehicleAllocation/${encodeURIComponent(
-          id
-        )}/status`,
+        `https://prn232.freeddns.org/order-service/api/VehicleAllocation/${encodeURIComponent(id)}/status`,
         {
           method: "PUT",
           headers: {
-            "Content-Type": "application/json", // nếu server yêu cầu text/plain: đổi thành text/plain và body: status
+            "Content-Type": "application/json",
             accept: "*/*",
+<<<<<<< Updated upstream
             Authorization: `Bearer ${TOKEN}`,
+=======
+            Authorization: `Bearer ${getToken()}`,
+>>>>>>> Stashed changes
           },
-          body: JSON.stringify(status), // backend khai báo body là "string"
+          body: JSON.stringify(status),
         }
       );
+
       if (!resp.ok) {
         let msg = `Cập nhật thất bại (HTTP ${resp.status}).`;
         try {
           const j = await resp.json();
           msg = j?.message || msg;
+<<<<<<< Updated upstream
         } catch { }
+=======
+        } catch (e) {}
+>>>>>>> Stashed changes
         throw new Error(msg);
       }
 
-      // Update ngay trong table
-      setData((prev) =>
-        prev.map((row) => (row.id === id ? { ...row, status } : row))
-      );
-
+      // Update row locally
+      setData((prev) => prev.map((row) => (row.id === id ? { ...row, status } : row)));
       setLastUpdated({ id, status, at: new Date().toLocaleString() });
       message.success("Cập nhật trạng thái thành công");
       setOpen(false);
       form.resetFields();
     } catch (err) {
-      message.error(err.message || "Có lỗi khi cập nhật trạng thái");
+      message.error(err?.message || "Có lỗi khi cập nhật trạng thái");
     } finally {
       setUpdating(false);
     }
+  };
+
+  const fetchList = async (page = 1, pageSize = 10) => {
+    try {
+      setLoading(true);
+      setLoadErr("");
+      const res = await fetch(
+        `https://prn232.freeddns.org/order-service/api/VehicleAllocation?pageNumber=${page}&pageSize=${pageSize}`,
+        {
+          headers: {
+            accept: "*/*",
+            Authorization: `Bearer ${getToken()}`,
+          },
+        }
+      );
+      const json = await res.json();
+      if (json.status === 200 && json.data?.items) {
+        const mapped = json.data.items.map((item) => ({
+          key: item.allocationId,
+          id: item.allocationId,
+          idShort: shortId(item.allocationId),
+          car:
+            (item.vehicleName || "") +
+            (item.versionName ? " " + item.versionName : "") +
+            (item.color ? " " + item.color : "") +
+            (item.evType ? ` - ${item.evType}` : ""),
+          destination: item.dealerName,
+          quantity: item.quantity,
+          date: item.requestDate,
+          status: item.status,
+        }));
+        mapped.sort((a, b) => new Date(b.date || 0) - new Date(a.date || 0));
+        setData(mapped);
+        const total = json?.data?.totalItems ?? json?.data?.total ?? json?.totalItems ?? 0;
+        setPagination({ current: page, pageSize, total: Number(total) || 0 });
+      } else {
+        throw new Error("Không thể tải dữ liệu.");
+      }
+    } catch (err) {
+      setLoadErr(err.message || "Lỗi không xác định.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    // initial load
+    fetchList(pagination.current, pagination.pageSize);
+
+    const handler = () => {
+      // when other components dispatch 'allocation:created', refetch the first page
+      fetchList(1, pagination.pageSize);
+    };
+    window.addEventListener("allocation:created", handler);
+    return () => window.removeEventListener("allocation:created", handler);
+  }, []);
+
+  const handleTableChange = (pag) => {
+    const nextPage = pag.current || 1;
+    const nextSize = pag.pageSize || pagination.pageSize;
+    fetchList(nextPage, nextSize);
   };
 
   const columns = [
@@ -284,7 +351,14 @@ export default function AllocationRequestsList() {
           columns={columns}
           dataSource={data}
           loading={loading}
-          pagination={{ pageSize: 10, showSizeChanger: false }}
+          pagination={{
+            current: pagination.current,
+            pageSize: pagination.pageSize,
+            total: pagination.total,
+            showSizeChanger: false,
+            showTotal: (total, range) => `${range[0]}-${range[1]} / ${total}`,
+          }}
+          onChange={handleTableChange}
           bordered
         />
       )}

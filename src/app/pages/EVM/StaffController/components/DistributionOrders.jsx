@@ -46,9 +46,13 @@ const STATUS_META = {
   cancelled:  { label: "Đã hủy",          color: "volcano" },
 };
 
+<<<<<<< Updated upstream
 const TOKEN =
   (typeof window !== "undefined" && localStorage.getItem("token")) ||
   ""; // fallback empty
+=======
+const getToken = () => (typeof window !== "undefined" && localStorage.getItem("token")) || "";
+>>>>>>> Stashed changes
 
 /** ===== Helpers ===== */
 function shortId(id = "") {
@@ -66,6 +70,7 @@ export default function AllocationRequestsList() {
   const [data, setData] = useState([]); // rows
   const [loading, setLoading] = useState(true);
   const [loadErr, setLoadErr] = useState("");
+  const [pagination, setPagination] = useState({ current: 1, pageSize: 10, total: 0 });
 
   // Update modal state
   const [open, setOpen] = useState(false);
@@ -75,16 +80,25 @@ export default function AllocationRequestsList() {
 
   const [lastUpdated, setLastUpdated] = useState(null); // {id,status,at}
 
+<<<<<<< Updated upstream
   const fetchList = async () => {
+=======
+  // AntD message & modal (context-based API)
+  const [messageApi, messageContextHolder] = message.useMessage();
+  const [modal, modalContextHolder] = Modal.useModal();
+
+  const fetchList = async (page = 1, pageSize = 10) => {
+>>>>>>> Stashed changes
     try {
       setLoading(true);
       setLoadErr("");
+      const token = getToken();
       const res = await fetch(
-        "https://prn232.freeddns.org/order-service/api/VehicleAllocation?pageNumber=1&pageSize=10",
+        `https://prn232.freeddns.org/order-service/api/VehicleAllocation?pageNumber=${page}&pageSize=${pageSize}`,
         {
           headers: {
             accept: "*/*",
-            Authorization: `Bearer ${TOKEN}`,
+            Authorization: `Bearer ${token}`,
           },
         }
       );
@@ -105,6 +119,8 @@ export default function AllocationRequestsList() {
           (a, b) => new Date(b.requestDate || 0) - new Date(a.requestDate || 0)
         );
         setData(mapped);
+        const total = json?.data?.totalItems ?? json?.data?.total ?? json?.totalItems ?? 0;
+        setPagination({ current: page, pageSize, total: Number(total) || 0 });
       } else {
         throw new Error("Không thể tải dữ liệu.");
       }
@@ -117,9 +133,15 @@ export default function AllocationRequestsList() {
 
   // Fetch list on mount
   useEffect(() => {
-    fetchList();
+    fetchList(pagination.current, pagination.pageSize);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  const handleTableChange = (pag) => {
+    const nextPage = pag.current || 1;
+    const nextSize = pag.pageSize || pagination.pageSize;
+    fetchList(nextPage, nextSize);
+  };
 
   // Open modal (prefill)
   const openModal = (record) => {
@@ -155,7 +177,7 @@ export default function AllocationRequestsList() {
           headers: {
             "Content-Type": "application/json", // nếu server yêu cầu text/plain: đổi thành text/plain và body: status
             accept: "*/*",
-            Authorization: `Bearer ${TOKEN}`,
+            Authorization: `Bearer ${getToken()}`,
           },
           body: JSON.stringify(status), // backend khai báo body là "string"
         }
@@ -302,7 +324,14 @@ export default function AllocationRequestsList() {
           columns={columns}
           dataSource={data}
           loading={loading}
-          pagination={{ pageSize: 10, showSizeChanger: false }}
+          pagination={{
+            current: pagination.current,
+            pageSize: pagination.pageSize,
+            total: pagination.total,
+            showSizeChanger: false,
+            showTotal: (total, range) => `${range[0]}-${range[1]} / ${total}`,
+          }}
+          onChange={handleTableChange}
           bordered
         />
       )}
