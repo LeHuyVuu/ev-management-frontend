@@ -117,7 +117,7 @@ const DealerInventoryStatus = () => {
           {/* Select dealer */}
           <Select
             placeholder="Chọn Dealer..."
-            className="w-60"
+            className="w-60 !h-[38px]"
             value={selectedDealer || undefined}
             onChange={(value) => setSelectedDealer(value)}
             allowClear

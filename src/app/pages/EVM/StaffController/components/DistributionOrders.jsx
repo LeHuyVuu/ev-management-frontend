@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   Table,
   Tag,
@@ -18,7 +18,7 @@ import {
   EditOutlined,
   DeleteOutlined,
   SyncOutlined,
-  PlusOutlined,
+  // PlusOutlined,
 } from "@ant-design/icons";
 
 /** ===== Config ===== */
@@ -42,8 +42,7 @@ const STATUS_META = {
 };
 
 const TOKEN =
-  (typeof window !== "undefined" && localStorage.getItem("token")) ||
-  ""; // fallback empty
+  (typeof window !== "undefined" && localStorage.getItem("token")) || "";
 
 /** ===== Helpers ===== */
 function shortId(id = "") {
@@ -76,6 +75,10 @@ export default function AllocationRequestsList() {
 
   const [lastUpdated, setLastUpdated] = useState(null); // {id,status,at}
 
+  // AntD message & modal (context-based API)
+  const [messageApi, messageContextHolder] = message.useMessage();
+  const [modal, modalContextHolder] = Modal.useModal();
+
   const fetchList = async () => {
     try {
       setLoading(true);
@@ -106,7 +109,7 @@ export default function AllocationRequestsList() {
         mapped.sort((a, b) => toTimestampOrInf(a.deliveryDate) - toTimestampOrInf(b.deliveryDate));
         setData(mapped);
       } else {
-        throw new Error("Không thể tải dữ liệu.");
+        throw new Error(json?.message || "Không thể tải dữ liệu.");
       }
     } catch (err) {
       setLoadErr(err.message || "Lỗi không xác định.");
@@ -141,7 +144,7 @@ export default function AllocationRequestsList() {
   const onFinish = async (values) => {
     const { id, status } = values || {};
     if (!id || !status) {
-      message.warning("Vui lòng nhập ID và chọn trạng thái");
+      messageApi.warning("Vui lòng nhập ID và chọn trạng thái");
       return;
     }
     try {
@@ -153,7 +156,7 @@ export default function AllocationRequestsList() {
         {
           method: "PUT",
           headers: {
-            "Content-Type": "application/json", // nếu server yêu cầu text/plain: đổi thành text/plain và body: status
+            "Content-Type": "application/json", // nếu server yêu cầu text/plain: đổi "application/json" -> "text/plain" và body: status
             accept: "*/*",
             Authorization: `Bearer ${TOKEN}`,
           },
@@ -173,11 +176,11 @@ export default function AllocationRequestsList() {
       setData((prev) => prev.map((row) => (row.id === id ? { ...row, status } : row)));
 
       setLastUpdated({ id, status, at: new Date().toLocaleString() });
-      message.success("Cập nhật trạng thái thành công");
+      messageApi.success("Cập nhật trạng thái thành công");
       setOpen(false);
       form.resetFields();
     } catch (err) {
-      message.error(err.message || "Có lỗi khi cập nhật trạng thái");
+      messageApi.error(err.message || "Có lỗi khi cập nhật trạng thái");
     } finally {
       setUpdating(false);
     }
@@ -245,6 +248,29 @@ export default function AllocationRequestsList() {
       width: 210,
       render: (_, record) => (
         <Space>
+          <Button
+            size="small"
+            icon={<EyeOutlined />}
+            onClick={() => {
+              // Dùng modal instance (context-based) để đảm bảo render
+              modal.info({
+                title: "Chi tiết yêu cầu phân bổ",
+                content: (
+                  <div>
+                    <p><strong>ID:</strong> {record.id}</p>
+                    <p><strong>Xe:</strong> {record.car}</p>
+                    <p><strong>Đại lý:</strong> {record.destination}</p>
+                    <p><strong>Số lượng:</strong> {record.quantity}</p>
+                    <p><strong>Trạng thái:</strong> <StatusTag value={record.status} /></p>
+                  </div>
+                ),
+                width: 500,
+                centered: true,
+                // Nếu môi trường có container tùy biến, có thể bật dòng dưới:
+                // getContainer: () => document.body,
+              });
+            }}
+          />
           <Button size="small" type="default" icon={<EditOutlined />} onClick={() => openModal(record)}>
             Cập nhật
           </Button>
@@ -253,7 +279,7 @@ export default function AllocationRequestsList() {
             description={`Xóa yêu cầu ${record.id}?`}
             okText="Xóa"
             cancelText="Hủy"
-            onConfirm={() => message.success(`${record.id} đã xóa (mock)`)}
+            onConfirm={() => messageApi.success(`${record.id} đã xóa (mock)`)}
           >
           </Popconfirm>
         </Space>
@@ -263,6 +289,10 @@ export default function AllocationRequestsList() {
 
   return (
     <div style={{ background: "#fff", borderRadius: 12, padding: 16 }}>
+      {/* context holders cho message & modal */}
+      {messageContextHolder}
+      {modalContextHolder}
+
       <Space style={{ width: "100%", justifyContent: "space-between", marginBottom: 12 }}>
         <div>
           <Typography.Title level={4} style={{ margin: 0 }}>
@@ -271,9 +301,9 @@ export default function AllocationRequestsList() {
           <Typography.Text type="secondary">Theo dõi trạng thái và cập nhật trực tiếp.</Typography.Text>
         </div>
         <Space>
-          <Button icon={<PlusOutlined />} onClick={() => message.info("TODO: Create New Order")}>
+          {/* <Button icon={<PlusOutlined />} onClick={() => messageApi.info("TODO: Create New Order")}>
             Tạo đơn mới
-          </Button>
+          </Button> */}
           <Button type="primary" icon={<SyncOutlined />} onClick={fetchList} loading={loading}>
             Tải lại
           </Button>

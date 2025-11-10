@@ -6,6 +6,15 @@ import PromotionModal from "./PromotionModal";
 import ConfirmDialog from "./PromotionConfirm";
 import { getPromotions, deletePromotion } from "./PromotionService";
 
+const getErrorMessage = (err, fallback = "Đã có lỗi xảy ra") => {
+  return (
+    err?.response?.data?.message ||
+    err?.response?.data?.error ||
+    err?.message ||
+    fallback
+  );
+};
+
 const PromotionManagement = () => {
   const [promotions, setPromotions] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -38,12 +47,14 @@ const PromotionManagement = () => {
         Keyword: keyword,
         Status: status,
       });
-      if (res.status === 200) {
-        setPromotions(res.data.items);
-        setTotalItems(res.data.totalItems);
+      if (res?.status === 200) {
+        setPromotions(res.data.items || []);
+        setTotalItems(res.data.totalItems ?? 0);
+      } else {
+        toast.error(getErrorMessage(null, "Không thể tải danh sách promotion"));
       }
     } catch (err) {
-      toast.error("Không thể tải danh sách promotion");
+      toast.error(getErrorMessage(err, "Không thể tải danh sách promotion"));
     } finally {
       setLoading(false);
     }
@@ -51,6 +62,7 @@ const PromotionManagement = () => {
 
   useEffect(() => {
     loadPromotions();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pageNumber, pageSize, sortBy, sortOrder, status]);
 
   const handleSearch = () => {
@@ -60,14 +72,14 @@ const PromotionManagement = () => {
 
   const handleCreate = (newItem) => {
     setPromotions((prev) => [newItem, ...prev]);
-    toast.success("Thêm promotion thành công");
+    // toast.success("Thêm promotion thành công");
   };
 
   const handleEdit = (updated) => {
     setPromotions((prev) =>
       prev.map((p) => (p.promotion_id === updated.promotion_id ? updated : p))
     );
-    toast.success("Cập nhật thành công");
+    // toast.success("Cập nhật thành công");
   };
 
   const handleDeleteConfirm = async () => {
@@ -75,16 +87,17 @@ const PromotionManagement = () => {
       await deletePromotion(deleteId);
       setPromotions((prev) => prev.filter((p) => p.promotion_id !== deleteId));
       toast.success("Xóa promotion thành công");
-    } catch {
-      toast.error("Xóa thất bại");
+    } catch (err) {
+      toast.error(getErrorMessage(err, "Xóa promotion thất bại"));
     } finally {
       setConfirmOpen(false);
       setDeleteId(null);
     }
   };
 
-  const getStatusColor = (status) => {
-    switch (status.toLowerCase()) {
+  const getStatusColor = (statusText) => {
+    const s = String(statusText || "").toLowerCase();
+    switch (s) {
       case "active":
         return "bg-green-100 text-green-800";
       case "expired":
@@ -98,7 +111,7 @@ const PromotionManagement = () => {
 
   return (
     <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-      <ToastContainer position="top-right" autoClose={3000} />
+      <ToastContainer position="top-right" autoClose={3000} pauseOnHover={false} newestOnTop />
       <div className="flex justify-between items-center mb-4">
         <h2 className="text-2xl font-bold text-gray-900">Promotion Management</h2>
         <button
@@ -119,6 +132,7 @@ const PromotionManagement = () => {
           placeholder="Search by name or type"
           value={keyword}
           onChange={(e) => setKeyword(e.target.value)}
+          onKeyDown={(e) => e.key === "Enter" && handleSearch()}
         />
         <select
           className="border rounded-md px-3 py-2 text-sm"
@@ -155,13 +169,13 @@ const PromotionManagement = () => {
           <tbody>
             {loading ? (
               <tr>
-                <td colSpan="6" className="text-center py-4 text-gray-500">
+                <td colSpan={7} className="text-center py-4 text-gray-500">
                   Loading...
                 </td>
               </tr>
             ) : promotions.length === 0 ? (
               <tr>
-                <td colSpan="6" className="text-center py-4 text-gray-500">
+                <td colSpan={7} className="text-center py-4 text-gray-500">
                   No promotions found.
                 </td>
               </tr>
@@ -190,6 +204,8 @@ const PromotionManagement = () => {
                         setModalOpen(true);
                       }}
                       className="text-blue-600 hover:text-blue-800"
+                      aria-label="Sửa"
+                      title="Sửa"
                     >
                       <Pencil size={18} />
                     </button>
@@ -199,6 +215,8 @@ const PromotionManagement = () => {
                         setConfirmOpen(true);
                       }}
                       className="text-red-600 hover:text-red-800"
+                      aria-label="Xóa"
+                      title="Xóa"
                     >
                       <Trash2 size={18} />
                     </button>
