@@ -14,8 +14,6 @@ export default function AllocationRequest() {
 
   const [form, setForm] = useState({
     vehicleVersionId: "",
-    // allow transient empty string while editing so user can delete and retype
-    // final validation/clamping happens on blur/submit
     quantity: 1,
     expectedDelivery: "", // yyyy-mm-dd (tùy chọn)
   });
@@ -55,24 +53,11 @@ export default function AllocationRequest() {
   const handleChange = (e) => {
     const { name, value } = e.target;
     if (name === "quantity") {
-      // Allow empty string while editing so user can backspace/delete
-      if (value === "") {
-        setForm((p) => ({ ...p, quantity: "" }));
-        return;
-      }
-
-      // parse an integer and clamp to minimum 1
-      const parsed = parseInt(value, 10);
-      const n = Number.isNaN(parsed) ? 1 : Math.max(1, parsed);
+      const n = Math.max(1, Number(value || 1));
       setForm((p) => ({ ...p, quantity: n }));
       return;
     }
     setForm((p) => ({ ...p, [name]: value }));
-  };
-
-  // when user leaves the quantity field, ensure it's a valid number >= 1
-  const handleQuantityBlur = () => {
-    setForm((p) => ({ ...p, quantity: p.quantity === "" || !p.quantity ? 1 : Number(p.quantity) }));
   };
 
   const toISODateZ = (dateStr) => {
@@ -194,14 +179,8 @@ export default function AllocationRequest() {
               name="quantity"
               value={form.quantity}
               onChange={handleChange}
-              onBlur={handleQuantityBlur}
               min={1}
-<<<<<<< Updated upstream
               className="w-full border border-gray-300 rounded-md px-3 py-2"  
-=======
-              step={1}
-              className="w-full border border-gray-300 rounded-md px-3 py-2"
->>>>>>> Stashed changes
             />
           </div>
 

@@ -22,22 +22,27 @@ import {
 
 /** ===== Config ===== */
 const SHORT_ID_LEN = 8;
-/** ===== Config (STATUS for allocation) ===== */
-// Unified with distribution statuses
+/** ===== Config (DEALER) ===== */
 const STATUS_OPTIONS = [
-  "pending",
-  "shipping",
-  "received",
-  "cancelled",
-  "rejected",
+  // "requested",     // Dealer đã gửi yêu cầu
+  // "approved",      // Brand duyệt
+  // "rejected",      // Brand từ chối
+  // "assigned",      // Brand đã phân xe
+  // "in_transit",    // Đang vận chuyển
+  // "at_dealer",     // Đã đến đại lý
+  // "delivered",     // Hoàn tất giao
+  "cancelled",     // Hủy
 ];
 
 const STATUS_META = {
-  pending:   { label: "Đang chờ",         color: "gold" },
-  shipping:  { label: "Đang vận chuyển",  color: "processing" },
-  received:  { label: "Đã nhận",          color: "green" },
-  cancelled: { label: "Đã hủy",           color: "volcano" },
-  rejected:  { label: "Từ chối",          color: "red" },
+  requested: { label: "Đã gửi yêu cầu", color: "default" },
+  approved: { label: "Đã duyệt", color: "blue" },
+  rejected: { label: "Từ chối", color: "red" },
+  assigned: { label: "Đã phân xe", color: "purple" },
+  in_transit: { label: "Đang vận chuyển", color: "gold" },
+  at_dealer: { label: "Tại đại lý", color: "cyan" },
+  delivered: { label: "Đã giao", color: "green" },
+  cancelled: { label: "Đã hủy", color: "volcano" },
 };
 
 
@@ -197,9 +202,8 @@ export default function AllocationRequestsList() {
       title: "Ngày yêu cầu",
       dataIndex: "date",
       width: 180,
-      // Hiển thị chỉ phần ngày, bỏ giờ
       render: (v) =>
-        v ? new Date(v).toLocaleDateString() : <Typography.Text type="secondary">-</Typography.Text>,
+        v ? new Date(v).toLocaleString() : <Typography.Text type="secondary">-</Typography.Text>,
     },
     {
       title: "Trạng thái",

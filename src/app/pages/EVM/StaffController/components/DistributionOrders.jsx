@@ -23,22 +23,27 @@ import {
 
 /** ===== Config ===== */
 const SHORT_ID_LEN = 8;
-/** ===== Config (STATUS for distribution) ===== */
-// Updated per request: allowed statuses for vehicle distribution
+/** ===== Config (BRAND) ===== */
 const STATUS_OPTIONS = [
-  "pending",
-  "shipping",
-  "received",
-  "cancelled",
-  "rejected",
+  "received",      // Brand đã tiếp nhận yêu cầu của dealer
+  "approved",      // Brand duyệt
+  "rejected",      // Brand từ chối
+  "assigned",      // Đã phân xe
+  "in_transit",    // Đang vận chuyển
+  "at_dealer",     // Đã đến đại lý
+  "delivered",     // Hoàn tất giao
+  "cancelled",     // Hủy
 ];
 
 const STATUS_META = {
-  pending:   { label: "Đang chờ",         color: "gold" },
-  shipping:  { label: "Đang vận chuyển",  color: "processing" },
-  received:  { label: "Đã nhận",          color: "green" },
-  cancelled: { label: "Đã hủy",           color: "volcano" },
-  rejected:  { label: "Từ chối",          color: "red" },
+  received:   { label: "Đã tiếp nhận",    color: "processing" },
+  approved:   { label: "Đã duyệt",        color: "blue" },
+  rejected:   { label: "Từ chối",         color: "red" },
+  assigned:   { label: "Đã phân xe",      color: "purple" },
+  in_transit: { label: "Đang vận chuyển", color: "gold" },
+  at_dealer:  { label: "Tại đại lý",      color: "cyan" },
+  delivered:  { label: "Đã giao",         color: "green" },
+  cancelled:  { label: "Đã hủy",          color: "volcano" },
 };
 
 const TOKEN =
@@ -49,12 +54,6 @@ const TOKEN =
 function shortId(id = "") {
   if (!id) return "";
   return id.length > SHORT_ID_LEN ? id.slice(0, SHORT_ID_LEN) + "…" : id;
-}
-
-function toTimestampOrInf(d) {
-  if (!d) return Infinity;
-  const t = new Date(d).getTime();
-  return Number.isFinite(t) ? t : Infinity;
 }
 
 function StatusTag({ value }) {
@@ -102,8 +101,9 @@ export default function AllocationRequestsList() {
           deliveryDate: item.expectedDelivery,
           status: item.status,
         }));
-        // Default sort: nearest deliveryDate first (closest upcoming -> farthest).
-        mapped.sort((a, b) => toTimestampOrInf(a.deliveryDate) - toTimestampOrInf(b.deliveryDate));
+        mapped.sort(
+          (a, b) => new Date(b.requestDate || 0) - new Date(a.requestDate || 0)
+        );
         setData(mapped);
       } else {
         throw new Error("Không thể tải dữ liệu.");
@@ -205,12 +205,10 @@ export default function AllocationRequestsList() {
     {
       title: "Ngày yêu cầu",
       dataIndex: "requestDate",
-      width: 160,
-      sorter: (a, b) => toTimestampOrInf(a.requestDate) - toTimestampOrInf(b.requestDate),
+      width: 180,
       render: (v) =>
         v ? (
-          // show only date (no time)
-          new Date(v).toLocaleDateString()
+          new Date(v).toLocaleString()
         ) : (
           <Typography.Text type="secondary">-</Typography.Text>
         ),
@@ -218,12 +216,10 @@ export default function AllocationRequestsList() {
     {
       title: "Dự kiến giao",
       dataIndex: "deliveryDate",
-      width: 160,
-      sorter: (a, b) => toTimestampOrInf(a.deliveryDate) - toTimestampOrInf(b.deliveryDate),
+      width: 180,
       render: (v) =>
         v ? (
-          // show only date (no time)
-          new Date(v).toLocaleDateString()
+          new Date(v).toLocaleString()
         ) : (
           <Typography.Text type="secondary">-</Typography.Text>
         ),
@@ -245,6 +241,7 @@ export default function AllocationRequestsList() {
       width: 210,
       render: (_, record) => (
         <Space>
+          <Button size="small" icon={<EyeOutlined />} onClick={() => message.info(`Xem ${record.id}`)} />
           <Button size="small" type="default" icon={<EditOutlined />} onClick={() => openModal(record)}>
             Cập nhật
           </Button>
@@ -255,6 +252,7 @@ export default function AllocationRequestsList() {
             cancelText="Hủy"
             onConfirm={() => message.success(`${record.id} đã xóa (mock)`)}
           >
+            <Button danger size="small" icon={<DeleteOutlined />} />
           </Popconfirm>
         </Space>
       ),
