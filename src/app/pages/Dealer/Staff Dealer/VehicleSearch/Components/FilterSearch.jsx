@@ -33,8 +33,12 @@ export default function FilterSearch({ onFilterChange }) {
           },
         });
         const data = await res.json();
-        if (data.status === 200 && data.data?.items) {
-          setVehicles(data.data.items);
+        if (data.status === 200) {
+          // Support two response shapes:
+          // 1) { status:200, data: { items: [...] } }
+          // 2) { status:200, data: [ ... ] }
+          const items = data.data?.items ?? data.data ?? [];
+          if (Array.isArray(items)) setVehicles(items);
         }
       } catch (error) {
         console.error(error);

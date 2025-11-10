@@ -162,8 +162,29 @@ export default function QuoteForm() {
   // ====== TẠO KHÁCH HÀNG ======
   const handleCreateCustomer = async () => {
     try {
-      if (!customerName || !customerPhone) {
-        toast.warn("Vui lòng nhập ít nhất Tên và SĐT.");
+      // Validation: Tên, SĐT, Email, Địa chỉ are required and must be reasonable
+      const missing = [];
+      if (!customerName || !customerName.trim()) missing.push("Tên");
+      if (!customerPhone || !customerPhone.trim()) missing.push("Số điện thoại");
+      if (!email || !email.trim()) missing.push("Email");
+      if (!address || !address.trim()) missing.push("Địa chỉ");
+
+      if (missing.length > 0) {
+        toast.warn(`Vui lòng nhập: ${missing.join(", ")}`);
+        return;
+      }
+
+      // Basic phone validation: digits only, length 9-12
+      const phoneDigits = (customerPhone || "").toString().replace(/\D/g, "");
+      if (phoneDigits.length !== 10) {
+        toast.warn("Số điện thoại không hợp lệ (10 chữ số). Vui lòng kiểm tra lại.");
+        return;
+      }
+
+      // Basic email validation
+      const emailPattern = /^\S+@\S+\.\S+$/;
+      if (!emailPattern.test(email)) {
+        toast.warn("Email không hợp lệ. Vui lòng nhập địa chỉ email hợp lệ.");
         return;
       }
       setCreatingCustomer(true);

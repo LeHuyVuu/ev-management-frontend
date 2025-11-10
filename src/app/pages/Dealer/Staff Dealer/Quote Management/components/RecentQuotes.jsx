@@ -1,6 +1,6 @@
 // RecentQuotes.jsx (Ant Design Table with client-side sorting & pagination)
-import React, { useEffect, useState } from "react";
-import { Table, Typography, Tag, Space, Button, Alert, message } from "antd";
+import React, { useEffect, useMemo, useState } from "react";
+import { Table, Typography, Tag, Space, Button, Alert, message, Input } from "antd";
 import { EyeOutlined, EditOutlined, DeleteOutlined, FolderOpenOutlined } from "@ant-design/icons";
 import QuoteDetailModal from "./QuoteDetailModal";
 
@@ -27,6 +27,8 @@ export default function RecentQuotes() {
   const [data, setData] = useState([]);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState("");
+  const [searchTerm, setSearchTerm] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
 
   // Modal state
   const [openDetail, setOpenDetail] = useState(false);
@@ -74,6 +76,18 @@ export default function RecentQuotes() {
       }
     })();
   }, []);
+
+  // debounce search input (300ms)
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedSearch(searchTerm.trim()), 300);
+    return () => clearTimeout(t);
+  }, [searchTerm]);
+
+  const filteredData = useMemo(() => {
+    if (!debouncedSearch) return data;
+    const s = debouncedSearch.toLowerCase();
+    return data.filter((r) => (r.customerName || "").toLowerCase().includes(s));
+  }, [data, debouncedSearch]);
 
   const handleDelete = (id) => {
     if (window.confirm(`Bạn có chắc muốn xoá báo giá #${id}?`)) {
@@ -172,10 +186,23 @@ export default function RecentQuotes() {
 
       {err && <Alert type="error" showIcon message="Lỗi" description={err} style={{ marginBottom: 12 }} />}
 
+      {/* Search by customer name */}
+      <div style={{ marginBottom: 12, display: "flex", gap: 8, alignItems: "center" }}>
+        <Input.Search
+          placeholder="Tìm theo tên khách hàng"
+          allowClear
+          enterButton={false}
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+          style={{ maxWidth: 360 }}
+        />
+        <div style={{ color: '#666', fontSize: 12 }}>{filteredData.length} kết quả</div>
+      </div>
+
       <Table
         loading={loading}
         columns={columns}
-        dataSource={data}
+        dataSource={filteredData}
         onChange={handleTableChange}
         pagination={{
           ...pagination,
