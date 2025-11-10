@@ -55,7 +55,12 @@ const Sidebar = () => {
       key: "/evm/system-administration",
       icon: <SettingOutlined />,
       label: <Link to="/evm/system-administration">System Administration</Link>,
-    }
+    },
+     {
+      key: "/dealer/contract",
+      icon: <Backpack />,
+      label: <Link to="/dealer/contract">Quay về trang dealer</Link>,
+    },
   ];
 
   return (

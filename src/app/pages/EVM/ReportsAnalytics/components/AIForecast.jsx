@@ -13,7 +13,7 @@ import {
   TimeScale,
 } from "chart.js";
 import { Line, Bar } from "react-chartjs-2";
-import { Select, Switch } from "antd";
+import { Select } from "antd";
 
 ChartJS.register(
   LineElement,
@@ -28,52 +28,7 @@ ChartJS.register(
 );
 
 // ===== Helpers =====
-// (GIỮ NGUYÊN) Base cũ — nhưng giờ mình thêm toggle để chọn Domain/Localhost
 const BASE = "https://prn232.freeddns.org"; // "" = same-origin
-
-// [ADD] Lấy trạng thái toggle base url từ localStorage
-function getInitialUseDomain() {
-  try {
-    const v = localStorage.getItem("aifc.useDomain");
-    return v === "1";
-  } catch {
-    return true; // mặc định domain như code cũ
-  }
-}
-
-// [ADD] (tuỳ chọn) clear SW + caches để giảm dính bundle cũ khi đổi toggle
-async function nukeSwAndCaches() {
-  try {
-    if (navigator?.serviceWorker?.getRegistrations) {
-      const regs = await navigator.serviceWorker.getRegistrations();
-      await Promise.all(regs.map((r) => r.unregister()));
-    }
-    if (window?.caches?.keys) {
-      const keys = await caches.keys();
-      await Promise.all(keys.map((k) => caches.delete(k)));
-    }
-    console.log("[AIForecast] cleared service workers & caches");
-  } catch (e) {
-    console.warn("[AIForecast] cannot clear SW/caches:", e);
-  }
-}
-
-// [ADD] Tiện ích ghép URL tuyệt đối từ base + path + query
-function abs(BASE_URL, path, queryObj) {
-  const root = String(BASE_URL || "").replace(/\/+$/, "");
-  const p = String(path || "").replace(/^\/+/, "");
-  let url = `${root}/${p}`;
-  if (queryObj) {
-    const qs = new URLSearchParams();
-    Object.entries(queryObj).forEach(([k, v]) => {
-      if (v !== undefined && v !== null && String(v).length > 0) {
-        qs.append(k, String(v));
-      }
-    });
-    url += `?${qs.toString()}`;
-  }
-  return url;
-}
 
 function toQS(obj) {
   const qs = new URLSearchParams();
@@ -102,25 +57,6 @@ function makeVGradient(ctx, area, from, to) {
 const nf = new Intl.NumberFormat("vi-VN");
 
 const AIForecast = () => {
-  // [ADD] Toggle Base URL
-  const [useDomain, setUseDomain] = useState(getInitialUseDomain);
-  const BASE_URL = useMemo(
-    () => (useDomain ? "https://prn232.freeddns.org" : "https://localhost:7050"),
-    [useDomain]
-  );
-  const onToggleBase = async (checked) => {
-    setUseDomain(checked);
-    try {
-      localStorage.setItem("aifc.useDomain", checked ? "1" : "0");
-    } catch { }
-    // (tuỳ chọn) clear SW/caches để hạn chế “bản cũ” trong trình duyệt
-    await nukeSwAndCaches();
-    // Reload dữ liệu với BASE_URL mới
-    await loadAll(checked ? "https://prn232.freeddns.org" : "https://localhost:7050");
-    // Đồng thời reload options (vehicles, dealers)
-    await loadOptions(checked ? "https://prn232.freeddns.org" : "https://localhost:7050");
-  };
-
   // Filters
   const [vehicleVersionId, setVehicleVersionId] = useState("");
   const [dealerId, setDealerId] = useState("");
@@ -128,6 +64,7 @@ const AIForecast = () => {
 
   // Options
   const [vehicleOptions, setVehicleOptions] = useState([]);
+
   const [dealerOptions, setDealerOptions] = useState([]);
   const [optLoading, setOptLoading] = useState(false);
   const [optErr, setOptErr] = useState("");
@@ -206,92 +143,89 @@ const AIForecast = () => {
   }, [weeklyTotal, allocate, debugRows]);
 
   // ===== fetch dropdown options on mount =====
-  async function loadOptions(baseOverride) {
-    const base = baseOverride || BASE_URL;
-    setOptErr("");
-    setOptLoading(true);
-    try {
-      const [vRes, dRes] = await Promise.all([
-        // (ĐỔI sang dùng BASE_URL hiện tại)
-        fetch(abs("https://prn232.freeddns.org", "/brand-service/api/vehicle-versions"), {
-          headers: { accept: "application/json" },
-          mode: "cors",
-          cache: "no-store",
-        }),
-        fetch(abs("https://prn232.freeddns.org", "/dealer-service/api/Dealers"), {
-          headers: { accept: "application/json" },
-          mode: "cors",
-          cache: "no-store",
-        }),
-      ]);
-
-      if (!vRes.ok) throw new Error(`Vehicle versions: ${vRes.statusText}`);
-      if (!dRes.ok) throw new Error(`Dealers: ${dRes.statusText}`);
-
-      const vJson = await vRes.json();
-      const dJson = await dRes.json();
-
-      const vItems = Array.isArray(vJson?.data?.items) ? vJson.data.items : [];
-      const dItems = Array.isArray(dJson?.data?.items) ? dJson.data.items : [];
-
-      setVehicleOptions(
-        vItems.map((it) => ({
-          id: it.vehicleVersionId,
-          label: [it.brand, it.modelName, it.versionName, it.color, it.vehicleVersionId]
-            .filter(Boolean)
-            .join(" • "),
-        }))
-      );
-
-      setDealerOptions(
-        dItems.map((it) => ({
-          id: it.dealerId,
-          label: `${it.dealerCode} • ${it.name} - ${it.dealerId} `.trim(),
-        }))
-      );
-    } catch (e) {
-      setOptErr(e?.message || "Không tải được danh sách dropdown");
-    } finally {
-      setOptLoading(false);
-    }
-  }
-
   useEffect(() => {
-    loadOptions();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [BASE_URL]);
+    let aborted = false;
+    async function loadOptions() {
+      setOptErr("");
+      setOptLoading(true);
+      try {
+        const [vRes, dRes] = await Promise.all([
+          fetch("https://prn232.freeddns.org/brand-service/api/vehicle-versions", {
+            headers: { accept: "application/json" },
+            mode: "cors",
+          }),
+          fetch("https://prn232.freeddns.org/dealer-service/api/Dealers", {
+            headers: { accept: "application/json" },
+            mode: "cors",
+          }),
+        ]);
 
-  // ===== Fetchers (GIỮ NGUYÊN chức năng – chỉ đổi sang BASE_URL) =====
-  async function fetchWeeklyTotal(baseOverride) {
-    const base = baseOverride || BASE_URL;
+        if (!vRes.ok) throw new Error(`Vehicle versions: ${vRes.statusText}`);
+        if (!dRes.ok) throw new Error(`Dealers: ${dRes.statusText}`);
+
+        const vJson = await vRes.json();
+        const dJson = await dRes.json();
+
+        if (!aborted) {
+          const vItems = Array.isArray(vJson?.data?.items) ? vJson.data.items : [];
+          const dItems = Array.isArray(dJson?.data?.items) ? dJson.data.items : [];
+
+          setVehicleOptions(
+            vItems.map((it) => ({
+              id: it.vehicleVersionId,
+              label: [it.brand, it.modelName, it.versionName, it.color, it.vehicleVersionId]
+                .filter(Boolean)
+                .join(" • "),
+            }))
+          );
+
+          setDealerOptions(
+            dItems.map((it) => ({
+              id: it.dealerId,
+              label: `${it.dealerCode} • ${it.name} - ${it.dealerId} `.trim(),
+            }))
+          );
+        }
+      } catch (e) {
+        if (!aborted) setOptErr(e?.message || "Không tải được danh sách dropdown");
+      } finally {
+        if (!aborted) setOptLoading(false);
+      }
+    }
+    loadOptions();
+    return () => {
+      aborted = true;
+    };
+  }, []);
+
+  // ===== Fetchers (GIỮ NGUYÊN) =====
+  async function fetchWeeklyTotal() {
     if (!vehicleVersionId) {
       setWeeklyTotal([]);
       return;
     }
     const qs = toQS({ vehicleVersionId, horizon });
-    const url = abs(base, "/utility-service/api/forecast/weekly-total", null) + `?${qs}`;
-    const res = await fetch(url, { headers: { accept: "application/json" }, cache: "no-store" });
+    const url = `${BASE}/utility-service/api/forecast/weekly-total?${qs}`;
+    const res = await fetch(url, { headers: { accept: "application/json" } });
     if (!res.ok) throw new Error(await res.text());
     const json = await res.json();
     setWeeklyTotal(Array.isArray(json) ? json : []);
   }
 
-  async function fetchAllocate(baseOverride) {
-    const base = baseOverride || BASE_URL;
+  async function fetchAllocate() {
     if (!vehicleVersionId) {
       setAllocate([]);
       return;
     }
     const qs = toQS({ vehicleVersionId, horizon, holdback: 0.1 });
-    const url = abs(base, "/utility-service/api/forecast/allocate", null) + `?${qs}`;
-    const res = await fetch(url, { headers: { accept: "application/json" }, cache: "no-store" });
+    const url = `${BASE}/utility-service/api/forecast/allocate?${qs}`;
+    const res = await fetch(url, { headers: { accept: "application/json" } });
     if (!res.ok) throw new Error(await res.text());
     const json = await res.json();
     setAllocate(Array.isArray(json) ? json : []);
   }
 
-  async function fetchDebugAll(baseOverride) {
-    const base = baseOverride || BASE_URL;
+  async function fetchDebugAll() {
     const qs = toQS({
       page,
       pageSize,
@@ -299,20 +233,19 @@ const AIForecast = () => {
       dealerId,
       vehicleVersionId,
     });
-    const url = abs(base, "/utility-service/api/forecast/debug-all", null) + `?${qs}`;
-    const res = await fetch(url, { headers: { accept: "application/json" }, cache: "no-store" });
+    const url = `${BASE}/utility-service/api/forecast/debug-all?${qs}`;
+    const res = await fetch(url, { headers: { accept: "application/json" } });
     if (!res.ok) throw new Error(await res.text());
     const json = await res.json();
     setDebugRows(Array.isArray(json?.data) ? json.data : []);
     setTotalPairs(Number(json?.totalPairs || 0));
   }
 
-  async function loadAll(baseOverride) {
-    const base = baseOverride || BASE_URL;
+  async function loadAll() {
     setErr("");
     setLoading(true);
     try {
-      await Promise.all([fetchWeeklyTotal(base), fetchAllocate(base), fetchDebugAll(base)]);
+      await Promise.all([fetchWeeklyTotal(), fetchAllocate(), fetchDebugAll()]);
     } catch (e) {
       console.error(e);
       setErr(e?.message || "Lỗi tải dữ liệu");
@@ -324,7 +257,7 @@ const AIForecast = () => {
   useEffect(() => {
     loadAll();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [page, pageSize, BASE_URL]);
+  }, [page, pageSize]);
 
   // ===== Charts (GIỮ NGUYÊN) =====
   const lineData = useMemo(() => {
@@ -506,23 +439,25 @@ const AIForecast = () => {
     };
 
     const body = {
-      model,
-      stream: true,
-      temperature: 0.8,
-      messages: [
-        {
-          role: "system",
-          content:
-            "Bạn là chuyên gia dự báo thị trường ô tô Việt Nam, hiểu xu hướng bán hàng, phân bổ xe và tâm lý người mua. Hãy nói với giọng thân thiện, tự nhiên, hơi dí dỏm nhưng vẫn sắc bén và chuyên nghiệp. Trả lời ngắn gọn tối đa 3 câu, mỗi câu rõ ràng, mạch lạc, không ký tự đặc biệt, không định dạng. Ưu tiên diễn đạt logic và dễ hiểu như đang nói chuyện thật.",
-        },
-        {
-          role: "user",
-          content:
-            "Dựa trên dữ liệu sau, hãy dự báo xu hướng xe. Viết 1 câu về xu hướng hiện tại, 1 câu về dự đoán 1–2 tuần tới, 1 câu kết luận nhẹ nhàng, vui vẻ, tự nhiên. Không liệt kê, không giải thích dài dòng. Dữ liệu: " +
-            JSON.stringify(payloadSummary),
-        },
-      ],
-    };
+  model,
+  stream: true,
+  temperature: 0.8,
+  messages: [
+    {
+      role: "system",
+      content:
+        "Bạn là chuyên gia dự báo thị trường ô tô tại Việt Nam. Giọng điệu thân thiện, tự nhiên, hơi dí dỏm nhưng chính xác. Chỉ viết tối đa 3 câu, mỗi câu ngắn gọn, dễ hiểu, không ký tự đặc biệt, không định dạng. Ưu tiên sự rõ ràng, mạch lạc và logic."
+    },
+    {
+      role: "user",
+      content:
+        "Phân tích dữ liệu để dự báo xu hướng xe. Nói ngắn gọn như đang trò chuyện: 1 câu về xu hướng, 1 câu dự báo 1–2 tuần, 1 câu chốt nhẹ nhàng, vui tươi. Không liệt kê, không giải thích dài. Dữ liệu: " + JSON.stringify(payloadSummary)
+    }
+  ],
+};
+
+
+
 
     const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
       method: "POST",
@@ -671,57 +606,41 @@ const AIForecast = () => {
           />
         </div>
 
-        {/* [ADD] Base URL Toggle trong khu Filter */}
-        <div className="md:col-span-5 flex flex-wrap items-center gap-3">
-          <div className="flex items-center gap-2">
-            <span className="text-sm text-gray-600">Base URL:</span>
-            <Switch
-              checkedChildren="Domain"
-              unCheckedChildren="Localhost"
-              checked={useDomain}
-              onChange={onToggleBase}
-            />
-            <span className="text-xs text-gray-500">
-              {useDomain ? "https://prn232.freeddns.org" : "https://localhost:7050"}
+        <div className="md:col-span-5 flex gap-3">
+          <button
+            onClick={async () => {
+              setPage(1);
+              await loadAll();
+              if (vehicleVersionId) {
+                await streamGroqAuto(); // ✅ chỉ gọi Groq khi bấm "Áp dụng / Tải dữ liệu"
+              }
+            }}
+            className="px-4 py-2 rounded-md bg-blue-600 text-white hover:bg-blue-700"
+          >
+            Áp dụng / Tải dữ liệu
+          </button>
+          <button
+            onClick={async () => {
+              setVehicleVersionId("");
+              setDealerId("");
+              setHorizon(8);
+              setPage(1);
+              setPageSize(10);
+              await loadAll();
+              // Không gọi Groq khi reset
+              setAiReco("");
+              bufferRef.current = "";
+              setAiErr("");
+            }}
+            className="px-4 py-2 rounded-md border"
+          >
+            Xóa lọc
+          </button>
+          {err && (
+            <span className="text-red-600 text-sm flex items-center" title={err}>
+              {err}
             </span>
-          </div>
-
-          <div className="flex gap-3 ml-auto">
-            <button
-              onClick={async () => {
-                setPage(1);
-                await loadAll();
-                if (vehicleVersionId) {
-                  await streamGroqAuto(); // ✅ chỉ gọi Groq khi bấm "Áp dụng / Tải dữ liệu"
-                }
-              }}
-              className="px-4 py-2 rounded-md bg-blue-600 text-white hover:bg-blue-700"
-            >
-              Áp dụng / Tải dữ liệu
-            </button>
-            <button
-              onClick={async () => {
-                setVehicleVersionId("");
-                setDealerId("");
-                setHorizon(8);
-                setPage(1);
-                setPageSize(10);
-                await loadAll();
-                // Không gọi Groq khi reset
-                setAiReco("");
-                bufferRef.current = "";
-                setAiErr("");
-              }}
-              className="px-4 py-2 rounded-md border"
-            >
-              Xóa lọc
-            </button>
-            {err && (
-              <span className="text-red-600 text-sm flex items-center" title={err}>
-                {err}
-              </span>
-            )}
-          </div>
+          )}
         </div>
       </div>
 

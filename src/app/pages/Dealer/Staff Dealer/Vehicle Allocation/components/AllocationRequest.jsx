@@ -1,9 +1,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { ToastContainer, toast } from "react-toastify";
 
-// ❌ Trước đây (lỗi): const API_TOKEN = localStorage.getItem("token");
-// ✅ Sửa thành hàm lấy token đúng thời điểm
-const getToken = () => localStorage.getItem("token") || ""; // [CHANGE]
+const API_TOKEN = localStorage.getItem("token");// Gợi ý production: const API_TOKEN = import.meta.env.VITE_API_TOKEN;
 
 export default function AllocationRequest() {
   const [versions, setVersions] = useState([]);
@@ -32,7 +30,7 @@ export default function AllocationRequest() {
           {
             headers: {
               accept: "*/*",
-              Authorization: `Bearer ${getToken()}`, // [CHANGE]
+              Authorization: `Bearer ${API_TOKEN}`,
             },
           }
         );
@@ -41,7 +39,7 @@ export default function AllocationRequest() {
         const items = json?.data?.items ?? json?.data ?? json ?? [];
         const mapped = (Array.isArray(items) ? items : []).map((v) => ({
           id: v.vehicleVersionId || v.id,
-          label: `${v.brand} - ${v.versionName} - ${v.color} - ${v.evType}`,
+            label: `${v.brand} - ${v.versionName} - ${v.color} - ${v.evType}`,
         }));
         setVersions(mapped.filter((v) => v.id && v.label));
       } catch (err) {
@@ -124,7 +122,7 @@ export default function AllocationRequest() {
           headers: {
             "Content-Type": "application/json",
             accept: "*/*",
-            Authorization: `Bearer ${getToken()}`, // [CHANGE]
+            Authorization: `Bearer ${API_TOKEN}`,
           },
           body: JSON.stringify(payload),
         }

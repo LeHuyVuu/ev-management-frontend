@@ -112,16 +112,24 @@ function prettyValue(val) {
   return <Text>{String(val)}</Text>;
 }
 
+/** Component hiển thị JSON thuần */
+const JSONBlock = ({ data }) => (
+  <Paragraph copyable>
+    <pre style={{ margin: 0, whiteSpace: "pre-wrap", wordBreak: "break-word" }}>
+      {JSON.stringify(data, null, 2)}
+    </pre>
+  </Paragraph>
+);
 
 /** Header bar cố định để thao tác nhanh */
 function StickyHeader({ detail, onReload, onClose, onPatch, onSave, patching, saving }) {
   return (
     <div
-      style={{ position: "sticky", top: 0, zIndex: 2, background: "#fff", padding: "8px 0 6px" }}
+      style={{ position: "sticky", top: -16, zIndex: 2, background: "#fff", padding: "8px 0 4px" }}
     >
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-          <Title level={5} className="!mb-0">Chi tiết báo giá</Title>
+      <Space align="center" style={{ width: "100%", justifyContent: "space-between" }}>
+        <Space align="center" wrap>
+          <Title level={4} className="!mb-0">Chi tiết báo giá</Title>
           {!!detail?.status && <Tag color={statusColor(detail.status)}>{detail.status}</Tag>}
           {detail?.quoteId && (
             <Tooltip title="Sao chép Quote ID">
@@ -135,15 +143,14 @@ function StickyHeader({ detail, onReload, onClose, onPatch, onSave, patching, sa
               </Button>
             </Tooltip>
           )}
-        </div>
-
-        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+        </Space>
+        <Space>
           <Button icon={<ReloadOutlined />} onClick={onReload} size="small">Tải lại</Button>
           <Button onClick={onClose} size="small">Đóng</Button>
           <Button onClick={onPatch} loading={patching} size="small">Cập nhật trạng thái</Button>
-          <Button type="primary" onClick={onSave} loading={saving} size="small">Lưu</Button>
-        </div>
-      </div>
+          <Button type="primary" onClick={onSave} loading={saving} size="small">Lưu (PUT)</Button>
+        </Space>
+      </Space>
       <Divider className="!my-2" />
     </div>
   );
@@ -157,6 +164,7 @@ export default function QuoteDetailModal({ open, quoteId, onClose, onUpdated }) 
   // form state để PUT/PATCH (giữ nguyên logic cũ)
   const [customerId, setCustomerId] = useState("");
   const [vehicleVersionId, setVehicleVersionId] = useState("");
+  const [optionsJson, setOptionsJson] = useState("");
   const [discountAmt, setDiscountAmt] = useState(0);
   const [status, setStatus] = useState("");
 
@@ -166,6 +174,13 @@ export default function QuoteDetailModal({ open, quoteId, onClose, onUpdated }) 
   const syncFormFromDetail = (d) => {
     setCustomerId(d?.customerId || "");
     setVehicleVersionId(d?.vehicleVersionId || "");
+    setOptionsJson(
+      typeof d?.optionsJson === "string"
+        ? d.optionsJson
+        : d?.optionsJson
+        ? JSON.stringify(d.optionsJson)
+        : ""
+    );
     setDiscountAmt(Number.isFinite(Number(d?.discountAmt)) ? Number(d.discountAmt) : 0);
     setStatus(d?.status || "");
   };
@@ -291,7 +306,19 @@ export default function QuoteDetailModal({ open, quoteId, onClose, onUpdated }) 
     }
   };
 
-  // optionsJson editor removed — not exposed in UI anymore
+  // Parse optionsJson an toàn
+  const parsedOptions = useMemo(() => {
+    try {
+      if (Array.isArray(detail?.optionsJson)) return detail.optionsJson;
+      if (typeof detail?.optionsJson === "string" && detail.optionsJson.trim()) {
+        return JSON.parse(detail.optionsJson);
+      }
+      if (optionsJson && typeof optionsJson === "string") return JSON.parse(optionsJson);
+    } catch {
+      // ignore parse error
+    }
+    return null;
+  }, [detail?.optionsJson, optionsJson]);
 
   // Các field đã thể hiện ở trên UI => loại khỏi bảng "Các trường khác"
   const displayedKeys = useMemo(
@@ -316,9 +343,10 @@ export default function QuoteDetailModal({ open, quoteId, onClose, onUpdated }) 
         "contactPhone",
         // promo
         "promotionNames",
-  // edit form sources
-  "customerId",
-  "vehicleVersionId",
+        // edit form sources
+        "customerId",
+        "vehicleVersionId",
+        "optionsJson",
         // meta
         "timestamp",
       ]),
@@ -399,15 +427,17 @@ export default function QuoteDetailModal({ open, quoteId, onClose, onUpdated }) 
       {!loading && !err && !detail && <Empty description="Không tìm thấy dữ liệu" />}
 
       {!loading && !err && detail && (
-        <div className="w-full">
-          {/* Top summary */}
+        <Space direction="vertical" className="w-full" size={12}>
+          {/* Tóm tắt với Ribbon */}
           <Badge.Ribbon text={(detail.status || "DRAFT").toUpperCase()} color={ribbonColor(detail.status)}>
-            <Card className="rounded-2xl shadow-sm mb-4" bodyStyle={{ padding: 16 }}>
-              <Row gutter={[12, 12]} align="middle">
-                <Col xs={24} md={16}>
-                  <Descriptions column={2} size="small" labelStyle={{ width: 130 }}>
+            <Card className="rounded-2xl shadow-sm" bodyStyle={{ paddingBottom: 8 }}>
+              <Row gutter={[12, 12]}>
+                <Col xs={24} md={14}>
+                  <Descriptions bordered size="small" column={2} labelStyle={{ width: 136 }}>
                     <Descriptions.Item label="Khách hàng">
-                      <Text strong copyable>{detail.customerName || "—"}</Text>
+                      <Space>
+                        <Text strong copyable>{detail.customerName || "—"}</Text>
+                      </Space>
                     </Descriptions.Item>
                     <Descriptions.Item label="SĐT">
                       <Text strong copyable>{detail.customerPhone || "—"}</Text>
@@ -418,79 +448,147 @@ export default function QuoteDetailModal({ open, quoteId, onClose, onUpdated }) 
                     <Descriptions.Item label="Màu">{prettyValue(detail.color)}</Descriptions.Item>
                   </Descriptions>
                 </Col>
-                <Col xs={24} md={8}>
-                  <div style={{ display: "grid", gap: 8 }}>
-                    <Card size="small" bordered className="rounded-xl" bodyStyle={{ padding: 12 }}>
-                      <Statistic title="Tạm tính" value={Number(detail.subtotal)} formatter={(v) => formatVND(Number(v))} />
-                    </Card>
-                    <Card size="small" bordered className="rounded-xl" bodyStyle={{ padding: 12 }}>
-                      <Statistic title="Giảm giá" value={Number(detail.discountAmt)} formatter={(v) => formatVND(Number(v))} />
-                    </Card>
-                    <Card size="small" bordered className="rounded-xl" bodyStyle={{ padding: 12 }}>
-                      <Statistic title={<Text strong>Tổng cộng</Text>} valueStyle={{ color: "#3f51b5" }} value={Number(detail.totalPrice)} formatter={(v) => formatVND(Number(v))} />
-                    </Card>
-                  </div>
+                <Col xs={24} md={10}>
+                  <Row gutter={[8, 8]}>
+                    <Col xs={8} md={12}>
+                      <Card size="small" bordered className="rounded-xl">
+                        <Statistic title="Tạm tính" value={Number(detail.subtotal)} formatter={(v) => formatVND(Number(v))} />
+                      </Card>
+                    </Col>
+                    <Col xs={8} md={12}>
+                      <Card size="small" bordered className="rounded-xl">
+                        <Statistic title="Giảm giá" value={Number(detail.discountAmt)} formatter={(v) => formatVND(Number(v))} />
+                      </Card>
+                    </Col>
+                    <Col xs={24}>
+                      <Card size="small" bordered className="rounded-xl" bodyStyle={{ padding: 12 }}>
+                        <Statistic title={<Text strong>Tổng cộng</Text>} valueStyle={{ color: "#3f51b5" }} value={Number(detail.totalPrice)} formatter={(v) => formatVND(Number(v))} />
+                      </Card>
+                    </Col>
+                  </Row>
                 </Col>
               </Row>
             </Card>
           </Badge.Ribbon>
 
-          <Row gutter={[16, 16]}>
-            {/* Left: details */}
-            <Col xs={24} md={16}>
-              <Card className="rounded-2xl shadow-sm mb-4" title={<Title level={5} className="!mb-0">Đại lý & Thông tin</Title>} bodyStyle={{ padding: 16 }}>
-                <Row gutter={[12, 12]}>
-                  <Col xs={24}>
-                    <Descriptions bordered size="small" column={2} labelStyle={{ width: 130 }}>
-                      <Descriptions.Item label="Tên đại lý">{prettyValue(detail.dealerName)}</Descriptions.Item>
-                      <Descriptions.Item label="Dealer ID">{prettyValue(detail.dealerId)}</Descriptions.Item>
-                      <Descriptions.Item label="Email liên hệ"><Text copyable>{detail.contactEmail || "—"}</Text></Descriptions.Item>
-                      <Descriptions.Item label="SĐT liên hệ"><Text copyable>{detail.contactPhone || "—"}</Text></Descriptions.Item>
-                    </Descriptions>
-                  </Col>
-                  <Col xs={24}>
-                    <Card size="small" bordered className="rounded-xl" title={<Text strong>Khuyến mãi</Text>} bodyStyle={{ padding: 12 }}>
-                      {Array.isArray(detail.promotionNames) && detail.promotionNames.length > 0 ? (
-                        <Space wrap>
-                          {detail.promotionNames.map((name, i) => (
-                            <Tag key={i}>{name}</Tag>
-                          ))}
-                        </Space>
-                      ) : (
-                        <Text type="secondary">—</Text>
-                      )}
-                    </Card>
-                  </Col>
-                </Row>
+          {/* Dealer & Promo */}
+          <Row gutter={[12, 12]}>
+            <Col xs={24} md={14}>
+              <Card className="rounded-2xl shadow-sm" title={<Title level={5} className="!mb-0">Đại lý</Title>}>
+                <Descriptions bordered size="small" column={2} labelStyle={{ width: 136 }}>
+                  <Descriptions.Item label="Tên đại lý">{prettyValue(detail.dealerName)}</Descriptions.Item>
+                  <Descriptions.Item label="Dealer ID">{prettyValue(detail.dealerId)}</Descriptions.Item>
+                  <Descriptions.Item label="Email liên hệ"><Text copyable>{detail.contactEmail || "—"}</Text></Descriptions.Item>
+                  <Descriptions.Item label="SĐT liên hệ"><Text copyable>{detail.contactPhone || "—"}</Text></Descriptions.Item>
+                </Descriptions>
               </Card>
-
-              {/* Other fields */}
-              {otherFields.length > 0 && (
-                <Card className="rounded-2xl shadow-sm" title={<Title level={5} className="!mb-0">Các trường khác</Title>} bodyStyle={{ padding: 12 }}>
-                  <Table columns={columnsOther} dataSource={otherFields} pagination={false} rowKey={(r) => r.field} size="small" />
-                </Card>
-              )}
             </Col>
+            <Col xs={24} md={10}>
+              <Card className="rounded-2xl shadow-sm" title={<Title level={5} className="!mb-0">Khuyến mãi</Title>}>
+                {Array.isArray(detail.promotionNames) && detail.promotionNames.length > 0 ? (
+                  <Space wrap>
+                    {detail.promotionNames.map((name, i) => (
+                      <Tag key={i}>{name}</Tag>
+                    ))}
+                  </Space>
+                ) : (
+                  <Text type="secondary">—</Text>
+                )}
+              </Card>
+            </Col>
+          </Row>
 
-            {/* Right: stats & quick-edit */}
-            <Col xs={24} md={8}>
-              <Card className="rounded-2xl shadow-sm mb-4" title={<Title level={5} className="!mb-0">Chỉnh sửa nhanh</Title>} bodyStyle={{ padding: 12 }}>
+          {/* Quick edit + Options */}
+          <Row gutter={[12, 12]}>
+            <Col xs={24} md={10}>
+              <Card className="rounded-2xl shadow-sm" title={<Title level={5} className="!mb-0">Chỉnh sửa nhanh</Title>}>
                 <Form layout="vertical" onFinish={handlePatchStatus}>
                   <Form.Item label="Trạng thái">
-                    <Select value={status || undefined} placeholder="Chọn trạng thái" allowClear options={statusOptions} onChange={(v) => setStatus(v || "")} />
+                    <Select
+                      value={status || undefined}
+                      placeholder="Chọn trạng thái"
+                      allowClear
+                      options={statusOptions}
+                      onChange={(v) => setStatus(v || "")}
+                    />
                   </Form.Item>
+
                   <Form.Item label="Giảm giá (VND)">
-                    <InputNumber className="w-full" min={0} step={100000} value={discountAmt} onChange={(v) => setDiscountAmt(Number(v) || 0)} formatter={(v) => (v ? new Intl.NumberFormat("vi-VN").format(Number(v)) : "")} parser={(v) => (v ? v.replace(/\./g, "") : "")} />
+                    <InputNumber
+                      className="w-full"
+                      min={0}
+                      step={100000}
+                      value={discountAmt}
+                      onChange={(v) => setDiscountAmt(Number(v) || 0)}
+                      formatter={(v) => (v ? new Intl.NumberFormat("vi-VN").format(Number(v)) : "")}
+                      parser={(v) => (v ? v.replace(/\./g, "") : "")}
+                    />
                   </Form.Item>
+
                   <Space style={{ display: "flex", justifyContent: "flex-end" }}>
                     <Button onClick={onClose}>Hủy</Button>
-                    <Button type="primary" htmlType="submit" loading={patching}>Cập nhật</Button>
+                    <Button type="primary" htmlType="submit" loading={patching}>Cập nhật trạng thái</Button>
                   </Space>
                 </Form>
               </Card>
             </Col>
+            <Col xs={24} md={14}>
+              <Card
+                className="rounded-2xl shadow-sm"
+                title={<Title level={5} className="!mb-0">Tùy chọn (optionsJson)</Title>}
+                extra={
+                  <Tooltip title="Chỉnh sửa thô JSON cho PUT">
+                    <Button
+                      size="small"
+                      onClick={() => {
+                        const str = typeof parsedOptions === "string" ? parsedOptions : JSON.stringify(parsedOptions ?? detail?.optionsJson ?? "", null, 2);
+                        Modal.confirm({
+                          title: "Sửa optionsJson",
+                          icon: null,
+                          width: 720,
+                          content: (
+                            <Input.TextArea
+                              defaultValue={str}
+                              autoSize={{ minRows: 8 }}
+                              onChange={(e) => setOptionsJson(e.target.value)}
+                            />
+                          ),
+                          okText: "Lưu vào form",
+                          onOk: () => {
+                            // setOptionsJson đã xử lý qua onChange
+                          },
+                        });
+                      }}
+                    >
+                      Sửa JSON
+                    </Button>
+                  </Tooltip>
+                }
+              >
+                {parsedOptions ? (
+                  Array.isArray(parsedOptions) ? (
+                    <Space wrap>
+                      {parsedOptions.map((op, idx) => (
+                        <Tag key={idx}>{typeof op === "string" ? op : JSON.stringify(op)}</Tag>
+                      ))}
+                    </Space>
+                  ) : (
+                    <JSONBlock data={parsedOptions} />
+                  )
+                ) : (
+                  prettyValue(detail.optionsJson)
+                )}
+              </Card>
+            </Col>
           </Row>
-        </div>
+
+       
+
+          <Divider className="!my-2" />
+
+          {/* Footer metadata subtle */}
+          <Text type="secondary">Cập nhật: {formatTimestamp(detail.timestamp)}</Text>
+        </Space>
       )}
     </Modal>
   );
