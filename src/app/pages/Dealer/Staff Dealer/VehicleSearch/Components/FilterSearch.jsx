@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from "react";
+import api from "../../../../../context/api";
 
-const VEHICLE_API =
-  "https://prn232.freeddns.org/brand-service/api/vehicles?pageNumber=1&pageSize=10";
+const VEHICLE_API_BASE = api.brand || import.meta.env.VITE_API_BRAND;
+const VEHICLE_API = `${VEHICLE_API_BASE}/api/vehicles?pageNumber=1&pageSize=10`;
 const TOKEN = localStorage.getItem("token");
 
 const COLOR_OPTIONS = [

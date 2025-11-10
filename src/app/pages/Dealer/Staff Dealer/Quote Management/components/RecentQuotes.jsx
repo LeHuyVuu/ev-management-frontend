@@ -1,12 +1,13 @@
 // RecentQuotes.jsx (Ant Design Table with client-side sorting & pagination)
 import React, { useEffect, useMemo, useState } from "react";
 import { Table, Typography, Tag, Space, Button, Alert, message, Input } from "antd";
+import api from "../../../../../context/api";
 import { EyeOutlined, EditOutlined, DeleteOutlined, FolderOpenOutlined } from "@ant-design/icons";
 import QuoteDetailModal from "./QuoteDetailModal";
 
 const { Text, Title } = Typography;
 
-const API_URL = "https://prn232.freeddns.org/customer-service/api/quotes/dealers";
+const API_URL = (api.customer || import.meta.env.VITE_API_CUSTOMER) + "/api/quotes/dealers";
 
 function getTokenFromLocalStorage() {
   const keys = ["access_token", "token", "authToken", "jwt"];

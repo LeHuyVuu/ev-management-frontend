@@ -1,13 +1,14 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Table, Tag, Space, Button, Select, Flex, Typography, Skeleton } from "antd";
+import api from "../../../../../context/api.jsx";
 import { ReloadOutlined, CheckCircleOutlined } from "@ant-design/icons";
 import { ToastContainer, toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import "antd/dist/reset.css";
 
 // ======= Config =======
-const BASE_URL = "https://prn232.freeddns.org/order-service";
-const IDENTITY_BASE_URL = "https://prn232.freeddns.org/identity-service";
+const BASE_URL = api.order || import.meta.env.VITE_API_ORDER;
+const IDENTITY_BASE_URL = api.identity || import.meta.env.VITE_API_IDENTITY;
 const TOKEN_KEYS = ["token", "accessToken", "jwt", "id_token"]; // we'll try these in order
 
 // Tập status tổng
