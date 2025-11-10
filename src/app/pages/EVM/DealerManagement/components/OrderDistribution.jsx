@@ -29,25 +29,47 @@ const API_BASE = "https://prn232.freeddns.org";
 const LIST_URL = `${API_BASE}/order-service/api/VehicleTransferOrder`;
 const CREATE_URL = `${API_BASE}/order-service/api/VehicleTransferOrder`;
 const UPDATE_STATUS_URL = (id) =>
-  `${API_BASE}/order-service/api/VehicleTransferOrder/${encodeURIComponent(id)}/status`;
+  `${API_BASE}/order-service/api/VehicleTransferOrder/${encodeURIComponent(
+    id
+  )}/status`;
 
 const DEALERS_URL = `${API_BASE}/dealer-service/api/Dealers/active-dealers`;
 const VEHICLES_URL = `${API_BASE}/brand-service/api/vehicles?pageNumber=1&pageSize=1000`;
 
 const PAGE_SIZE = 10;
 
-// Nếu cần xác thực, gán token ở đây (Bearer ...). Nếu không, set TOKEN = null.
-const TOKEN = localStorage.getItem("token");
-/** Trạng thái → nhãn & màu AntD */
+// Don't capture token once at module load — read current token when making requests
+function getToken() {
+  return (
+    localStorage.getItem("token") || localStorage.getItem("accessToken") || null
+  );
+}
+
+function getAuthHeaders() {
+  const h = { accept: "*/*" };
+  const t = getToken();
+  if (t) h.Authorization = `Bearer ${t}`;
+  return h;
+}
+/** Trạng thái → nhãn & màu AntD (harmony with distribution statuses) */
 const STATUS_META = {
-  processing: { label: "Processing", color: "gold" },
-  pending: { label: "Pending", color: "default" },
-  confirmed: { label: "Confirmed", color: "blue" },
-  failed: { label: "Failed", color: "red" },
-  cancelled: { label: "Cancelled", color: "volcano" },
-  completed: { label: "Completed", color: "green" },
+  pending: { label: "Đang chờ", color: "gold" },
+  shipping: { label: "Đang vận chuyển", color: "processing" },
+  received: { label: "Đã nhận", color: "green" },
+  cancelled: { label: "Đã hủy", color: "volcano" },
+  rejected: { label: "Từ chối", color: "red" },
 };
-const STATUS_OPTIONS = Object.keys(STATUS_META).map((k) => ({
+
+// Thứ tự hợp lệ của flow trạng thái (dùng để chặn lùi)
+const STATUS_ORDER = [
+  "pending",
+  "shipping",
+  "received",
+  "cancelled",
+  "rejected",
+];
+
+const STATUS_OPTIONS_FOR_FILTER = STATUS_ORDER.map((k) => ({
   value: k,
   label: STATUS_META[k].label,
 }));
@@ -82,11 +104,11 @@ export default function OrderDistributionAnt() {
   const [loadingDealers, setLoadingDealers] = useState(false);
   const [loadingVehicles, setLoadingVehicles] = useState(false);
 
-  const headers = useMemo(() => {
-    const h = { accept: "*/*" };
-    if (TOKEN) h.Authorization = `Bearer ${TOKEN}`;
-    return h;
-  }, []);
+  // Lưu trạng thái hiện tại của đơn đang cập nhật để disable option trong Select
+  const [currentStatus, setCurrentStatus] = useState(null);
+
+  const [messageApi, messageContextHolder] = message.useMessage();
+  const [modal, modalContextHolder] = Modal.useModal();
 
   /** -------- Fetch list -------- */
   const fetchList = async (p = 1) => {
@@ -94,9 +116,10 @@ export default function OrderDistributionAnt() {
       setLoading(true);
       setLoadErr("");
       const url = `${LIST_URL}?pageNumber=${p}&pageSize=${PAGE_SIZE}`;
-      const res = await fetch(url, { headers });
+      const res = await fetch(url, { headers: getAuthHeaders() });
       const json = await res.json();
-      if (json?.status !== 200) throw new Error(json?.message || "Fetch failed");
+      if (json?.status !== 200)
+        throw new Error(json?.message || "Fetch failed");
       const items = json?.data?.items || [];
       const mapped = items.map((it) => ({
         id: it.vehicleTransferOrderId,
@@ -126,7 +149,7 @@ export default function OrderDistributionAnt() {
   const fetchDealers = async () => {
     try {
       setLoadingDealers(true);
-      const res = await fetch(DEALERS_URL, { headers: { accept: "*/*" } });
+      const res = await fetch(DEALERS_URL, { headers: getAuthHeaders() });
       const json = await res.json();
       const items = json?.data ?? [];
       setDealerOptions(
@@ -148,10 +171,36 @@ export default function OrderDistributionAnt() {
       const res = await fetch(VEHICLES_URL, { headers: { accept: "*/*" } });
       const json = await res.json();
       const items = json?.data?.items ?? [];
+      // If the vehicles endpoint didn't return items, try the vehicle-versions endpoint (common alternative)
+      if ((!items || items.length === 0) && getToken()) {
+        try {
+          const altUrl = `${API_BASE}/brand-service/api/vehicle-versions/dealer?pageNumber=1&pageSize=200`;
+          const altRes = await fetch(altUrl, { headers: getAuthHeaders() });
+          const altJson = await altRes.json().catch(() => ({}));
+          const altItems = altJson?.data?.items ?? altJson?.data ?? [];
+          if (Array.isArray(altItems) && altItems.length > 0) {
+            setVehicleOptions(
+              altItems.map((v) => ({
+                value: v.vehicleVersionId || v.id || v.vehicleId,
+                label: `${v.brand ?? ""} ${
+                  v.versionName ?? v.modelName ?? ""
+                }`.trim(),
+              }))
+            );
+            return;
+          }
+        } catch (er) {
+          // ignore fallback error — we'll handle below
+        }
+      }
       setVehicleOptions(
         items.map((v) => ({
-          value: v.vehicleId, // dùng vehicleId làm value
-          label: `${v.brand ?? ""} ${v.modelName ?? ""}`.trim(), // GHÉP brand + modelName
+          value: v.vehicleVersionId,
+          label: `${v.brand ?? ""} ${v.modelName ?? ""} ${
+            v.versionName ?? ""
+          } ${v.color ?? ""}`
+            .replace(/\s+/g, " ")
+            .trim(),
         }))
       );
     } catch (e) {
@@ -179,10 +228,8 @@ export default function OrderDistributionAnt() {
         // Backend expect vehicleVersionId; hiện dùng vehicleId từ Select để gửi theo field này
         vehicleVersionId: values.vehicleVersionId,
         quantity: Number(values.quantity),
-        requestDate: values.requestDate
-          ? values.requestDate.toDate().toISOString()
-          : new Date().toISOString(),
-        status: values.status || "processing",
+        requestDate: new Date().toISOString(),
+        status: "pending", // dùng "pending" để thống nhất với STATUS_ORDER
       };
 
       setCreating(true);
@@ -192,9 +239,8 @@ export default function OrderDistributionAnt() {
         body: JSON.stringify(payload),
       });
       const j = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        throw new Error(j?.message || `Create failed (HTTP ${res.status})`);
-      }
+      if (!res.ok)
+        throw new Error(j?.message || `Create failed (${res.status})`);
 
       // Thêm vào bảng ngay
       const added = {
@@ -226,6 +272,17 @@ export default function OrderDistributionAnt() {
       const values = await updateForm.validateFields();
       const { id, status } = values;
 
+      // ===== Chắn logic: không cho lùi trạng thái =====
+      const prevStatus = rows.find((r) => r.id === id)?.status ?? currentStatus;
+      if (prevStatus) {
+        const prevIdx = STATUS_ORDER.indexOf(prevStatus);
+        const nextIdx = STATUS_ORDER.indexOf(status);
+        if (prevIdx !== -1 && nextIdx !== -1 && nextIdx < prevIdx) {
+          messageApi.warning("Không thể quay lại trạng thái trước đó");
+          return;
+        }
+      }
+
       setUpdating(true);
       const res = await fetch(UPDATE_STATUS_URL(id), {
         method: "PUT",
@@ -247,6 +304,7 @@ export default function OrderDistributionAnt() {
       message.success("Cập nhật trạng thái thành công");
       setOpenUpdate(false);
       updateForm.resetFields();
+      setCurrentStatus(null);
     } catch (e) {
       message.error(e?.message || "Có lỗi khi cập nhật trạng thái");
     } finally {
@@ -275,7 +333,10 @@ export default function OrderDistributionAnt() {
       title: "Status",
       dataIndex: "status",
       width: 150,
-      filters: STATUS_OPTIONS.map((s) => ({ text: s.label, value: s.value })),
+      filters: STATUS_OPTIONS_FOR_FILTER.map((s) => ({
+        text: s.label,
+        value: s.value,
+      })),
       onFilter: (val, rec) => rec.status === val,
       render: (v) => <StatusTag value={v} />,
     },
@@ -288,7 +349,39 @@ export default function OrderDistributionAnt() {
           <Button
             size="small"
             icon={<EyeOutlined />}
-            onClick={() => message.info(record.id)}
+            onClick={() =>
+              modal.info({
+                title: "Chi tiết Vehicle Transfer Order",
+                content: (
+                  <div>
+                    <p>
+                      <strong>ID:</strong> {record.id}
+                    </p>
+                    <p>
+                      <strong>Source:</strong> {record.from}
+                    </p>
+                    <p>
+                      <strong>Destination:</strong> {record.to}
+                    </p>
+                    <p>
+                      <strong>Product:</strong> {record.product}
+                    </p>
+                    <p>
+                      <strong>Quantity:</strong> {record.quantity}
+                    </p>
+                    <p>
+                      <strong>Date:</strong> {record.date}
+                    </p>
+                    <p>
+                      <strong>Status:</strong>{" "}
+                      <StatusTag value={record.status} />
+                    </p>
+                  </div>
+                ),
+                width: 500,
+                centered: true,
+              })
+            }
           />
           <Button
             size="small"
@@ -296,7 +389,11 @@ export default function OrderDistributionAnt() {
             icon={<EditOutlined />}
             onClick={() => {
               setOpenUpdate(true);
-              updateForm.setFieldsValue({ id: record.id, status: record.status });
+              setCurrentStatus(record.status);
+              updateForm.setFieldsValue({
+                id: record.id,
+                status: record.status,
+              });
             }}
           >
             Update
@@ -311,9 +408,7 @@ export default function OrderDistributionAnt() {
               setTotal((t) => Math.max(0, t - 1));
               message.success("Đã xóa (mock)");
             }}
-          >
-            <Button danger size="small" icon={<DeleteOutlined />} />
-          </Popconfirm>
+          ></Popconfirm>
         </Space>
       ),
     },
@@ -321,8 +416,15 @@ export default function OrderDistributionAnt() {
 
   return (
     <div style={{ background: "#fff", borderRadius: 12, padding: 16 }}>
+      {messageContextHolder}
+      {modalContextHolder}
+
       <Space
-        style={{ width: "100%", justifyContent: "space-between", marginBottom: 12 }}
+        style={{
+          width: "100%",
+          justifyContent: "space-between",
+          marginBottom: 12,
+        }}
       >
         <div>
           <Typography.Title level={4} style={{ margin: 0 }}>
@@ -346,9 +448,14 @@ export default function OrderDistributionAnt() {
         </Space>
       </Space>
 
-      {loadErr ? (
-        <Alert type="error" message={loadErr} showIcon style={{ marginBottom: 12 }} />
-      ) : null}
+      {loadErr && (
+        <Alert
+          type="error"
+          message={loadErr}
+          showIcon
+          style={{ marginBottom: 12 }}
+        />
+      )}
 
       <Table
         rowKey="id"
@@ -380,9 +487,8 @@ export default function OrderDistributionAnt() {
         <Form
           form={createForm}
           layout="vertical"
-          initialValues={{ quantity: 1, status: "processing" }}
+          initialValues={{ quantity: 1 }}
         >
-          {/* From Dealer */}
           <Form.Item
             name="fromDealerId"
             label="From Dealer"
@@ -450,13 +556,21 @@ export default function OrderDistributionAnt() {
       <Modal
         open={openUpdate}
         title="Update Order Status"
-        onCancel={() => setOpenUpdate(false)}
+        onCancel={() => {
+          setOpenUpdate(false);
+          updateForm.resetFields();
+          setCurrentStatus(null);
+        }}
         onOk={submitUpdate}
         okText="Update"
         confirmLoading={updating}
         destroyOnClose
       >
-        <Form form={updateForm} layout="vertical" initialValues={{ status: "" }}>
+        <Form
+          form={updateForm}
+          layout="vertical"
+          initialValues={{ status: "" }}
+        >
           <Form.Item
             name="id"
             label="Order ID"
@@ -469,7 +583,19 @@ export default function OrderDistributionAnt() {
             label="New Status"
             rules={[{ required: true, message: "Chọn trạng thái" }]}
           >
-            <Select options={STATUS_OPTIONS} />
+            <Select
+              // ⛔ Khóa toàn bộ khi đã received
+              disabled={currentStatus === "received"}
+              options={STATUS_ORDER.map((s, i) => ({
+                value: s,
+                label: STATUS_META[s].label,
+                // Giữ luật: không cho lùi (chỉ khi chưa received)
+                disabled:
+                  currentStatus && currentStatus !== "received"
+                    ? i < STATUS_ORDER.indexOf(currentStatus)
+                    : false,
+              }))}
+            />
           </Form.Item>
         </Form>
       </Modal>
