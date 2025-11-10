@@ -43,7 +43,7 @@ async function createUserApi(payload) {
   });
   if (!res.ok) {
     const txt = await res.text();
-    throw new Error(`Tạo user thất bại`);
+    throw new Error(`Tạo user thất bại (${res.status}): ${txt || res.statusText}`);
   }
   return res.json();
 }
