@@ -15,6 +15,7 @@ const COLOR_MAP = {
   vang: "#F59E0B",
   nau: "#92400E",
   tim: "#7C3AED",
+  cam: "#F97316",
 };
 
 // chuẩn hoá chuỗi để map màu (bỏ dấu, lowercase, chỉ lấy từ chính)
@@ -51,6 +52,7 @@ const resolveColor = (raw) => {
   if (key.includes("vang")) return COLOR_MAP.vang;
   if (key.includes("nau")) return COLOR_MAP.nau;
   if (key.includes("tim")) return COLOR_MAP.tim;
+  if (key.includes("cam")) return COLOR_MAP.cam;
   return "#E5E7EB";
 };
 
