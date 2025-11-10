@@ -90,20 +90,6 @@ const Sidebar = () => {
         },
       ],
     },
-
-    // Báo cáo (2)
-    {
-      key: "group-report-2",
-      type: "group",
-      label: <Text type="secondary" style={{ textTransform: "uppercase", fontSize: 12 }}>Báo cáo</Text>,
-      children: [
-        {
-          key: "/evm/reports-analytics",
-          icon: <FolderOpenOutlined />,
-          label: <Link to="/evm/reports-analytics">TRANG CỦA EVM ==></Link>,
-        },
-      ],
-    },
   ];
 
   return (

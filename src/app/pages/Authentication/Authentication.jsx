@@ -9,6 +9,7 @@ function Authentication() {
   const [isLogin, setIsLogin] = useState(true)
   const [showPassword, setShowPassword] = useState(false)
   const [showConfirmPassword, setShowConfirmPassword] = useState(false)
+  const [isSubmitting, setIsSubmitting] = useState(false) // ✅ NEW
   const [formData, setFormData] = useState({
     email: '',
     password: '',
@@ -44,14 +45,17 @@ function Authentication() {
         return
       }
 
+      setIsSubmitting(true) // ✅ show Authenticating...
       alert("Registered successfully! You can now sign in.")
       setIsLogin(true)
       setFormData(prev => ({ ...prev, password: '', confirmPassword: '' }))
+      setIsSubmitting(false) // ✅ done
       return
     }
 
     // LOGIN
     try {
+      setIsSubmitting(true) // ✅ show Authenticating...
       const res = await axios.post(`${api.identity}/api/Auth/login`, {
         email,
         password
@@ -86,6 +90,8 @@ function Authentication() {
     } catch (err) {
       console.error("Login error:", err)
       alert("Login failed")
+    } finally {
+      setIsSubmitting(false) // ✅ done
     }
   }
 
@@ -222,11 +228,14 @@ function Authentication() {
               </div>
             )}
 
+            {/* ✅ Button hiển thị Authenticating... khi submit */}
             <button
               type="submit"
-              className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 text-white py-3 rounded-xl"
+              disabled={isSubmitting}
+              className={`w-full bg-gradient-to-r from-blue-600 to-indigo-600 text-white py-3 rounded-xl transition
+                ${isSubmitting ? "opacity-70 cursor-not-allowed" : "hover:opacity-95"}`}
             >
-              {isLogin ? 'Sign In' : 'Create Account'}
+              {isSubmitting ? "Authenticating..." : (isLogin ? "Sign In" : "Create Account")}
             </button>
           </form>
 
