@@ -28,7 +28,7 @@ export default function AllocationRequest() {
         setLoadingVersions(true);
         setVersionsError("");
         const res = await fetch(
-          "https://prn232.freeddns.org/brand-service/api/vehicle-versions/dealer-stock?pageNumber=1&pageSize=100",
+          "https://prn232.freeddns.org/brand-service/api/vehicle-versions/dealer?pageNumber=1&pageSize=100",
           {
             headers: {
               accept: "*/*",
@@ -198,12 +198,8 @@ export default function AllocationRequest() {
               onChange={handleChange}
               onBlur={handleQuantityBlur}
               min={1}
-<<<<<<< Updated upstream
-              className="w-full border border-gray-300 rounded-md px-3 py-2"  
-=======
               step={1}
-              className="w-full border border-gray-300 rounded-md px-3 py-2"
->>>>>>> Stashed changes
+              className="w-full border border-gray-300 rounded-md px-3 py-2"  
             />
           </div>
 

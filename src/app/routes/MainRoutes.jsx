@@ -49,14 +49,15 @@ const MainRoutes = () => {
               <Route element={<ProtectedRoute allowedRoles={[3, 4]} />}>
                 <Route path="dealer" element={<DealerLayout />}>
                   {/* chỉ role 3 mới vào được dashboard */}
-                  <Route
-                    path="dashboard"
-                    element={
-                      <ProtectedRoute allowedRoles={[3]}>
-                        <ManagerDashboard />
-                      </ProtectedRoute>
-                    }
-                  />
+                  {/* NOTE: ProtectedRoute is implemented as an Outlet wrapper.
+                      To protect a single page we must nest the protected route
+                      so that Outlet renders the actual page. Previously the
+                      code passed ProtectedRoute as a component with children
+                      which doesn't render those children. This produced an
+                      empty page for allowed users. */}
+                  <Route path="dashboard" element={<ProtectedRoute allowedRoles={[3]} /> }>
+                    <Route index element={<ManagerDashboard />} />
+                  </Route>
 
                   <Route path="vehicle-search" element={<VehicleSearch />} />
                   <Route path="contract" element={<ContractManagement />} />

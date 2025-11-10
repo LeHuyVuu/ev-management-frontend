@@ -270,8 +270,9 @@ const ContractTable = () => {
               // nếu không, lấy phần tử đầu tiên của allowed
               selected = allowed[0];
             }
-            // đồng bộ lại pending để UI hiển thị đúng
-            setPendingStatus((m) => ({ ...m, [id]: selected }));
+            // NOTE: do NOT call setPendingStatus here (would cause setState during render).
+            // The pendingStatus is updated by user interaction (Select onChange) or when
+            // updateStatus is invoked. We simply fall back locally for rendering.
           }
 
           return (
