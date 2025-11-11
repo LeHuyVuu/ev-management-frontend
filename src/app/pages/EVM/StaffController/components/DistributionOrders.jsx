@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
   Table,
   Tag,
@@ -12,19 +12,25 @@ import {
   message,
   Popconfirm,
   Alert,
+  DatePicker,
+  InputNumber,
+  Divider,
+  Tooltip,
 } from "antd";
 import {
   EyeOutlined,
   EditOutlined,
   DeleteOutlined,
   SyncOutlined,
-  // PlusOutlined,
+  SearchOutlined,
+  FilterOutlined,
+  ClearOutlined,
 } from "@ant-design/icons";
+import dayjs from "dayjs";
 
 /** ===== Config ===== */
 const SHORT_ID_LEN = 8;
 /** ===== Config (STATUS for distribution) ===== */
-// Updated per request: allowed statuses for vehicle distribution
 const STATUS_OPTIONS = [
   "pending",
   "shipping",
@@ -60,6 +66,19 @@ function StatusTag({ value }) {
   return <Tag color={meta.color}>{meta.label}</Tag>;
 }
 
+function includesText(hay = "", needle = "") {
+  return String(hay).toLowerCase().includes(String(needle).toLowerCase());
+}
+
+function inRangeDate(iso, start, end) {
+  if (!iso) return false;
+  const ts = new Date(iso).getTime();
+  if (Number.isNaN(ts)) return false;
+  const s = start ? start.startOf("day").valueOf() : -Infinity;
+  const e = end ? end.endOf("day").valueOf() : Infinity;
+  return ts >= s && ts <= e;
+}
+
 /** ===== Component ===== */
 export default function AllocationRequestsList() {
   const [data, setData] = useState([]); // rows
@@ -77,6 +96,15 @@ export default function AllocationRequestsList() {
   // AntD message & modal (context-based API)
   const [messageApi, messageContextHolder] = message.useMessage();
   const [modal, modalContextHolder] = Modal.useModal();
+
+  // =========== NEW: Filter states ===========
+  const [q, setQ] = useState(""); // keyword search
+  const [fStatuses, setFStatuses] = useState([]); // multiple statuses
+  const [fDestinations, setFDestinations] = useState([]); // multiple dealers
+  const [fReqRange, setFReqRange] = useState([null, null]); // [start,end] dayjs
+  const [fDelRange, setFDelRange] = useState([null, null]); // [start,end] dayjs
+  const [fQtyMin, setFQtyMin] = useState(null);
+  const [fQtyMax, setFQtyMax] = useState(null);
 
   // ===== Pagination (server-side) =====
   const [pagination, setPagination] = useState({
@@ -233,6 +261,44 @@ export default function AllocationRequestsList() {
     }
   };
 
+  // ========= NEW: derive destinations for filter =========
+  const destinationOptions = useMemo(() => {
+    const set = new Set();
+    data.forEach((r) => r.destination && set.add(r.destination));
+    return Array.from(set).map((d) => ({ label: d, value: d }));
+  }, [data]);
+
+  // ========= NEW: filtered dataset (does NOT change original logic unless filters active) =========
+  const filteredData = useMemo(() => {
+    return data.filter((row) => {
+      // keyword over id, car, destination, status
+      if (q) {
+        const ok =
+          includesText(row.id, q) ||
+          includesText(row.car, q) ||
+          includesText(row.destination, q) ||
+          includesText(row.status, q);
+        if (!ok) return false;
+      }
+      // status multi
+      if (fStatuses.length > 0 && !fStatuses.includes(row.status)) return false;
+      // destination multi
+      if (fDestinations.length > 0 && !fDestinations.includes(row.destination)) return false;
+      // quantity range
+      if (fQtyMin != null && Number(row.quantity) < Number(fQtyMin)) return false;
+      if (fQtyMax != null && Number(row.quantity) > Number(fQtyMax)) return false;
+      // requestDate range
+      if ((fReqRange[0] || fReqRange[1]) && !inRangeDate(row.requestDate, fReqRange[0], fReqRange[1])) {
+        return false;
+      }
+      // deliveryDate range
+      if ((fDelRange[0] || fDelRange[1]) && !inRangeDate(row.deliveryDate, fDelRange[0], fDelRange[1])) {
+        return false;
+      }
+      return true;
+    });
+  }, [data, q, fStatuses, fDestinations, fQtyMin, fQtyMax, fReqRange, fDelRange]);
+
   const columns = [
     {
       title: "ID",
@@ -260,7 +326,6 @@ export default function AllocationRequestsList() {
         toTimestampOrInf(a.requestDate) - toTimestampOrInf(b.requestDate),
       render: (v) =>
         v ? (
-          // show only date (no time)
           new Date(v).toLocaleDateString()
         ) : (
           <Typography.Text type="secondary">-</Typography.Text>
@@ -274,7 +339,6 @@ export default function AllocationRequestsList() {
         toTimestampOrInf(a.deliveryDate) - toTimestampOrInf(b.deliveryDate),
       render: (v) =>
         v ? (
-          // show only date (no time)
           new Date(v).toLocaleDateString()
         ) : (
           <Typography.Text type="secondary">-</Typography.Text>
@@ -285,6 +349,7 @@ export default function AllocationRequestsList() {
       dataIndex: "status",
       width: 160,
       render: (v) => <StatusTag value={v} />,
+      // Giữ nguyên filter của Table (song song với filter bar)
       filters: STATUS_OPTIONS.map((s) => ({
         text: STATUS_META[s]?.label || s,
         value: s,
@@ -301,33 +366,21 @@ export default function AllocationRequestsList() {
             size="small"
             icon={<EyeOutlined />}
             onClick={() => {
-              // Dùng modal instance (context-based) để đảm bảo render
               modal.info({
                 title: "Chi tiết yêu cầu phân bổ",
                 content: (
                   <div>
-                    <p>
-                      <strong>ID:</strong> {record.id}
-                    </p>
-                    <p>
-                      <strong>Xe:</strong> {record.car}
-                    </p>
-                    <p>
-                      <strong>Đại lý:</strong> {record.destination}
-                    </p>
-                    <p>
-                      <strong>Số lượng:</strong> {record.quantity}
-                    </p>
-                    <p>
-                      <strong>Trạng thái:</strong>{" "}
-                      <StatusTag value={record.status} />
-                    </p>
+                    <p><strong>ID:</strong> {record.id}</p>
+                    <p><strong>Xe:</strong> {record.car}</p>
+                    <p><strong>Đại lý:</strong> {record.destination}</p>
+                    <p><strong>Số lượng:</strong> {record.quantity}</p>
+                    <p><strong>Ngày yêu cầu:</strong> {record.requestDate ? new Date(record.requestDate).toLocaleString() : "-"}</p>
+                    <p><strong>Dự kiến giao:</strong> {record.deliveryDate ? new Date(record.deliveryDate).toLocaleString() : "-"}</p>
+                    <p><strong>Trạng thái:</strong> <StatusTag value={record.status} /></p>
                   </div>
                 ),
-                width: 500,
+                width: 520,
                 centered: true,
-                // Nếu môi trường có container tùy biến, có thể bật dòng dưới:
-                // getContainer: () => document.body,
               });
             }}
           />
@@ -350,6 +403,17 @@ export default function AllocationRequestsList() {
       ),
     },
   ];
+
+  // ========= NEW: clear filters =========
+  const clearFilters = () => {
+    setQ("");
+    setFStatuses([]);
+    setFDestinations([]);
+    setFReqRange([null, null]);
+    setFDelRange([null, null]);
+    setFQtyMin(null);
+    setFQtyMax(null);
+  };
 
   // Handle table events (pagination / filters / sorters)
   const handleTableChange = (pag /*, filters, sorter*/) => {
@@ -376,7 +440,9 @@ export default function AllocationRequestsList() {
             Các yêu cầu phân bổ từ các đại lý
           </Typography.Title>
           <Typography.Text type="secondary">
+            
             Theo dõi trạng thái và cập nhật trực tiếp.
+          
           </Typography.Text>
         </div>
         <Space>
@@ -393,6 +459,114 @@ export default function AllocationRequestsList() {
           </Button>
         </Space>
       </Space>
+
+      {/* ========= NEW: Filter Bar ========= */}
+      <div
+        style={{
+          background: "#fafafa",
+          border: "1px solid #f0f0f0",
+          borderRadius: 10,
+          padding: 12,
+          marginBottom: 12,
+        }}
+      >
+        <Space direction="vertical" style={{ width: "100%" }} size={8}>
+          <Space wrap style={{ width: "100%", justifyContent: "space-between" }}>
+            <Space wrap>
+              <Input
+                allowClear
+                style={{ width: 280 }}
+                prefix={<SearchOutlined />}
+                placeholder="Tìm (ID / Xe / Đại lý / Trạng thái)"
+                value={q}
+                onChange={(e) => setQ(e.target.value)}
+              />
+              <Select
+                allowClear
+                mode="multiple"
+                style={{ minWidth: 220 }}
+                placeholder="Trạng thái"
+                value={fStatuses}
+                onChange={setFStatuses}
+                options={STATUS_OPTIONS.map((s) => ({
+                  value: s,
+                  label: STATUS_META[s]?.label || s,
+                }))}
+                maxTagCount="responsive"
+                suffixIcon={<FilterOutlined />}
+              />
+              <Select
+                allowClear
+                mode="multiple"
+                style={{ minWidth: 240 }}
+                placeholder="Đại lý"
+                value={fDestinations}
+                onChange={setFDestinations}
+                options={destinationOptions}
+                maxTagCount="responsive"
+                suffixIcon={<FilterOutlined />}
+              />
+            </Space>
+            <Space wrap>
+              <Tooltip title="Xóa toàn bộ bộ lọc">
+                <Button icon={<ClearOutlined />} onClick={clearFilters}>
+                  Xóa lọc
+                </Button>
+              </Tooltip>
+            </Space>
+          </Space>
+
+          <Divider style={{ margin: "8px 0" }} />
+
+          <Space wrap>
+            <Space direction="vertical" size={2}>
+              <Typography.Text type="secondary">Khoảng ngày yêu cầu</Typography.Text>
+              <DatePicker.RangePicker
+                value={[
+                  fReqRange[0],
+                  fReqRange[1],
+                ]}
+                onChange={(vals) => setFReqRange(vals || [null, null])}
+                allowEmpty={[true, true]}
+                style={{ width: 280 }}
+              />
+            </Space>
+
+            <Space direction="vertical" size={2}>
+              <Typography.Text type="secondary">Khoảng ngày dự kiến giao</Typography.Text>
+              <DatePicker.RangePicker
+                value={[
+                  fDelRange[0],
+                  fDelRange[1],
+                ]}
+                onChange={(vals) => setFDelRange(vals || [null, null])}
+                allowEmpty={[true, true]}
+                style={{ width: 280 }}
+              />
+            </Space>
+
+            <Space direction="vertical" size={2}>
+              <Typography.Text type="secondary">Số lượng (từ / đến)</Typography.Text>
+              <Space>
+                <InputNumber
+                  min={0}
+                  placeholder="Từ"
+                  value={fQtyMin}
+                  onChange={setFQtyMin}
+                  style={{ width: 120 }}
+                />
+                <InputNumber
+                  min={0}
+                  placeholder="Đến"
+                  value={fQtyMax}
+                  onChange={setFQtyMax}
+                  style={{ width: 120 }}
+                />
+              </Space>
+            </Space>
+          </Space>
+        </Space>
+      </div>
 
       {lastUpdated?.id ? (
         <Alert
@@ -416,7 +590,7 @@ export default function AllocationRequestsList() {
         <Table
           rowKey="id"
           columns={columns}
-          dataSource={data}
+          dataSource={filteredData}
           loading={loading}
           bordered
           pagination={{

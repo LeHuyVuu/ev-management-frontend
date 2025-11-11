@@ -53,7 +53,7 @@ export default function AllocationRequest() {
         // Ensure token is available (sometimes token is set slightly after mount)
         const token = getToken() || (await waitForToken(2000, 250));
         const res = await fetch(
-          "https://prn232.freeddns.org/brand-service/api/vehicle-versions/dealer?pageNumber=1&pageSize=100",
+          "https://prn232.freeddns.org/brand-service/api/vehicle-versions/dealer-stock?pageNumber=1&pageSize=100",
           {
             headers: getAuthHeaders(),
           }
@@ -121,7 +121,7 @@ export default function AllocationRequest() {
       requestDate: nowIso,
       expectedDelivery: form.expectedDelivery ? toISODateZ(form.expectedDelivery) : null,
       // Truyền cố định trạng thái: "received" (Đã tạo/nhận yêu cầu)
-      status: "received",
+      status: "pending",
     };
 
     try {
@@ -142,6 +142,8 @@ export default function AllocationRequest() {
       }
       setSuccessMsg("Tạo yêu cầu thành công!");
       toast.success("Tạo yêu cầu thành công!");
+      // báo cho list refetch (để item mới nằm dòng đầu)
+      window.dispatchEvent(new Event("allocation:refresh"));
       resetForm();
       // Notify lists to refetch
       try {

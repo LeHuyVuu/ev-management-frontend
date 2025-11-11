@@ -13,6 +13,8 @@ const COLOR_OPTIONS = [
   { name: "Xanh", code: "#2196f3" },
   { name: "Bạc", code: "#dddbdbff" },
   { name: "Vàng", code: "#f8b032ff" },
+  { name: "Cam", code: "#ff7043ff" },
+  { name: "Tím", code: "#74337fff" },
 ];
 
 export default function FilterSearch({ onFilterChange }) {

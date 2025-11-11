@@ -12,6 +12,7 @@ import {
   message,
   Popconfirm,
   Alert,
+  DatePicker,
 } from "antd";
 import {
   EyeOutlined,
@@ -19,6 +20,8 @@ import {
   DeleteOutlined,
   SyncOutlined,
 } from "@ant-design/icons";
+
+const { RangePicker } = DatePicker;
 
 /** ===== Config ===== */
 const SHORT_ID_LEN = 8;
@@ -97,12 +100,46 @@ export default function AllocationRequestsList() {
         } else {
           throw new Error("Không thể tải dữ liệu.");
         }
-      } catch (err) {
-        setLoadErr(err.message || "Lỗi không xác định.");
-      } finally {
-        setLoading(false);
+      );
+      const json = await res.json();
+      if (json.status === 200 && json.data?.items) {
+        const mapped = json.data.items.map((item) => ({
+          key: item.allocationId,
+          id: item.allocationId,
+          idShort: shortId(item.allocationId),
+          car:
+            (item.vehicleName || "") +
+            (item.versionName ? " " + item.versionName : "") +
+            (item.color ? " " + item.color : "") +
+            (item.evType ? ` - ${item.evType}` : ""),
+          destination: item.dealerName,
+          quantity: item.quantity,
+          date: item.requestDate,
+          status: item.status,
+        }));
+        // giữ nguyên logic cũ: sort theo requestDate giảm dần
+        mapped.sort((a, b) => new Date(b.date || 0) - new Date(a.date || 0));
+        setData(mapped);
+      } else {
+        throw new Error("Không thể tải dữ liệu.");
       }
-    })();
+    } catch (err) {
+      setLoadErr(err.message || "Lỗi không xác định.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Lần đầu load
+  useEffect(() => {
+    fetchList();
+  }, []);
+
+  // Nghe sự kiện từ AllocationRequest để refetch -> item mới nằm đầu list
+  useEffect(() => {
+    const onRefresh = () => fetchList();
+    window.addEventListener("allocation:refresh", onRefresh);
+    return () => window.removeEventListener("allocation:refresh", onRefresh);
   }, []);
 
   // Open modal (prefill)
@@ -292,6 +329,13 @@ export default function AllocationRequestsList() {
     },
   ];
 
+  // ===== NEW: reset all filters =====
+  const resetFilters = () => {
+    setKw("");
+    setStatusFilter([]);
+    setDateRange(null);
+  };
+
   return (
     <div style={{ background: "#fff", borderRadius: 12, padding: 16 }}>
       <Space style={{ width: "100%", justifyContent: "space-between", marginBottom: 12 }}>
@@ -306,6 +350,43 @@ export default function AllocationRequestsList() {
         <Button type="primary" icon={<SyncOutlined />} onClick={() => openModal(null)}>
           Cập nhật trạng thái
         </Button>
+      </Space>
+
+      {/* ===== NEW: Filter bar ===== */}
+      <Space
+        size={[12, 12]}
+        wrap
+        style={{ width: "100%", marginBottom: 12, display: "flex", justifyContent: "space-between" }}
+      >
+        <Input.Search
+          allowClear
+          style={{ maxWidth: 360, width: "100%" }}
+          placeholder="Tìm theo ID / Xe / Đại lý…"
+          value={kw}
+          onChange={(e) => setKw(e.target.value)}
+        />
+        <Space wrap>
+          <Select
+            mode="multiple"
+            allowClear
+            placeholder="Trạng thái"
+            value={statusFilter}
+            onChange={setStatusFilter}
+            options={STATUS_OPTIONS.map((s) => ({
+              value: s,
+              label: STATUS_META[s]?.label || s,
+            }))}
+            style={{ minWidth: 220 }}
+            maxTagCount="responsive"
+          />
+          <RangePicker
+            allowClear
+            value={dateRange || null}
+            onChange={setDateRange}
+            placeholder={["Từ ngày", "Đến ngày"]}
+          />
+          <Button onClick={resetFilters}>Xóa lọc</Button>
+        </Space>
       </Space>
 
       {lastUpdated && lastUpdated.id ? (
@@ -330,7 +411,7 @@ export default function AllocationRequestsList() {
         <Table
           rowKey="id"
           columns={columns}
-          dataSource={data}
+          dataSource={filteredData}  // ===== NEW: áp dụng dữ liệu đã lọc
           loading={loading}
           pagination={{
             current: pagination.current,
