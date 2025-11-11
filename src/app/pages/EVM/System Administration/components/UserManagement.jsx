@@ -251,10 +251,11 @@ const UserManagement = () => {
   useEffect(() => {
     loadDealers();
   }, [loadDealers]);
-
+  
+  useEffect(() => {
+    // Load users on mount
     loadUsers();
-    return () => { mounted = false; };
-  }, [pageNumber, pageSize]);
+  }, [loadUsers]);
   // =======================================================
 
   // ===== Effects =====
@@ -346,7 +347,7 @@ const UserManagement = () => {
   const closeModal = () => {
     setShowModal(false);
     setEditingUser(null);
-    setSelectedUserId(null);
+    setSelectedUserIndex(null);
     resetForm();
   };
 
@@ -377,7 +378,7 @@ const UserManagement = () => {
     return Object.keys(newErrors).length === 0;
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     if (!validateForm()) return;
 

@@ -79,11 +79,22 @@ export default function AllocationRequest() {
   const handleChange = (e) => {
     const { name, value } = e.target;
     if (name === "quantity") {
-      const n = Math.max(1, Number(value || 1));
+      // Allow the user to clear the field while editing (empty string),
+      // but coerce to a positive integer when a value is present.
+      if (value === "") {
+        setForm((p) => ({ ...p, quantity: "" }));
+        return;
+      }
+      const parsed = parseInt(value, 10);
+      const n = Number.isNaN(parsed) ? 1 : Math.max(1, parsed);
       setForm((p) => ({ ...p, quantity: n }));
       return;
     }
     setForm((p) => ({ ...p, [name]: value }));
+  };
+
+  const handleQuantityBlur = () => {
+    setForm((p) => ({ ...p, quantity: p.quantity === "" ? 1 : p.quantity }));
   };
 
   const toISODateZ = (dateStr) => {
@@ -96,7 +107,7 @@ export default function AllocationRequest() {
     setForm({ vehicleVersionId: "", quantity: 1, expectedDelivery: "" });
 
   const canSubmit = useMemo(
-    () => !!form.vehicleVersionId && !!form.quantity && !submitting,
+    () => !!form.vehicleVersionId && Number(form.quantity) > 0 && !submitting,
     [form.vehicleVersionId, form.quantity, submitting]
   );
 
@@ -211,7 +222,9 @@ export default function AllocationRequest() {
               value={form.quantity}
               onChange={handleChange}
               min={1}
-              className="w-full border border-gray-300 rounded-md px-3 py-2"  
+              step={1}
+              onBlur={handleQuantityBlur}
+              className="w-full border border-gray-300 rounded-md px-3 py-2"
             />
           </div>
 

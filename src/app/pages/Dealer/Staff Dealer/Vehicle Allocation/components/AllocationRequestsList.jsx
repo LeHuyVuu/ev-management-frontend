@@ -64,71 +64,12 @@ export default function AllocationRequestsList() {
   const [form] = Form.useForm();
 
   const [lastUpdated, setLastUpdated] = useState(null); // {id,status,at}
+  // Filters state (kw: keyword, statusFilter: array of statuses, dateRange: [from,to])
+  const [kw, setKw] = useState("");
+  const [statusFilter, setStatusFilter] = useState([]);
+  const [dateRange, setDateRange] = useState(null);
 
-  // Fetch list
-  useEffect(() => {
-    (async () => {
-      try {
-        setLoading(true);
-        setLoadErr("");
-        const res = await fetch(
-          "https://prn232.freeddns.org/order-service/api/VehicleAllocation?pageNumber=1&pageSize=10",
-          {
-            headers: {
-              accept: "*/*",
-              Authorization: `Bearer ${getToken()}`,
-            },
-          }
-        );
-        const json = await res.json();
-        if (json.status === 200 && json.data?.items) {
-          const mapped = json.data.items.map((item) => ({
-            key: item.allocationId,
-            id: item.allocationId,
-            idShort: shortId(item.allocationId),
-            car: (item.vehicleName || "") +
-              (item.versionName ? " " + item.versionName : "") +
-              (item.color ? " " + item.color : "") +
-              (item.evType ? ` - ${item.evType}` : ""),
-            destination: item.dealerName,
-            quantity: item.quantity,
-            date: item.requestDate,
-            status: item.status,
-          }));
-          mapped.sort((a, b) => new Date(b.date || 0) - new Date(a.date || 0));
-          setData(mapped);
-        } else {
-          throw new Error("Không thể tải dữ liệu.");
-        }
-      );
-      const json = await res.json();
-      if (json.status === 200 && json.data?.items) {
-        const mapped = json.data.items.map((item) => ({
-          key: item.allocationId,
-          id: item.allocationId,
-          idShort: shortId(item.allocationId),
-          car:
-            (item.vehicleName || "") +
-            (item.versionName ? " " + item.versionName : "") +
-            (item.color ? " " + item.color : "") +
-            (item.evType ? ` - ${item.evType}` : ""),
-          destination: item.dealerName,
-          quantity: item.quantity,
-          date: item.requestDate,
-          status: item.status,
-        }));
-        // giữ nguyên logic cũ: sort theo requestDate giảm dần
-        mapped.sort((a, b) => new Date(b.date || 0) - new Date(a.date || 0));
-        setData(mapped);
-      } else {
-        throw new Error("Không thể tải dữ liệu.");
-      }
-    } catch (err) {
-      setLoadErr(err.message || "Lỗi không xác định.");
-    } finally {
-      setLoading(false);
-    }
-  };
+  // Fetch list handled by fetchList() below
 
   // Lần đầu load
   useEffect(() => {
@@ -288,7 +229,7 @@ export default function AllocationRequestsList() {
       dataIndex: "date",
       width: 180,
       render: (v) =>
-        v ? new Date(v).toLocaleString() : <Typography.Text type="secondary">-</Typography.Text>,
+        v ? new Date(v).toLocaleDateString("vi-VN") : <Typography.Text type="secondary">-</Typography.Text>,
     },
     {
       title: "Trạng thái",
@@ -328,6 +269,32 @@ export default function AllocationRequestsList() {
       ),
     },
   ];
+
+  // Filtered data computed from raw `data` + filters
+  const filteredData = useMemo(() => {
+    const q = (kw || "").toString().trim().toLowerCase();
+    return data.filter((row) => {
+      const matchQ =
+        !q ||
+        (row.id || "").toLowerCase().includes(q) ||
+        (row.car || "").toLowerCase().includes(q) ||
+        (row.destination || "").toLowerCase().includes(q);
+
+      const matchStatus = !statusFilter || statusFilter.length === 0 || statusFilter.includes(row.status);
+
+      let matchDate = true;
+      if (dateRange && Array.isArray(dateRange) && dateRange[0] && dateRange[1]) {
+        const start = dateRange[0];
+        const end = dateRange[1];
+        const from = start && (typeof start.toDate === "function" ? start.toDate().setHours(0, 0, 0, 0) : new Date(start).setHours(0, 0, 0, 0));
+        const to = end && (typeof end.toDate === "function" ? end.toDate().setHours(23, 59, 59, 999) : new Date(end).setHours(23, 59, 59, 999));
+        const d = row.date ? new Date(row.date).getTime() : null;
+        matchDate = d !== null && d >= from && d <= to;
+      }
+
+      return matchQ && matchStatus && matchDate;
+    });
+  }, [data, kw, statusFilter, dateRange]);
 
   // ===== NEW: reset all filters =====
   const resetFilters = () => {
@@ -389,7 +356,7 @@ export default function AllocationRequestsList() {
         </Space>
       </Space>
 
-      {lastUpdated && lastUpdated.id ? (
+  {lastUpdated && lastUpdated.id ? (
         <Alert
           style={{ marginBottom: 12 }}
           type="success"
@@ -398,7 +365,7 @@ export default function AllocationRequestsList() {
               Đã cập nhật:&nbsp;
               <Typography.Text code>{shortId(lastUpdated.id)}</Typography.Text>
               &nbsp;→&nbsp;
-              <StatusTag value={lastUpdated.status} /> lúc {lastUpdated.at}
+                <StatusTag value={lastUpdated.status} /> lúc {new Date(lastUpdated.at).toLocaleDateString("vi-VN")}
             </>
           }
           showIcon
@@ -411,7 +378,7 @@ export default function AllocationRequestsList() {
         <Table
           rowKey="id"
           columns={columns}
-          dataSource={filteredData}  // ===== NEW: áp dụng dữ liệu đã lọc
+          dataSource={filteredData}
           loading={loading}
           pagination={{
             current: pagination.current,
@@ -433,7 +400,7 @@ export default function AllocationRequestsList() {
         okText="Cập nhật"
         confirmLoading={updating}
         onOk={() => form.submit()}
-        destroyOnClose
+        destroyOnHidden
       >
         <Form
           form={form}
