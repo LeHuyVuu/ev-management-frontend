@@ -34,7 +34,7 @@ const STATUS_OPTIONS = [
 ];
 
 const STATUS_META = {
-  pending: { label: "Đang chờ", color: "gold" },
+  pending: { label: "Đang chờ xử lý", color: "gold" },
   shipping: { label: "Đang vận chuyển", color: "processing" },
   received: { label: "Đã nhận", color: "green" },
   cancelled: { label: "Đã hủy", color: "volcano" },
@@ -65,7 +65,6 @@ export default function AllocationRequestsList() {
   const [data, setData] = useState([]); // rows
   const [loading, setLoading] = useState(true);
   const [loadErr, setLoadErr] = useState("");
-  const [pagination, setPagination] = useState({ current: 1, pageSize: 10, total: 0 });
 
   // Update modal state
   const [open, setOpen] = useState(false);
@@ -101,7 +100,7 @@ export default function AllocationRequestsList() {
       const res = await fetch(url.toString(), {
         headers: {
           accept: "*/*",
-          Authorization: `Bearer ${TOKEN}`,
+          Authorization: `Bearer ${getToken()}`,
         },
       });
       const json = await res.json();
@@ -156,11 +155,7 @@ export default function AllocationRequestsList() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const handleTableChange = (pag) => {
-    const nextPage = pag.current || 1;
-    const nextSize = pag.pageSize || pagination.pageSize;
-    fetchList(nextPage, nextSize);
-  };
+
 
   // Open modal (prefill)
   const openModal = (record) => {
@@ -444,7 +439,7 @@ export default function AllocationRequestsList() {
         okText="Cập nhật"
         confirmLoading={updating}
         onOk={() => form.submit()}
-        destroyOnClose
+        destroyOnHidden
         zIndex={2000}
       >
         <Form

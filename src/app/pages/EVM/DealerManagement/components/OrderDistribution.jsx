@@ -53,7 +53,7 @@ function getAuthHeaders() {
 }
 /** Trạng thái → nhãn & màu AntD (harmony with distribution statuses) */
 const STATUS_META = {
-  pending: { label: "Đang chờ", color: "gold" },
+  pending: { label: "Đang chờ xử lý", color: "gold" },
   shipping: { label: "Đang vận chuyển", color: "processing" },
   received: { label: "Đã nhận", color: "green" },
   cancelled: { label: "Đã hủy", color: "volcano" },
@@ -233,11 +233,11 @@ export default function OrderDistributionAnt() {
       };
 
       setCreating(true);
-      const res = await fetch(CREATE_URL, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", ...headers },
-        body: JSON.stringify(payload),
-      });
+          const res = await fetch(CREATE_URL, {
+            method: "POST",
+            headers: { "Content-Type": "application/json", ...getAuthHeaders() },
+            body: JSON.stringify(payload),
+          });
       const j = await res.json().catch(() => ({}));
       if (!res.ok)
         throw new Error(j?.message || `Create failed (${res.status})`);
@@ -288,7 +288,7 @@ export default function OrderDistributionAnt() {
         method: "PUT",
         headers: {
           "Content-Type": "application/json", // nếu server yêu cầu text/plain: đổi thành 'text/plain'
-          ...headers,
+          ...getAuthHeaders(),
         },
         body: JSON.stringify(status), // body là "string"
       });
@@ -547,7 +547,9 @@ export default function OrderDistributionAnt() {
           </Form.Item>
 
           <Form.Item name="status" label="Status">
-            <Select options={STATUS_OPTIONS} />
+                <Select
+                  options={STATUS_ORDER.map((s) => ({ value: s, label: STATUS_META[s]?.label || s }))}
+                />
           </Form.Item>
         </Form>
       </Modal>

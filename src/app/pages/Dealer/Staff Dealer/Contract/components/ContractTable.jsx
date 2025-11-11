@@ -11,25 +11,19 @@ const BASE_URL = api.order || import.meta.env.VITE_API_ORDER;
 const IDENTITY_BASE_URL = api.identity || import.meta.env.VITE_API_IDENTITY;
 const TOKEN_KEYS = ["token", "accessToken", "jwt", "id_token"]; // we'll try these in order
 
-// Tập status tổng
-const STATUS_OPTIONS = [
-  "requested",
-  "approved",
-  "in_transit",
-  "received",
-  "cancelled",
-];
+// Canonical UI statuses (English keys, Vietnamese labels in STATUS_META)
+const STATUS_OPTIONS = ["pending", "shipping", "received", "cancelled", "rejected"];
 
 // ======= Cho phép theo vai trò dealer =======
 // Nếu dealer hiện tại == fromDealerId -> chỉ cho các status dưới đây
 const FROM_DEALER_ALLOWED = [
-  "received",
+  "shipping",
   // TODO: thêm các status khác nếu cần
 ];
 
 // Nếu dealer hiện tại == toDealerId -> chỉ cho các status dưới đây
 const TO_DEALER_ALLOWED = [
-  "in_transit",
+  "received",
   // TODO: thêm các status khác nếu cần
 ];
 
@@ -41,22 +35,19 @@ function getTokenFromLocalStorage() {
   return null;
 }
 
+// Map status -> Vietnamese label + color
+const STATUS_META = {
+  pending: { label: "Đang xử lý", color: "gold" },
+  shipping: { label: "Đang vận chuyển", color: "cyan" },
+  received: { label: "Đã nhận", color: "green" },
+  cancelled: { label: "Đã hủy", color: "volcano" },
+  rejected: { label: "Từ chối", color: "red" },
+};
+
 function statusColor(status) {
-  switch ((status || "").toLowerCase()) {
-    case "requested":
-      return "geekblue";
-    case "approved":
-      return "purple";
-    case "in_transit":
-      return "gold";
-    case "received":
-      return "green";
-    case "cancelled":
-    case "canceled":
-      return "red";
-    default:
-      return "default";
-  }
+  if (!status) return "default";
+  const key = String(status).toLowerCase();
+  return STATUS_META[key]?.color || "default";
 }
 
 const ContractTable = () => {
@@ -255,7 +246,11 @@ const ContractTable = () => {
         title: "Status",
         dataIndex: "status",
         key: "status",
-        render: (value) => <Tag color={statusColor(value)} style={{ textTransform: "capitalize" }}>{value}</Tag>,
+        render: (value) => {
+          const key = (value || "").toString().toLowerCase();
+          const meta = STATUS_META[key] || { label: value || "-", color: statusColor(value) };
+          return <Tag color={meta.color} style={{ textTransform: "capitalize" }}>{meta.label}</Tag>;
+        },
       },
       {
         title: "Actions",
@@ -288,7 +283,7 @@ const ContractTable = () => {
               <Select
                 value={selected}
                 onChange={(val) => setPendingStatus((m) => ({ ...m, [id]: val }))}
-                options={allowed.map((s) => ({ value: s, label: s.replaceAll("_", " ") }))}
+                options={allowed.map((s) => ({ value: s, label: STATUS_META[s]?.label || s.replaceAll("_", " ") }))}
                 style={{ minWidth: 180 }}
               />
               <Button

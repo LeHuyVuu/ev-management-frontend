@@ -1,7 +1,34 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { ToastContainer, toast } from "react-toastify";
 
-const API_TOKEN = localStorage.getItem("token");// Gợi ý production: const API_TOKEN = import.meta.env.VITE_API_TOKEN;
+// Read token at request-time (avoid stale module-level capture)
+function getToken() {
+  return (
+    localStorage.getItem("token") ||
+    localStorage.getItem("accessToken") ||
+    localStorage.getItem("jwt") ||
+    null
+  );
+}
+
+function getAuthHeaders() {
+  const h = { accept: "*/*" };
+  const t = getToken();
+  if (t) h.Authorization = `Bearer ${t}`;
+  return h;
+}
+
+// Wait up to `timeoutMs` for a token to appear in localStorage (polling).
+async function waitForToken(timeoutMs = 2000, intervalMs = 250) {
+  const start = Date.now();
+  while (Date.now() - start < timeoutMs) {
+    const t = getToken();
+    if (t) return t;
+    // eslint-disable-next-line no-await-in-loop
+    await new Promise((r) => setTimeout(r, intervalMs));
+  }
+  return null;
+}
 
 export default function AllocationRequest() {
   const [versions, setVersions] = useState([]);
@@ -23,13 +50,12 @@ export default function AllocationRequest() {
       try {
         setLoadingVersions(true);
         setVersionsError("");
+        // Ensure token is available (sometimes token is set slightly after mount)
+        const token = getToken() || (await waitForToken(2000, 250));
         const res = await fetch(
           "https://prn232.freeddns.org/brand-service/api/vehicle-versions/dealer?pageNumber=1&pageSize=100",
           {
-            headers: {
-              accept: "*/*",
-              Authorization: `Bearer ${API_TOKEN}`,
-            },
+            headers: getAuthHeaders(),
           }
         );
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -46,7 +72,7 @@ export default function AllocationRequest() {
       } finally {
         setLoadingVersions(false);
       }
-    };
+      }
     fetchVersions();
   }, []);
 
@@ -100,15 +126,12 @@ export default function AllocationRequest() {
 
     try {
       setSubmitting(true);
+      const token = getToken() || (await waitForToken(2000, 250));
       const res = await fetch(
         "https://prn232.freeddns.org/order-service/api/VehicleAllocation",
         {
           method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            accept: "*/*",
-            Authorization: `Bearer ${API_TOKEN}`,
-          },
+          headers: { "Content-Type": "application/json", ...getAuthHeaders() },
           body: JSON.stringify(payload),
         }
       );
@@ -120,6 +143,12 @@ export default function AllocationRequest() {
       setSuccessMsg("Tạo yêu cầu thành công!");
       toast.success("Tạo yêu cầu thành công!");
       resetForm();
+      // Notify lists to refetch
+      try {
+        window.dispatchEvent(new CustomEvent("allocation:created", { detail: { payload } }));
+      } catch (e) {
+        // ignore
+      }
     } catch (err) {
       const msg = err?.message || "Đã xảy ra lỗi khi tạo yêu cầu.";
       setSubmitError(msg);

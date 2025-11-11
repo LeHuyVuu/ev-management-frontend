@@ -23,26 +23,15 @@ import {
 /** ===== Config ===== */
 const SHORT_ID_LEN = 8;
 /** ===== Config (DEALER) ===== */
-const STATUS_OPTIONS = [
-  // "requested",     // Dealer đã gửi yêu cầu
-  // "approved",      // Brand duyệt
-  // "rejected",      // Brand từ chối
-  // "assigned",      // Brand đã phân xe
-  // "in_transit",    // Đang vận chuyển
-  // "at_dealer",     // Đã đến đại lý
-  // "delivered",     // Hoàn tất giao
-  "cancelled",     // Hủy
-];
+// Canonical UI statuses (kept in English keys, labels shown in Vietnamese)
+const STATUS_OPTIONS = ["pending", "shipping", "received", "cancelled", "rejected"];
 
 const STATUS_META = {
-  requested: { label: "Đã gửi yêu cầu", color: "default" },
-  approved: { label: "Đã duyệt", color: "blue" },
-  rejected: { label: "Từ chối", color: "red" },
-  assigned: { label: "Đã phân xe", color: "purple" },
-  in_transit: { label: "Đang vận chuyển", color: "gold" },
-  at_dealer: { label: "Tại đại lý", color: "cyan" },
-  delivered: { label: "Đã giao", color: "green" },
+  pending: { label: "Đang xử lý", color: "gold" },
+  shipping: { label: "Đang vận chuyển", color: "cyan" },
+  received: { label: "Đã nhận", color: "green" },
   cancelled: { label: "Đã hủy", color: "volcano" },
+  rejected: { label: "Từ chối", color: "red" },
 };
 
 
