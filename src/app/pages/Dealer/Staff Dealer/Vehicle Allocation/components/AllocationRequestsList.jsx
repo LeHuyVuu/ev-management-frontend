@@ -18,7 +18,6 @@ import {
   EyeOutlined,
   EditOutlined,
   DeleteOutlined,
-  SyncOutlined,
 } from "@ant-design/icons";
 
 const { RangePicker } = DatePicker;
@@ -338,9 +337,7 @@ export default function AllocationRequestsList() {
             Theo dõi trạng thái và cập nhật trực tiếp.
           </Typography.Text>
         </div>
-        <Button type="primary" icon={<SyncOutlined />} onClick={() => openModal(null)}>
-          Cập nhật trạng thái
-        </Button>
+        {/* Top-level update button removed per request */}
       </Space>
 
       {/* ===== NEW: Filter bar ===== */}
