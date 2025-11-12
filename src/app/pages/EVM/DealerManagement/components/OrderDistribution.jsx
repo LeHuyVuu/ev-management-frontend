@@ -33,7 +33,12 @@ const UPDATE_STATUS_URL = (id) =>
   )}/status`;
 
 const DEALERS_URL = `${API_BASE}/dealer-service/api/Dealers/active-dealers`;
-const VEHICLES_URL = `${API_BASE}/brand-service/api/vehicle-versions?pageNumber=1&pageSize=1000`;
+
+// 🔧 VEHICLES_URL mới: HÀM nhận dealerId (không còn alt URL)
+const VEHICLES_URL = (dealerId) =>
+  `${API_BASE}/brand-service/api/vehicle-versions/dealer/${encodeURIComponent(
+    dealerId
+  )}?pageNumber=1&pageSize=200`;
 
 const PAGE_SIZE = 10;
 
@@ -160,61 +165,88 @@ export default function OrderDistributionAnt() {
     }
   };
 
-  const fetchVehicles = async () => {
+  /**
+   * fetchVehicles(dealerId): gọi trực tiếp endpoint theo dealer
+   * brand-service/api/vehicle-versions/dealer/{dealerId}?pageNumber=1&pageSize=200
+   * → Kéo kèm stockQuantity vào option để validate quantity
+   */
+  const fetchVehicles = async (dealerId) => {
     try {
       setLoadingVehicles(true);
-      // include auth headers when available
-      // first try the vehicles endpoint
-      let res = await fetch(VEHICLES_URL, { headers: getAuthHeaders() });
-      const json = await res.json();
-      const items = json?.data?.items ?? [];
-      // If the vehicles endpoint didn't return items, try the vehicle-versions endpoint (common alternative)
-      if ((!items || items.length === 0) && getToken()) {
-        try {
-          const altUrl = `${API_BASE}/brand-service/api/vehicle-versions/dealer?pageNumber=1&pageSize=200`;
-          const altRes = await fetch(altUrl, { headers: getAuthHeaders() });
-          const altJson = await altRes.json().catch(() => ({}));
-          const altItems = altJson?.data?.items ?? altJson?.data ?? [];
-          if (Array.isArray(altItems) && altItems.length > 0) {
-            setVehicleOptions(
-              altItems.map((v) => ({
-                value: v.vehicleVersionId || v.id || v.vehicleId,
-                label: `${v.brand ?? ""} ${
-                  v.versionName ?? v.modelName ?? ""
-                }`.trim(),
-              }))
-            );
-            return;
-          }
-        } catch (er) {
-          // ignore fallback error — we'll handle below
-        }
+
+      // Nếu chưa chọn From Dealer thì clear danh sách xe và dừng
+      if (!dealerId) {
+        setVehicleOptions([]);
+        return;
       }
+
+      const res = await fetch(VEHICLES_URL(dealerId), {
+        headers: getAuthHeaders(),
+      });
+      const json = await res.json();
+      const items = json?.data?.items ?? json?.data ?? [];
+
       setVehicleOptions(
-        items.map((v) => ({
-          value: v.vehicleVersionId,
-          label: `${v.brand ?? ""} ${v.modelName ?? ""} ${
+        (items || []).map((v) => {
+          const stock =
+            v.stockQuantity ??
+            v.quantityInStock ??
+            v.availableQuantity ??
+            v.stock ??
+            0;
+
+          const label = `${v.brand ?? ""} ${v.modelName ?? ""} ${
             v.versionName ?? ""
           } ${v.color ?? ""}`
             .replace(/\s+/g, " ")
-            .trim(),
-        }))
+            .trim();
+
+          return {
+            value: v.vehicleVersionId || v.id || v.vehicleId,
+            label:
+              stock != null && stock !== ""
+                ? `${label}`
+                : label,
+            stockQuantity: Number.isFinite(Number(stock)) ? Number(stock) : 0,
+          };
+        })
       );
     } catch (e) {
-      messageApi.error(e?.message || "Không tải được danh sách xe");
+      messageApi.error("Không tải được danh sách xe");
     } finally {
       setLoadingVehicles(false);
     }
   };
 
+  // id đại lý nguồn đã chọn trong form Create
+  const fromDealerId = Form.useWatch("fromDealerId", createForm);
+  // xe đang chọn trong form Create
+  const selectedVehicleId = Form.useWatch("vehicleVersionId", createForm);
+
+  // tồn kho của xe đang chọn (đọc từ vehicleOptions đã set ở trên)
+  const selectedVehicleStock = useMemo(() => {
+    const opt = vehicleOptions.find((o) => o.value === selectedVehicleId);
+    const stock =
+      opt?.stockQuantity ?? opt?.stock ?? opt?.availableQuantity ?? 0;
+    return Number.isFinite(Number(stock)) ? Number(stock) : 0;
+  }, [selectedVehicleId, vehicleOptions]);
+
+  // Khi mở modal Create: luôn load dealers; và mỗi khi fromDealerId đổi thì gọi fetchVehicles(fromDealerId)
   useEffect(() => {
     if (openCreate) {
       if (dealerOptions.length === 0) fetchDealers();
-      if (vehicleOptions.length === 0) fetchVehicles();
+      setVehicleOptions([]); // clear list cũ khỏi UI
+      fetchVehicles(fromDealerId);
     }
-  }, [openCreate]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [openCreate, fromDealerId]);
 
-  const fromDealerId = Form.useWatch("fromDealerId", createForm);
+  // Đổi From Dealer thì reset lựa chọn xe để tránh lệch dữ liệu
+  useEffect(() => {
+    if (openCreate) {
+      createForm.setFieldsValue({ vehicleVersionId: undefined });
+    }
+  }, [fromDealerId, openCreate, createForm]);
 
   /** -------- Create (POST) -------- */
   const submitCreate = async () => {
@@ -222,6 +254,22 @@ export default function OrderDistributionAnt() {
       const values = await createForm.validateFields();
       if (values.fromDealerId === values.toDealerId) {
         messageApi.warning("From Dealer và To Dealer không được trùng nhau");
+        return;
+      }
+
+      // Double-check: không cho vượt tồn kho (phòng trường hợp user đổi rất nhanh)
+      const picked = vehicleOptions.find(
+        (o) => o.value === values.vehicleVersionId
+      );
+      const maxStock = Number.isFinite(Number(picked?.stockQuantity))
+        ? Number(picked?.stockQuantity)
+        : 0;
+      if (
+        values.vehicleVersionId &&
+        Number.isFinite(maxStock) &&
+        values.quantity > maxStock
+      ) {
+        messageApi.error(`Số lượng vượt quá tồn kho.`);
         return;
       }
 
@@ -524,6 +572,8 @@ export default function OrderDistributionAnt() {
               options={vehicleOptions}
               loading={loadingVehicles}
               optionFilterProp="label"
+              /** Khoá chọn xe khi chưa chọn From Dealer */
+              disabled={!fromDealerId}
             />
           </Form.Item>
 
@@ -543,10 +593,25 @@ export default function OrderDistributionAnt() {
                   if (value <= 0) {
                     return Promise.reject("Số lượng phải lớn hơn 0");
                   }
+                  // 🔒 chặn vượt tồn kho khi đã chọn xe
+                  if (
+                    selectedVehicleId &&
+                    Number.isFinite(selectedVehicleStock) &&
+                    value > selectedVehicleStock
+                  ) {
+                    return Promise.reject(
+                      `Số lượng vượt quá tồn kho.`
+                    );
+                  }
                   return Promise.resolve();
                 },
               },
             ]}
+            extra={
+              selectedVehicleId
+                ? `Tồn kho: ${selectedVehicleStock}`
+                : "Chọn xe để xem tồn kho"
+            }
           >
             <InputNumber min={1} style={{ width: "100%" }} />
           </Form.Item>
