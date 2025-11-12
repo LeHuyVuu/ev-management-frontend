@@ -181,10 +181,15 @@ function toApiStatus(status) {
 }
 
 /* ----------------------------- FORMAT HELPERS ---------------------------- */
-function formatCar(brand, modelName, color) {
+function formatCar(brand, modelName, color, versionName) {
   const parts = [brand, modelName].filter(Boolean).join(" ");
-  return [parts, color ? `(${color})` : ""].filter(Boolean).join(" ");
+  // thêm versionName vào cùng với màu
+  const extra = [color, versionName ? `v${versionName}` : ""]
+    .filter(Boolean)
+    .join(", ");
+  return [parts, extra ? `(${extra})` : ""].filter(Boolean).join(" ");
 }
+
 
 function formatDate(d) {
   if (!d) return "";
@@ -279,9 +284,10 @@ export default function DeliveryTracking() {
         return {
           id: o.orderId,
           customer: o.name,
-          car: formatCar(o.brand, o.modelName, o.color),
+          car: formatCar(o.brand, o.modelName, o.color, o.versionName),
           brand: o.brand,
           modelName: o.modelName,
+              versionName: o.versionName || "v1.0", // ✅ thêm dòng này
           color: o.color,
           address: o.deliveryAddress || "",
           time: formatDate(o.deliveryDate),
@@ -525,6 +531,7 @@ export default function DeliveryTracking() {
                             <div>
                               <div className="text-xs text-gray-500">Mã đơn</div>
                               <Text strong>{d.id}</Text>
+                              
                             </div>
                           </Space>
                         }
