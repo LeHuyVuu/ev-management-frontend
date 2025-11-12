@@ -159,6 +159,26 @@ export default function AllocationRequestsList() {
       message.warning("Vui lòng nhập ID và chọn trạng thái");
       return;
     }
+    // Prevent invalid transitions: received -> cancelled and cancelled -> received
+    try {
+      // If current is 'rejected' it's terminal: do not allow any update
+      if ((current?.status || "").toString().toLowerCase() === "rejected") {
+        message.warning("Không thể cập nhật trạng thái khi trạng thái hiện tại là 'Từ chối'.");
+        return;
+      }
+      const cur = (current?.status || "").toString().toLowerCase();
+      const next = (status || "").toString().toLowerCase();
+      if (cur === "received" && next === "cancelled") {
+        message.warning("Không thể đổi trạng thái từ 'Đã nhận' sang 'Đã hủy'.");
+        return;
+      }
+      if (cur === "cancelled" && next === "received") {
+        message.warning("Không thể đổi trạng thái từ 'Đã hủy' sang 'Đã nhận'.");
+        return;
+      }
+    } catch (e) {
+      // ignore
+    }
     try {
       setUpdating(true);
       const resp = await fetch(
@@ -420,9 +440,15 @@ export default function AllocationRequestsList() {
           >
             <Select
               placeholder="Chọn trạng thái"
-              options={STATUS_OPTIONS.map((s) => ({
+              options={["received", "cancelled"].map((s) => ({
                 value: s,
                 label: STATUS_META[s]?.label || s,
+                // If record is rejected, disable all options. Also keep previous received<->cancelled disable logic.
+                disabled: current?.status
+                  ? ((current.status.toString().toLowerCase() === "rejected") ||
+                      (current.status.toString().toLowerCase() === "received" && s === "cancelled") ||
+                      (current.status.toString().toLowerCase() === "cancelled" && s === "received"))
+                  : false,
               }))}
               showSearch
               optionFilterProp="label"
