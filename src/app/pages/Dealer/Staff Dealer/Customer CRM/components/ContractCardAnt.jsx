@@ -1244,24 +1244,7 @@ const ContractModalAnt = ({ open, contract, onClose, onUpdated }) => {
             Thanh toán ngân hàng / thẻ
           </Button>
 
-          {!isChangingPaymentMethod && (
-            <Button
-              block
-              size="large"
-              style={{
-                background: "#f5f5f5",
-                color: "#000",
-                border: "1px solid #d9d9d9",
-                borderRadius: 6,
-                fontWeight: "500",
-                fontSize: 14
-              }}
-              onClick={() => handleSelectPaymentMethod("installment")}
-              loading={paymentMethodLoading}
-            >
-              Thanh toán trả góp
-            </Button>
-          )}
+          {/* Installment option hidden per request */}
         </Space>
       </Modal>
 
