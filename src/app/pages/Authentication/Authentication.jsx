@@ -3,7 +3,11 @@ import { Eye, EyeOff, Mail, Lock, User, Phone, MapPin } from 'lucide-react'
 import axios from "axios"
 import { jwtDecode } from "jwt-decode"
 import { useNavigate } from "react-router-dom"
-import api from "../../context/api";
+import api from "../../context/api"
+
+// ✅ Toastify
+import { ToastContainer, toast } from 'react-toastify'
+import 'react-toastify/dist/ReactToastify.css'
 
 function Authentication() {
   const [isLogin, setIsLogin] = useState(true)
@@ -30,23 +34,23 @@ function Authentication() {
     const { email, password, confirmPassword, fullName, phone, address } = formData
 
     if (!email.trim() || !password.trim()) {
-      alert('Please enter email and password.')
+      toast.warn('Please enter email and password.')
       return
     }
 
     // REGISTER demo
     if (!isLogin) {
       if (!fullName.trim() || !phone.trim() || !address.trim()) {
-        alert('Please fill out all required fields.')
+        toast.warn('Please fill out all required fields.')
         return
       }
       if (password !== confirmPassword) {
-        alert('Passwords do not match.')
+        toast.error('Passwords do not match.')
         return
       }
 
       setIsSubmitting(true) // ✅ show Authenticating...
-      alert("Registered successfully! You can now sign in.")
+      toast.success("Registered successfully! You can now sign in.")
       setIsLogin(true)
       setFormData(prev => ({ ...prev, password: '', confirmPassword: '' }))
       setIsSubmitting(false) // ✅ done
@@ -66,7 +70,7 @@ function Authentication() {
       // ✅ Lấy token đúng chỗ
       const token = res.data?.data?.token
       if (!token) {
-        alert("Không tìm thấy token từ API")
+        toast.error("Không tìm thấy token từ API")
         return
       }
 
@@ -81,15 +85,17 @@ function Authentication() {
       console.log("role id nè: " + typeof (roleId) + roleId);
       // ✅ Redirect theo role
       if (roleId === 1 || roleId === 2) {
+        toast.success("Signed in successfully!")
         navigate("/evm/product-distribution", { replace: true })
       } else if (roleId === 3 || roleId === 4) {
+        toast.success("Signed in successfully!")
         navigate("/dealer/vehicle-search", { replace: true })
       } else {
-        alert("Unauthorized role!")
+        toast.error("Unauthorized role!")
       }
     } catch (err) {
       console.error("Login error:", err)
-      alert("Login failed")
+      toast.error("Login failed")
     } finally {
       setIsSubmitting(false) // ✅ done
     }
@@ -97,6 +103,17 @@ function Authentication() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 flex items-center justify-center p-4">
+      {/* ✅ Toast container */}
+      <ToastContainer
+        position="top-right"
+        autoClose={3000}
+        newestOnTop
+        closeOnClick
+        pauseOnFocusLoss={false}
+        draggable
+        theme="colored"
+      />
+
       <div className="w-full max-w-md">
         {/* Header */}
         <div className="text-center mb-8">
