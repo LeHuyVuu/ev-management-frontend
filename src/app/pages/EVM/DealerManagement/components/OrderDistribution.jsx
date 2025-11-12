@@ -78,6 +78,9 @@ const STATUS_OPTIONS_FOR_FILTER = STATUS_ORDER.map((k) => ({
   label: STATUS_META[k].label,
 }));
 
+// Only allow selecting these statuses from the Update modal
+const ALLOWED_UPDATE_OPTIONS = ["pending", "cancelled"];
+
 function StatusTag({ value }) {
   const meta = STATUS_META[value] || { label: value || "-", color: "default" };
   return <Tag color={meta.color}>{meta.label}</Tag>;
@@ -652,13 +655,13 @@ export default function OrderDistributionAnt() {
             <Select
               // ⛔ Khóa toàn bộ khi đã received
               disabled={currentStatus === "received"}
-              options={STATUS_ORDER.map((s, i) => ({
+              options={ALLOWED_UPDATE_OPTIONS.map((s) => ({
                 value: s,
                 label: STATUS_META[s].label,
                 // Giữ luật: không cho lùi (chỉ khi chưa received)
                 disabled:
                   currentStatus && currentStatus !== "received"
-                    ? i < STATUS_ORDER.indexOf(currentStatus)
+                    ? STATUS_ORDER.indexOf(s) < STATUS_ORDER.indexOf(currentStatus)
                     : false,
               }))}
             />

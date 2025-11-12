@@ -39,6 +39,8 @@ const STATUS_OPTIONS = [
   "rejected",
 ];
 
+const ALLOWED_UPDATE_OPTIONS = ["pending", "received", "shipping", "rejected"];
+
 const STATUS_META = {
   pending: { label: "Đang chờ", color: "gold" },
   shipping: { label: "Đang vận chuyển", color: "processing" },
@@ -348,7 +350,6 @@ export default function AllocationRequestsList() {
       dataIndex: "status",
       width: 160,
       render: (v) => <StatusTag value={v} />,
-      // Giữ nguyên filter của Table (song song với filter bar)
       filters: STATUS_OPTIONS.map((s) => ({
         text: STATUS_META[s]?.label || s,
         value: s,
@@ -638,13 +639,13 @@ export default function AllocationRequestsList() {
               placeholder="Chọn trạng thái"
               // ⛔ Khóa toàn bộ khi đã received
               disabled={current?.status === "received"}
-              options={STATUS_OPTIONS.map((s, i) => ({
+              options={ALLOWED_UPDATE_OPTIONS.map((s) => ({
                 value: s,
                 label: STATUS_META[s]?.label || s,
                 // Giữ luật: không cho lùi (chỉ khi chưa received)
                 disabled:
                   current?.status && current?.status !== "received"
-                    ? i < STATUS_OPTIONS.indexOf(current.status)
+                    ? STATUS_OPTIONS.indexOf(s) < STATUS_OPTIONS.indexOf(current.status)
                     : false,
               }))}
               showSearch
