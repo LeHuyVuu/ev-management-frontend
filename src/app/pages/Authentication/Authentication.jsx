@@ -83,7 +83,7 @@ function Authentication() {
       if (roleId === 1 || roleId === 2) {
         navigate("/evm/product-distribution", { replace: true })
       } else if (roleId === 3 || roleId === 4) {
-        navigate("/dealer/dashboard", { replace: true })
+        navigate("/dealer/vehicle-search", { replace: true })
       } else {
         alert("Unauthorized role!")
       }
