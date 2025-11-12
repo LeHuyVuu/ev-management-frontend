@@ -1,19 +1,18 @@
+// Sidebar.jsx
 import React from "react";
 import { Link, useLocation } from "react-router-dom";
 import { Layout, Menu, Typography } from "antd";
 import {
-  DashboardOutlined,
   CarOutlined,
   FileTextOutlined,
   SafetyCertificateOutlined,
   CalendarOutlined,
   UserOutlined,
-  DeploymentUnitOutlined,
   AuditOutlined,
   BarChartOutlined,
-  FolderOpenOutlined,
   TruckOutlined,
 } from "@ant-design/icons";
+import { jwtDecode } from "jwt-decode"; // ⬅️ add this
 
 const { Sider } = Layout;
 const { Text } = Typography;
@@ -21,40 +20,34 @@ const { Text } = Typography;
 const Sidebar = () => {
   const { pathname } = useLocation();
 
-  const items = [
-   
+  // ⬅️ read role from JWT
+  let roleId = null;
+  try {
+    const token = localStorage.getItem("token");
+    if (token) {
+      const decoded = jwtDecode(token);
+      roleId = parseInt(decoded?.RoleId, 10);
+    }
+  } catch (e) {
+    // fail silently – sidebar still renders without dashboard
+  }
 
+  const items = [
     // Bán hàng & CRM
     {
       key: "group-sales",
       type: "group",
-      label: <Text type="secondary" style={{ textTransform: "uppercase", fontSize: 12 }}>Bán hàng & CRM</Text>,
+      label: (
+        <Text type="secondary" style={{ textTransform: "uppercase", fontSize: 12 }}>
+          Bán hàng & CRM
+        </Text>
+      ),
       children: [
-        {
-          key: "/dealer/vehicle-search",
-          icon: <CarOutlined />,
-          label: <Link to="/dealer/vehicle-search">Thông tin xe</Link>,
-        },
-        {
-          key: "/dealer/quote-management",
-          icon: <FileTextOutlined />,
-          label: <Link to="/dealer/quote-management">Quản lý báo giá</Link>,
-        },
-        {
-          key: "/dealer/contract",
-          icon: <SafetyCertificateOutlined />,
-          label: <Link to="/dealer/contract">Quản lý điều phối xe</Link>,
-        },
-        {
-          key: "/dealer/driver-schedule",
-          icon: <CalendarOutlined />,
-          label: <Link to="/dealer/driver-schedule">Lịch lái thử</Link>,
-        },
-        {
-          key: "/dealer/customer-crm",
-          icon: <UserOutlined />,
-          label: <Link to="/dealer/customer-crm">Quản lý khách hàng</Link>,
-        },
+        { key: "/dealer/vehicle-search", icon: <CarOutlined />, label: <Link to="/dealer/vehicle-search">Thông tin xe</Link> },
+        { key: "/dealer/quote-management", icon: <FileTextOutlined />, label: <Link to="/dealer/quote-management">Quản lý báo giá</Link> },
+        { key: "/dealer/contract", icon: <SafetyCertificateOutlined />, label: <Link to="/dealer/contract">Quản lý điều phối xe</Link> },
+        { key: "/dealer/driver-schedule", icon: <CalendarOutlined />, label: <Link to="/dealer/driver-schedule">Lịch lái thử</Link> },
+        { key: "/dealer/customer-crm", icon: <UserOutlined />, label: <Link to="/dealer/customer-crm">Quản lý khách hàng</Link> },
       ],
     },
 
@@ -62,34 +55,34 @@ const Sidebar = () => {
     {
       key: "group-ops",
       type: "group",
-      label: <Text type="secondary" style={{ textTransform: "uppercase", fontSize: 12 }}>Hoạt động</Text>,
+      label: (
+        <Text type="secondary" style={{ textTransform: "uppercase", fontSize: 12 }}>
+          Hoạt động
+        </Text>
+      ),
       children: [
-        {
-          key: "/dealer/vehicle-allocation",
-          icon: <TruckOutlined />,
-          label: <Link to="/dealer/vehicle-allocation">Yêu cầu phân bổ xe</Link>,
-        },
-        {
-          key: "/dealer/delivery-tracking",
-          icon: <AuditOutlined />,
-          label: <Link to="/dealer/delivery-tracking">Theo dõi giao hàng</Link>,
-        },
+        { key: "/dealer/vehicle-allocation", icon: <TruckOutlined />, label: <Link to="/dealer/vehicle-allocation">Yêu cầu phân bổ xe</Link> },
+        { key: "/dealer/delivery-tracking", icon: <AuditOutlined />, label: <Link to="/dealer/delivery-tracking">Theo dõi giao hàng</Link> },
       ],
     },
 
-    // Báo cáo (1)
-    {
-      key: "group-report-1",
-      type: "group",
-      label: <Text type="secondary" style={{ textTransform: "uppercase", fontSize: 12 }}>Báo cáo</Text>,
-      children: [
-        {
-          key: "/dealer/dashboard",
-          icon: <BarChartOutlined />,
-          label: <Link to="/dealer/dashboard">My Dashboard</Link>,
-        },
-      ],
-    },
+    // Báo cáo – only for role 3
+    ...(roleId === 3
+      ? [
+          {
+            key: "group-report-1",
+            type: "group",
+            label: (
+              <Text type="secondary" style={{ textTransform: "uppercase", fontSize: 12 }}>
+                Báo cáo
+              </Text>
+            ),
+            children: [
+              { key: "/dealer/dashboard", icon: <BarChartOutlined />, label: <Link to="/dealer/dashboard">My Dashboard</Link> },
+            ],
+          },
+        ]
+      : []),
   ];
 
   return (
@@ -98,8 +91,6 @@ const Sidebar = () => {
       theme="light"
       style={{ height: "100vh", position: "sticky", top: 0, boxShadow: "0 1px 8px rgba(0,0,0,0.06)" }}
     >
-    
-
       <Menu
         mode="inline"
         selectedKeys={[pathname]}
