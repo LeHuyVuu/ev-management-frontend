@@ -63,49 +63,8 @@ export default function CustomerProfile({ customer }) {
       setForm(customer);
       profileTimer = setTimeout(() => setLoadingProfile(false), 300);
 
-      // Lấy token
-      const token = localStorage.getItem("token");
-
-      // 🔹 Lấy hợp đồng
-      setLoadingContracts(true);
-      fetch(`${api.customer}/customers/${customer.customerId}/contracts`, {
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: token ? `Bearer ${token}` : "",
-        },
-      })
-        .then((res) => res.json())
-        .then((res) => {
-          if (res.status === 200) setContracts(res.data || []);
-          else setContracts([]);
-        })
-        .catch((err) => {
-          console.error("Error loading contracts:", err);
-          setContracts([]);
-        })
-        .finally(() => setLoadingContracts(false));
-
-      // 🔹 Lấy đơn hàng
-      setLoadingOrders(true);
-      fetch(
-        `${api.customer}/customers/${customer.customerId}/orders`,
-        {
-          headers: {
-            Accept: "*/*",
-            Authorization: token ? `Bearer ${token}` : "",
-          },
-        }
-      )
-        .then((res) => res.json())
-        .then((res) => {
-          if (res.status === 200) setOrders(res.data || []);
-          else setOrders([]);
-        })
-        .catch((err) => {
-          console.error("Error loading orders:", err);
-          setOrders([]);
-        })
-        .finally(() => setLoadingOrders(false));
+      // Fetch contracts/orders/profile via helper
+      refreshProfile();
     } else {
       setForm({});
       setContracts([]);
@@ -117,6 +76,42 @@ export default function CustomerProfile({ customer }) {
       if (profileTimer) clearTimeout(profileTimer);
     };
   }, [customer]);
+
+  // Refresh profile data (contracts + orders). Call this after actions that change customer-related data.
+  async function refreshProfile() {
+    if (!customer?.customerId) return;
+    const token = localStorage.getItem("token");
+
+    try {
+      setLoadingContracts(true);
+      const resC = await fetch(`${api.customer}/customers/${customer.customerId}/contracts`, {
+        headers: { "Content-Type": "application/json", Authorization: token ? `Bearer ${token}` : "" },
+      });
+      const jsonC = await resC.json().catch(() => ({}));
+      if (resC.ok || jsonC?.status === 200) setContracts(jsonC.data || []);
+      else setContracts([]);
+    } catch (err) {
+      console.error("Error loading contracts:", err);
+      setContracts([]);
+    } finally {
+      setLoadingContracts(false);
+    }
+
+    try {
+      setLoadingOrders(true);
+      const resO = await fetch(`${api.customer}/customers/${customer.customerId}/orders`, {
+        headers: { Accept: "*/*", Authorization: token ? `Bearer ${token}` : "" },
+      });
+      const jsonO = await resO.json().catch(() => ({}));
+      if (resO.ok || jsonO?.status === 200) setOrders(jsonO.data || []);
+      else setOrders([]);
+    } catch (err) {
+      console.error("Error loading orders:", err);
+      setOrders([]);
+    } finally {
+      setLoadingOrders(false);
+    }
+  }
 
   const handleChange = (field, value) => {
     const newValue = field === 'phone' ? (value || '').toString().replace(/\D/g, '').slice(0,10) : value;
@@ -628,6 +623,7 @@ export default function CustomerProfile({ customer }) {
           open={openContract}
           contract={selectedContract}
           onClose={() => setOpenContract(false)}
+          onUpdated={refreshProfile}
         />
 
         {/* ✅ NEW: Modal chi tiết đơn hàng */}

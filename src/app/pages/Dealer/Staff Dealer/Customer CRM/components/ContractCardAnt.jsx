@@ -228,6 +228,10 @@ const ContractModalAnt = ({ open, contract, onClose, onUpdated }) => {
   const [paymentMethodSuccess, setPaymentMethodSuccess] = useState("");
   const [isChangingPaymentMethod, setIsChangingPaymentMethod] = useState(false);
 
+  // Full-screen notice state (for showing a prominent overlay)
+  // Small in-modal alert / toast state
+  const [toastNotice, setToastNotice] = useState(null);
+
   // Installment states
   const [installmentModalOpen, setInstallmentModalOpen] = useState(false);
   const [installmentMonths, setInstallmentMonths] = useState("");
@@ -462,7 +466,12 @@ const ContractModalAnt = ({ open, contract, onClose, onUpdated }) => {
   // ========== STATUS UPDATE HANDLER ==========
   const patchStatus = async () => {
     const id = contract?.id;
-    if (!id || !statusValue) return message.warning("Chọn trạng thái trước.");
+    if (!id || !statusValue) {
+      const warnMsg = "Chọn trạng thái trước.";
+      message.warning(warnMsg);
+      notification.warning({ message: "Cảnh báo", description: warnMsg });
+      return;
+    }
     try {
       setUpdating(true);
       const res = await fetch(`${API_CONTRACT_API}/${id}/status`, {
@@ -477,19 +486,62 @@ const ContractModalAnt = ({ open, contract, onClose, onUpdated }) => {
       if (!res.ok) {
         let serverMsg = "";
         try { const j = await res.json(); serverMsg = j?.message || ""; } catch {}
-        if (serverMsg) throw new Error(serverMsg);
         const text = await res.text();
-        throw new Error(`${res.status} ${res.statusText}: ${text}`);
+        const errMsg = serverMsg || `${res.status} ${res.statusText}: ${text}`;
+        // show notification for server-side failure
+        message.error(errMsg);
+        notification.error({ message: "Cập nhật thất bại", description: errMsg });
+        throw new Error(errMsg);
       }
       message.success("Cập nhật trạng thái hợp đồng thành công.");
       notification.success({
         message: "Cập nhật thành công",
         description: `Trạng thái: ${viStatus[statusValue] || statusValue}`,
       });
+      // Update local detail and refetch latest detail from server
       setDetail((prev) => ({ ...(prev || {}), status: statusValue }));
+      try {
+        await refetchDetail();
+      } catch (err) {
+        // non-blocking: log and continue
+        console.warn('Refetch after status update failed', err);
+      }
+
+      // notify parent to refresh profile/list views if provided
+      if (onUpdated) {
+        try { onUpdated(); } catch (err) { console.warn('onUpdated callback failed', err); }
+      }
+      // Show a small in-modal alert and a notification toast for visibility
+      try {
+        const notice = { type: 'success', title: 'Cập nhật thành công', duration: 2 };
+        setToastNotice(notice);
+        notification.open({
+          description: notice.message,
+          duration: notice.duration,
+          placement: 'topRight',
+          type: 'success',
+        });
+        // auto-hide in-modal alert after duration
+        setTimeout(() => setToastNotice(null), (notice.duration || 2) * 1000);
+      } catch (e) { /* ignore */ }
     } catch (e) {
       console.error(e);
-      message.error(e?.message || "Cập nhật trạng thái thất bại.");
+      const em = e?.message || "Cập nhật trạng thái thất bại.";
+      message.error(em);
+      notification.error({ message: "Cập nhật trạng thái thất bại", description: em });
+      // Show in-modal error alert and a notification toast (manual dismiss for in-modal)
+      try {
+        const notice = { type: 'error', title: 'Cập nhật thất bại', message: em, duration: 0 };
+        setToastNotice(notice);
+        notification.open({
+          message: notice.title,
+          description: notice.message,
+          duration: notice.duration || 4,
+          placement: 'topRight',
+          type: 'error',
+        });
+        // if duration is 0, keep in-modal alert until user action (we don't auto-clear)
+      } catch (e) { /* ignore */ }
     } finally {
       setUpdating(false);
     }
@@ -1301,6 +1353,21 @@ const ContractModalAnt = ({ open, contract, onClose, onUpdated }) => {
           </div>
         </Space>
       </Modal>
+
+      {/* In-modal alert / toast banner: shows as an Alert inside the modal and a notification toast */}
+      {/* Render the in-modal Alert near the top of modal content */}
+      {toastNotice && (
+        <div style={{ marginBottom: 12 }}>
+          <Alert
+            type={toastNotice.type === 'error' ? 'error' : 'success'}
+            message={toastNotice.title}
+            description={toastNotice.message}
+            showIcon
+            closable={toastNotice.type === 'error'}
+            onClose={() => setToastNotice(null)}
+          />
+        </div>
+      )}
     </Modal>
   );
 };
