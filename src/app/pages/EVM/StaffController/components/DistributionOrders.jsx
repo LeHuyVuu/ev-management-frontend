@@ -42,7 +42,7 @@ const STATUS_OPTIONS = [
 const STATUS_META = {
   pending: { label: "Đang chờ", color: "gold" },
   shipping: { label: "Đang vận chuyển", color: "processing" },
-  received: { label: "Đã nhận", color: "green" },
+  received: { label: "Đã nhận xe", color: "green" },
   cancelled: { label: "Đã hủy", color: "volcano" },
   rejected: { label: "Từ chối", color: "red" },
 };
@@ -299,16 +299,7 @@ export default function AllocationRequestsList() {
   }, [data, q, fStatuses, fDestinations, fQtyMin, fQtyMax, fReqRange, fDelRange]);
 
   const columns = [
-    {
-      title: "ID",
-      dataIndex: "idShort",
-      width: 120,
-      render: (val, row) => (
-        <Typography.Text copyable={{ text: row.id }} title={row.id}>
-          {val}
-        </Typography.Text>
-      ),
-    },
+    
     { title: "Xe", dataIndex: "car", ellipsis: true },
     { title: "Địa điểm đến", dataIndex: "destination", ellipsis: true },
     {
