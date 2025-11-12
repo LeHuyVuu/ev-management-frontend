@@ -40,9 +40,8 @@ export const viPayment = {
 };
 
 export const viStatus = {
-  draft: "draft",
-  approved: "approved",
-  waiting: "Đang chờ",
+  draft: "Nháp",
+  approved: "Đã duyệt",
   cancelled: "Đã hủy",
 };
 
@@ -326,22 +325,6 @@ const ContractModalAnt = ({ open, contract, onClose, onUpdated }) => {
       fileUrl: d.fileUrl,
     };
   }, [detail, contract]);
-
-  // Options allowed when updating status from this modal: only 'waiting' and 'cancelled'
-  const updateOptions = useMemo(() => {
-    const allowed = ["waiting", "cancelled"];
-    const opts = [];
-    // include current status as a disabled option if it's not one of the allowed (so user sees current value)
-    const current = detail?.status;
-    if (current && !allowed.includes(current)) {
-      opts.push({ value: current, label: viStatus[current] || current, disabled: true });
-    }
-    // then add allowed options (editable)
-    allowed.forEach((s) => {
-      opts.push({ value: s, label: viStatus[s] || s, disabled: false });
-    });
-    return opts;
-  }, [detail?.status]);
 
   const isPDFData = typeof fileContent === "string" && (fileContent.startsWith("data:application/pdf") || fileContent.toLowerCase().endsWith(".pdf"));
 
@@ -1074,7 +1057,7 @@ const ContractModalAnt = ({ open, contract, onClose, onUpdated }) => {
                   value={statusValue}
                   style={{ minWidth: 180 }}
                   onChange={setStatusValue}
-                  options={updateOptions}
+                  options={STATUS_OPTIONS.map((s) => ({ value: s, label: viStatus[s] }))}
                 />
                 <Button type="primary" loading={updating} onClick={patchStatus}>
                   Cập nhật
