@@ -269,9 +269,11 @@ export default function CustomerProfile({ customer }) {
       color={
         (status || "").toLowerCase() === "draft"
           ? "default"
-          : (status || "").toLowerCase() === "signed"
+          : (status || "").toLowerCase() === "approved"
             ? "green"
-            : "blue"
+            : (status || "").toLowerCase() === "cancelled"
+            ? "volcano"
+            : "default"
       }
       style={{ textTransform: "capitalize", marginLeft: 8 }}
     >

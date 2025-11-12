@@ -42,6 +42,7 @@ export const viPayment = {
 export const viStatus = {
   draft: "draft",
   approved: "approved",
+  cancelled: "Cancelled",
 };
 
 const STATUS_OPTIONS = Object.keys(viStatus);
@@ -77,6 +78,8 @@ function statusTagColor(raw) {
       return "default";
     case "confirmed":
       return "gold";
+    case "cancelled":
+      return "volcano";
     case "approved":
       return "green";
     default:

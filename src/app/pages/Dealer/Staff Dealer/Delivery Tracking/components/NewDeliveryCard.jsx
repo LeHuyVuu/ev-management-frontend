@@ -343,7 +343,7 @@ export default function NewDeliveryCard({ isOpen, onClose, onSubmit }) {
                     {!formData.customerId ? "Chọn khách hàng trước" : loadingContracts ? "Đang tải..." : "Chọn hợp đồng"}
                   </option>
                   {contracts
-                    .filter(c => c.status !== "confirmed" && c.status !== "completed" && c.status !== "approved")
+                    .filter(c => c.status === "approved")
                     .map((c) => (
                     <option key={c.contractId} value={c.contractId}>
                       {c.brand} {c.vehicleName} {c.versionName}
