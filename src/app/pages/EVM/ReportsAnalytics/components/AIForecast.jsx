@@ -237,7 +237,7 @@ const AIForecast = () => {
       setVehicleOptions(
         vItems.map((it) => ({
           id: it.vehicleVersionId,
-          label: [it.brand, it.modelName, it.versionName, it.color, it.vehicleVersionId]
+          label: [it.brand, it.modelName, it.versionName, it.color, it.evType]
             .filter(Boolean)
             .join(" • "),
         }))
@@ -246,7 +246,7 @@ const AIForecast = () => {
       setDealerOptions(
         dItems.map((it) => ({
           id: it.dealerId,
-          label: `${it.dealerCode} • ${it.name} - ${it.dealerId} `.trim(),
+          label: `${it.dealerCode} • ${it.name} - ${it.region} `.trim(),
         }))
       );
     } catch (e) {
@@ -730,9 +730,7 @@ const AIForecast = () => {
         <div className="p-4 border border-gray-200 rounded-md">
           <div className="flex justify-between items-center mb-2">
             <h3 className="text-lg font-semibold text-gray-900">Demand Forecast (Weekly Total)</h3>
-            <span className="text-sm text-gray-500">
-              {vehicleVersionId ? `vehicleVersionId=${vehicleVersionId}` : "Chưa chọn version"}
-            </span>
+           
           </div>
           <div className="h-64">
             <Line data={lineData} options={lineOptions} />
@@ -838,8 +836,7 @@ const AIForecast = () => {
         </div>
       </div>
 
-      {/* Debug-all table */}
-      <div className="p-4 border border-gray-200 rounded-md">
+      {/* <div className="p-4 border border-gray-200 rounded-md">
         <div className="flex items-center justify-between mb-3">
           <h3 className="text-lg font-semibold text-gray-900">ML Debug – Pairs (debug-all)</h3>
         </div>
@@ -864,7 +861,6 @@ const AIForecast = () => {
             ▶
           </button>
 
-          {/* Page Size (AntD Select) */}
           <Select
             className="min-w-[120px]"
             value={pageSize}
@@ -942,7 +938,7 @@ const AIForecast = () => {
         </div>
 
         {loading && <div className="text-sm text-gray-500 mt-2">Đang tải dữ liệu…</div>}
-      </div>
+      </div> */}
     </div>
   );
 };
