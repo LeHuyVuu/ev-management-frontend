@@ -24,7 +24,7 @@ const STATUS_OPTIONS = ["pending", "shipping", "received", "cancelled", "rejecte
 const STATUS_META = {
   pending: { label: "Đang chờ", color: "gold" },
   shipping: { label: "Đang vận chuyển", color: "processing" },
-  received: { label: "Đã nhận", color: "green" },
+  received: { label: "Đã nhận xe", color: "green" },
   cancelled: { label: "Đã hủy", color: "volcano" },
   rejected: { label: "Từ chối", color: "red" },
 };
